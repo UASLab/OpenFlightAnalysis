@@ -1,7 +1,0 @@
-AVFTT - Handling Qualities
-
-MIL 1797B exists, but isn't incorporated. Unknown discrepancies to existing routines. (very hard)
-Incomplete definitions of the level boundaries for different categories, etc. (hard)
-Only some level boundary routines return the level of the data point, all should. May require altering how the boundaries are defined to make them testable. (moderate)
-Generalize the drawing of boundary levels. (moderate)
-Evaluate SIDPAC v2, some routines exist for finding zeros and poles of frequency response data. It may be more general and useful, maybe not. Particularly compare with LOES techniques. (moderate)

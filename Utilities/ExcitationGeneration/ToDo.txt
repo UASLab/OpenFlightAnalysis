@@ -1,9 +1,0 @@
-AVFTT - Excitation Generation
-
-'MultiSineComponents' can only handle fully populated zippered type distributions, it should be expanded to haddle more distribution type. (hard)
-Possible inconsistant "vectorized" signal use, signals should consistantly be passed as column vectors. (moderate)
-Multiple signals should be passed as cell arrays, not 2-d arrays (this may be true of other combined vectors also). (moderate)
-The optimization routine in 'MultiSineOptimalPhase' is slow, look to improve performance.
-Add warning messages. (moderate)
-Add seperate description documents. (hard)
-Add test case data, etc. (hard)
