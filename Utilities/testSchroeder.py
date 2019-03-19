@@ -35,11 +35,24 @@ methodSW = 'zip' # "zippered" component distribution
 freqElem_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, timeRate_s, numCycles, freqStepDes_rps, methodSW)
 timeDur_s = time_s[-1] - time_s[0]
 
-## Generate Schoeder MultiSine Signal
-ampRelElem_nd = np.ones_like(freqElem_rps) ## Relative Signal Amplitude, create flat
+## Generate Schroeder MultiSine Signal
+ampElem_nd = np.ones_like(freqElem_rps) ## Relative Signal Amplitude, create flat
 
-sigList, phaseElem_rad, sigElem, ampElem_nd = GenExcite.Schroeder(freqElem_rps, ampRelElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1);
+sigList, phaseElem_rad, sigElem = GenExcite.Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1);
 
+# Re-scale and re-assemble to achieve unity peak-to-peak amplitude on each channel
+for iChan in range(0, numChan):
+    iElem = sigIndx[iChan]
+    sig = sigList[iChan]
+    mag = max(sig) - min(sig)
+    ampElem_nd[iElem] = ampElem_nd[iElem] / mag
+
+[sigList, sigElem] = GenExcite.MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
+
+## Results
+peakFactor = GenExcite.PeakFactor(sigList)
+peakFactorRel = peakFactor / np.sqrt(2)
+print(peakFactorRel)
 
 plt.figure()
 for iChan in range(0, numChan):
@@ -53,9 +66,7 @@ for iChan in range(0, numChan):
 
 
 #%%
-## Results
-peakFactorRel = GenExcite.PeakFactor(sigList) / np.sqrt(2)
-print(peakFactorRel)
+
 
 ## PSD
 freqRate_rps = 1/timeRate_s * hz2rps
@@ -95,7 +106,7 @@ for iChan in range(0, numChan):
     dictChan['Duration'] = timeDur_s
     dictChan['Frequency'] = list(freqElem_rps[iElem])
     dictChan['Phase'] = list(phaseElem_rad[iElem])
-    dictChan['Amplitude'] = list(ampRelElem_nd[iElem])
+    dictChan['Amplitude'] = list(ampElem_nd[iElem])
 
     jsonMulti.append(dictChan)
 

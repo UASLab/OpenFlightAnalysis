@@ -96,7 +96,7 @@ def MultiSine():
     return
 
 #%% Schroeder Multisine
-def Schroeder(freqElem_rps, ampRelElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1):
+def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1):
 
     #Reference:
     # "Synthesis of Low-Peak-Factor Signals and Binary Sequences with Low
@@ -111,20 +111,10 @@ def Schroeder(freqElem_rps, ampRelElem_nd, sigIndx, time_s, phaseInit_rad = 0, b
     # Eugene A. Morelli, 2003
 
     # Schoeder based component phase distribution
-    phaseElem_rad, sigPowerRel = SchroederPhase(ampRelElem_nd, phaseInit_rad, boundPhase)
-
-
-    #
-    numChan = len(sigIndx)
-    ampElem_nd = np.zeros_like(phaseElem_rad)
-    for iChan in range(0, numChan):
-        iElem = sigIndx[iChan]
-        ampElem_nd[iElem] = ampRelElem_nd[iElem] / len(iElem)
-
+    phaseElem_rad, sigPowerRel = SchroederPhase(ampElem_nd, phaseInit_rad, boundPhase)
 
     # Generate the signals
     [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
-
 
     # Offset the phase components to yield near zero initial and final values
     # for each of the signals, based on Morrelli.  This is optional.
@@ -136,7 +126,7 @@ def Schroeder(freqElem_rps, ampRelElem_nd, sigIndx, time_s, phaseInit_rad = 0, b
         [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
 
 
-    return (sigList, phaseElem_rad, sigElem, ampElem_nd)
+    return (sigList, phaseElem_rad, sigElem)
 
 #%% Peak Minimal Optimal Multisine
 def OMS():
@@ -152,7 +142,7 @@ def SchroederPhase(ampElem_nd, phaseInit_rad = 0, boundPhase = 1):
     # Jan 1970.
 
     # Compute the relative signal power
-    sigPowerRel = (2 * ampElem_nd**2) / len(ampElem_nd)
+    sigPowerRel = (0.5 * ampElem_nd**2)
 
     # Initialize the phase elements
     phaseElem_rad = np.zeros_like(ampElem_nd)
@@ -320,5 +310,3 @@ def PeakFactor(sigList):
 def ExciteRAPTRS():
 
     return
-
-
