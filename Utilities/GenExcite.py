@@ -21,18 +21,18 @@ def Discrete():
     return
 
 #%% Linear and Log Sweeps/Chirps
-def FreqSweep(freqInit_rps, freqFinal_rps, time_s, amplInit = 1.0, amplFinal = 1.0, freqType = 'linear', amplType = 'linear', initZero = 1):
+def Chirp(freqInit_rps, freqFinal_rps, time_s, ampInit = 1.0, ampFinal = 1.0, freqType = 'linear', ampType = 'linear', initZero = 1):
     # Check Inputs
     timeRate_s = time_s[2] - time_s[1]
     freqMaxLimit_rps = (1/(2*timeRate_s) * hz2rps)
 
 
     if freqInit_rps > freqMaxLimit_rps:
-        print('FreqSweep - The initial  frequency is too high for the frame rate')
+        print('Chirp - The initial  frequency is too high for the frame rate')
         freqInit_rps = freqMaxLimit_rps
 
     if freqFinal_rps > freqMaxLimit_rps:
-        print('FreqSweep - The final desired frequency is too high for the frame rate')
+        print('Chirp - The final desired frequency is too high for the frame rate')
         freqFinal_rps = freqMaxLimit_rps
 
     # Number of time samples
@@ -55,26 +55,26 @@ def FreqSweep(freqInit_rps, freqFinal_rps, time_s, amplInit = 1.0, amplFinal = 1
         freq_rps = phase_rad / time_s
 
     else:
-        print('FreqSweep - Unkown frequency sweep type')
+        print('Chirp - Unkown frequency variation type')
 
 
     # Amplitude variation
     iSample = np.linspace(0, numSamples-1, numSamples)
-    if amplType in 'linear':
-        ampl = amplInit + iSample * ((amplFinal - amplInit)/(numSamples - 1))
+    if ampType in 'linear':
+        amp = ampInit + iSample * ((ampFinal - ampInit)/(numSamples - 1))
 
-    elif amplType in 'log10':
-        ampl = 10**(np.log10(amplInit) + iSample * (np.log10(amplFinal) - np.log10(amplInit)) / (numSamples-1))
+    elif ampType in 'log10':
+        amp = 10**(np.log10(ampInit) + iSample * (np.log10(ampFinal) - np.log10(ampInit)) / (numSamples-1))
 
-    elif amplType in 'ln':
-        ampl = np.exp(1)**(np.log(amplInit) + iSample * (np.log(amplFinal) - np.log(amplInit)) / (numSamples-1))
+    elif ampType in 'ln':
+        amp = np.exp(1)**(np.log(ampInit) + iSample * (np.log(ampFinal) - np.log(ampInit)) / (numSamples-1))
 
     else:
-        print('FreqSweep - Unkown amplitude sweep type')
+        print('Chirp - Unkown amplitude variation type')
 
 
-    # Generate frequency sweep time history
-    signal = ampl * np.sin(phase_rad)
+    # Generate chirp time history
+    signal = amp * np.sin(phase_rad)
 
 
     # Ensure a zero final value
@@ -87,7 +87,7 @@ def FreqSweep(freqInit_rps, freqFinal_rps, time_s, amplInit = 1.0, amplFinal = 1
 
 
     # Return
-    return (signal, ampl, freq_rps)
+    return (signal, amp, freq_rps)
 
 
 #%% Multisine
@@ -96,7 +96,7 @@ def MultiSine():
     return
 
 #%% Schroeder Multisine
-def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1):
+def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = None):
 
     #Reference:
     # "Synthesis of Low-Peak-Factor Signals and Binary Sequences with Low
@@ -126,6 +126,15 @@ def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
         [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
 
 
+    # Re-scale and re-assemble to achieve unity peak-to-peak amplitude on each channel
+    if normalize is 'peak':
+        for iSig, sig in enumerate(sigList):
+            iElem = sigIndx[iSig]
+            ampElem_nd[iElem] *= 2.0 / (max(sig) - min(sig))
+        
+        [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
+
+
     return (sigList, phaseElem_rad, sigElem)
 
 #%% Peak Minimal Optimal Multisine
@@ -142,7 +151,7 @@ def SchroederPhase(ampElem_nd, phaseInit_rad = 0, boundPhase = 1):
     # Jan 1970.
 
     # Compute the relative signal power
-    sigPowerRel = (0.5 * ampElem_nd**2)
+    sigPowerRel = (ampElem_nd / max(ampElem_nd))**2 / len(ampElem_nd)
 
     # Initialize the phase elements
     phaseElem_rad = np.zeros_like(ampElem_nd)
@@ -184,28 +193,28 @@ def MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx =
     numElem = len(freqElem_rps)
     sigElem = np.zeros((numElem, len(time_s)))
     for iElem in range(0, numElem):
-        sigElem[iElem, ] = ampElem_nd[iElem] * np.cos(freqElem_rps[iElem] * time_s + phaseElem_rad[iElem])
+        sigElem[iElem] = ampElem_nd[iElem] * np.cos(freqElem_rps[iElem] * time_s + phaseElem_rad[iElem])
 
 
     # Combine signal components into signals
     sigList = []
     for iChan in range(0, numChan):
-        iSig = sigIndx[iChan]
-        sig = sum(sigElem[iSig, ])
+        iElem = sigIndx[iChan]
+        sig = sum(sigElem[iElem])
         sigList.append(sig)
 
 
     return (sigList, sigElem)
 
 #%%
-def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, timeRate_s, numCycles = 1, freqStepDes_rps = 0, methodSW = 'zipper'):
+def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles = 1, freqStepDes_rps = 0, methodSW = 'zipper'):
 
 
     ## Check Inputs
     if len(freqMinDes_rps) is not len(freqMaxDes_rps):
         print('MultiSineComponents - The min and max frequency inputs must be the same length')
 
-    freqMaxLimit_rps = (1 / (2*timeRate_s) * hz2rps)
+    freqMaxLimit_rps = freqRate_hz / 2 * hz2rps
     if any(freqMaxDes_rps > freqMaxLimit_rps):
         print('MultiSineComponents - The maximum desired frequency is too high for the frame rate');
         freqMaxDes_rps = freqMaxLimit_rps;
@@ -218,13 +227,13 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, timeRate_s, numCycles = 
 
     # Time vector is based on completing the desired number of cycles for the
     # min frequency component, must be divisible by the frame rate
-    timeDur_s = (round((numCycles / min(freqMinDes_hz))/timeRate_s)) * timeRate_s
-    time_s =  np.linspace(0, timeDur_s, int(timeDur_s/timeRate_s) + 1)
+    timeDur_s = (round((numCycles / min(freqMinDes_hz))*freqRate_hz)) / freqRate_hz
+    time_s =  np.linspace(0, timeDur_s, int(timeDur_s*freqRate_hz) + 1)
 
 
     # Frequency sequence step size
-    freqStepMax_hz = 1 / timeRate_s
-    freqStepMin_hz = min(freqMinDes_hz)
+    freqStepMin_hz = 1/freqRate_hz
+    freqStepMax_hz = min(freqMaxDes_hz - freqMinDes_hz)
 
     freqStepDes_hz = freqStepDes_rps * rps2hz
     freqStep_hz = round(freqStepDes_hz / freqStepMin_hz) * freqStepMin_hz
@@ -306,7 +315,3 @@ def PeakFactor(sigList):
 
     return peakFactor
 
-#%% Output to RAPTRS JSON
-def ExciteRAPTRS():
-
-    return
