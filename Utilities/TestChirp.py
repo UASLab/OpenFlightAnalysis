@@ -52,7 +52,7 @@ scaleType = 'spectrum'
 winType = ('tukey', 0.0)
 
 freq_hz, P  = signal.periodogram(sig, freqRate_hz, scaling=scaleType, window=winType)
-# freq_hz, P  = signal.welch(sig, freqRate_hz, scaling=scaleType, window=winType)
+#freq_hz, P  = signal.welch(sig, freqRate_hz, noverlap=0, scaling=scaleType, window=winType)
 Psd_mag = np.sqrt(np.abs(P))
 
 Psd_dB = 20*np.log10(Psd_mag)

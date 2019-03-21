@@ -16,6 +16,7 @@ import scipy.signal as signal
 import json
 
 import GenExcite
+import FreqTransformation
 
 # Constants
 hz2rps = 2*np.pi
@@ -60,22 +61,34 @@ plt.show()
 ## Compute Spectrum of each channel
 scaleType = 'spectrum'
 winType = ('tukey', 0.0)
+detrendType = 'constant'
 
-Psd_mag = []
+freq_fft = []
+P_dB_fft = []
+freq_czt = []
+P_dB_czt = []
+
 for iChan, sig in enumerate(sigList):
-    freq_hz, P  = signal.periodogram(sig, freqRate_hz, scaling=scaleType, window=winType)
-    # freq_hz, P  = signal.welch(sig, freqRate_hz, scaling=scaleType, window=winType)
-    Psd_mag.append(np.sqrt(np.abs(P)))
+    freq_rps_fft, _, P_fft  = FreqTransformation.Spectrum(sig, fs = freqRate_hz * hz2rps, dftType = 'fft', winType = winType, detrendType = detrendType, scaleType = scaleType)
+    freq_fft.append(freq_rps_fft * rps2hz)
+    P_dB_fft.append(20*np.log10(P_fft))
+    
+    freqChan_rps = freqElem_rps[sigIndx[iChan]]
+    freq_rps_czt, _, P_czt  = FreqTransformation.Spectrum(sig, fs = freqRate_hz * hz2rps, freq = freqChan_rps, dftType = 'czt', winType = winType, detrendType = detrendType, scaleType = scaleType)
+    freq_czt.append(freq_rps_czt * rps2hz)
+    P_dB_czt.append(20*np.log10(P_czt))
+    
+nChan = len(P_dB_fft)
 
-Psd_dB = 20*np.log10(Psd_mag)
-
-## Plot Spectrum of each channel
 plt.figure()
-for iChan in range(0, len(Psd_mag)):
-    plt.plot(freq_hz, Psd_mag[iChan])
+for iChan in range(0, nChan):
+    plt.subplot(nChan, 1, iChan+1)
+    plt.plot(freq_fft[iChan], P_dB_fft[iChan])
+    plt.plot(freq_czt[iChan], P_dB_czt[iChan])
+    plt.grid()
+    plt.ylabel('Spectrum (dB)');
+
 plt.xlabel('frequency (Hz)');
-plt.ylabel('Spectrum (mag)');
-plt.grid()
 plt.show()
 
 

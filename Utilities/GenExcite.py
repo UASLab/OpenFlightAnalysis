@@ -8,7 +8,6 @@ Author: Chris Regan
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 # Constants
 hz2rps = 2*np.pi
