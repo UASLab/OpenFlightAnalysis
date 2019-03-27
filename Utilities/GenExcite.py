@@ -134,7 +134,7 @@ def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
         [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
 
 
-    return (sigList, phaseElem_rad, sigElem)
+    return (np.asarray(sigList), phaseElem_rad, sigElem)
 
 #%% Peak Minimal Optimal Multisine
 def OMS():
@@ -201,7 +201,6 @@ def MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx =
         iElem = sigIndx[iChan]
         sig = sum(sigElem[iElem])
         sigList.append(sig)
-
 
     return (sigList, sigElem)
 

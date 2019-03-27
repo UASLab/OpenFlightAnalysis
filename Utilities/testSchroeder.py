@@ -16,7 +16,7 @@ import scipy.signal as signal
 import json
 
 import GenExcite
-import FreqTransformation
+import FreqTrans
 
 # Constants
 hz2rps = 2*np.pi
@@ -69,12 +69,12 @@ freq_czt = []
 P_dB_czt = []
 
 for iChan, sig in enumerate(sigList):
-    freq_rps_fft, _, P_fft  = FreqTransformation.Spectrum(sig, fs = freqRate_hz * hz2rps, dftType = 'fft', winType = winType, detrendType = detrendType, scaleType = scaleType)
+    freq_rps_fft, _, P_fft  = FreqTrans.Spectrum(sig, fs = freqRate_hz * hz2rps, dftType = 'fft', winType = winType, detrendType = detrendType, scaleType = scaleType)
     freq_fft.append(freq_rps_fft * rps2hz)
     P_dB_fft.append(20*np.log10(P_fft))
     
     freqChan_rps = freqElem_rps[sigIndx[iChan]]
-    freq_rps_czt, _, P_czt  = FreqTransformation.Spectrum(sig, fs = freqRate_hz * hz2rps, freq = freqChan_rps, dftType = 'czt', winType = winType, detrendType = detrendType, scaleType = scaleType)
+    freq_rps_czt, _, P_czt  = FreqTrans.Spectrum(sig, fs = freqRate_hz * hz2rps, freq = freqChan_rps, dftType = 'czt', winType = winType, detrendType = detrendType, scaleType = scaleType)
     freq_czt.append(freq_rps_czt * rps2hz)
     P_dB_czt.append(20*np.log10(P_czt))
     

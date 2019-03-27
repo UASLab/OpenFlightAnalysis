@@ -17,48 +17,47 @@ rps2hz = 1/hz2rps
 rad2deg = 180/np.pi
 
 
+
 #%% Estimate Transfer Function from Time history data
-def TransFuncEst(x, y, fs = 1.0, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', scaleType = 'spectrum'):
+def TransFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
     '''
     Estimates the Transfer Function Response from input/output time histories
+    Single-Input Multi-Output at a Single-FreqVector
     
     x and y are real and must be the same length
     Assumes x and y have uniform spacing
 
-    x has dimension (m, p) or (p,) at input and is expanded to (1, m, p)
-    y has dimension (n, p) or (p,) at input and is expanded to (n, 1, p)
-    Pxx has dimension (1, m, r) as is reduced to (m, r) or (r,)
-    Pxx has dimension (n, 1, r) as is reduced to (n, r) or (r,)
+    x has dimension (1, p) or (p,) at input and is expanded to (1, p)
+    y has dimension (n, p) or (p,) at input and is expanded to (n, p)
+    Pxx has dimension (1, r) and is reduced to (1, r) or (r,) depending on input form of x
+    Pyy has dimension (n, r) and is reduced to (n, r) or (r,) depending on input form of x
+    Pxy, Cxy, and Txy has dimension (n, r) or (r,)
+
         m is the number of input signals
         n is the number of output signals
         p is the length of the each signal
         r is the length of the freq vector
         
-    
-    Pxy, Cxy, and Txy has dimension (n, m, r) or (r,)
-        
     returns the onesided DFT
-    fs and freq must have same units. (Pxx and Pyy will only have correct power scale if units are rps)
+    fs and freq must have same units. (Pxx and Pyy will only have correct power scale if units are rad/sec)
     
     '''
     
+    # Get the shape of the inputs and outputs. Expand dimensions
+    xSingleton = False
     if len(x.shape) is 1:
-        x = x[np.newaxis, np.newaxis, :]
-        
-    if len(x.shape) is 2:
-        x = x[np.newaxis, :, :]
-        
+        xSingleton = True
+        x = x[np.newaxis, :]
     
+    ySingleton = False
     if len(y.shape) is 1:
-        y = y[np.newaxis,np.newaxis,:]
-        
-    if len(y.shape) is 2:
-        y = y[:,np.newaxis,:]
+        ySingleton = True
+        y = y[np.newaxis, :]
 
     
     # Compute the Power Spectrums
-    _   , xDft, Pxx = Spectrum(x, fs, freq, dftType, winType, detrendType, scaleType)
-    freq, yDft, Pyy = Spectrum(y, fs, freq, dftType, winType, detrendType, scaleType)
+    _   , xDft, Pxx = Spectrum(x, fs, freq, dftType, winType, detrendType, smooth, scaleType)
+    freq, yDft, Pyy = Spectrum(y, fs, freq, dftType, winType, detrendType, smooth, scaleType)
     
     
     # Compute Cross Spectrum Power with scaling
@@ -66,20 +65,27 @@ def TransFuncEst(x, y, fs = 1.0, freq = None, dftType = 'fft', winType = ('tukey
     win = signal.get_window(winType, lenX)
     scale = PowerScale(scaleType, fs, win)
     
-    Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided FFT
+    Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
     
-    # Coherence
-    Cxy = (abs(Pxy)**2 / (Pxx * Pyy)).real
-        
+    # Smooth - 
+    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
+    #Pxy = Smooth(np.abs(Pxy), smooth) * np.exp(1j * Smooth(np.angle(Pxy), smooth))
+    
+    # Coherence, use the Smoothed Cross Spectrum
+    Cxy = (abs(Pxy_smooth)**2 / (Pxx * Pyy)).real
+    
     # Compute complex transfer function approximation
     Txy = Pxy / Pxx
     
-    # Collapse the singlton dimensions
-    Pxx = np.squeeze(Pxx)
-    Pyy = np.squeeze(Pyy)
-    Pxy = np.squeeze(Pxy)
-    Cxy = np.squeeze(Cxy)
-    Txy = np.squeeze(Txy)
+    # Collapse the singlton dimensions, if x and/or y where singleton
+    if xSingleton:
+        Pxx = np.squeeze(Pxx)
+        
+    if ySingleton:
+        Pyy = np.squeeze(Pyy)
+        Pxy = np.squeeze(Pxy)
+        Cxy = np.squeeze(Cxy)
+        Txy = np.squeeze(Txy)
     
     # Gain and Phase
     gain_dB, phase_deg = GainPhase(Txy)
@@ -88,7 +94,7 @@ def TransFuncEst(x, y, fs = 1.0, freq = None, dftType = 'fft', winType = ('tukey
 
 
 #%%
-def Spectrum(x, fs = 1.0, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', scaleType = 'spectrum'):
+def Spectrum(x, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
     '''
     x is real
     returns the onesided DFT
@@ -109,7 +115,7 @@ def Spectrum(x, fs = 1.0, freq = None, dftType = 'fft', winType = ('tukey', 0.0)
     if dftType is 'fft':
         freq, xDft  = FFT(x, fs)
         
-        # Power
+        # Compute Power
         P = (np.conjugate(xDft) * xDft).real * scale
                 
         if len(P) % 2:
@@ -129,9 +135,11 @@ def Spectrum(x, fs = 1.0, freq = None, dftType = 'fft', winType = ('tukey', 0.0)
             raise ValueError('CZT frequency vector must be provided')
         freq, xDft  = CZT(x, freq, fs)
     
-        # Power
+        # Compute Power, factor of 2 because CZT is one-sided
         P = (np.conjugate(xDft) * xDft).real * 2*scale
     
+    # Smooth the Power
+    P = Smooth(P, kern = smooth)
 
     return freq, xDft, P
 
@@ -182,14 +190,23 @@ def FFT(x, fs):
     # Ensure x is an array
     x = np.asarray(x)
     
+    xSingleton = False
+    if len(x.shape) is 1:
+        xSingleton = True
+        x = x[np.newaxis,:]
+    
     # Compute the discrete fourier transform
-    nfft = len(x)
+    nfft = x.shape[-1]
     
     # Form the frequency vector
     freq = np.fft.rfftfreq(nfft, 1/fs)
     
     # Perform the fft
     xDft = np.fft.rfft(x, n = nfft)
+
+    if xSingleton:
+        xDft = np.squeeze(xDft)
+
 
     return freq, xDft
 
@@ -238,3 +255,41 @@ def CZT(x, freq, fs):
     return freq, xDft
 
 
+#%% Smooth Data with Convolution
+def Smooth(x, kern = ('box', 1), padMode = 'edge', convMode = 'valid'):
+    '''
+    
+    '''
+    if type(kern) is tuple:
+        if kern[0] in ['box', 'flat']:
+            v = np.ones(kern[1])
+        else:
+            raise ValueError('Unknown kernel description: %r' % kern[0])
+            
+    elif len(kern) > 1:
+        v = kern # kern is a list or ndarray
+    else:
+        raise ValueError('Unknown kernel value: %r' % kern)
+    
+    # Normalize
+    v = np.asarray(v)
+    v = v / v.sum()
+    
+    # Required pad length
+    nPad = len(v) // 2 # length of the required pad
+    
+    xSingleton = False
+    if len(x.shape) is 1:
+        xSingleton = True
+        x = x[np.newaxis,:]
+
+    # Pad and Convolve x
+    for iX in range(x.shape[0]):
+        xPad = np.pad(x[iX], nPad, mode = padMode)
+        x[iX] = np.convolve(xPad, v, mode = convMode)
+
+    
+    if xSingleton:
+        x = np.squeeze(x)
+        
+    return x
