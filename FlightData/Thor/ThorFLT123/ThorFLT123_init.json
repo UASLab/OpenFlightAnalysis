@@ -1,0 +1,178 @@
+{
+    "mass_balance": [
+        {
+            "emptywt": 7.411,
+            "unit": "KG"
+        },
+        {
+            "ixx": 0.8568,
+            "unit": "KG*M2"
+        },
+        {
+            "iyy": 1.0095,
+            "unit": "KG*M2"
+        },
+        {
+            "izz": 1.7005,
+            "unit": "KG*M2"
+        },
+        {
+            "ixy": 0.0,
+            "unit": "KG*M2"
+        },
+        {
+            "ixz": 0.18981451275,
+            "unit": "KG*M2"
+        },
+        {
+            "iyz": 0.0,
+            "unit": "KG*M2"
+        },
+        {
+            "CG": [
+                {
+                    "x": 0.315,
+                    "unit": "M"
+                },
+                {
+                    "y": 0.0,
+                    "unit": "M"
+                },
+                {
+                    "z": 0.072,
+                    "unit": "M"
+                }
+            ]
+        }
+    ],
+    "size": [
+        {
+            "S": 1,
+            "unit": "M2"
+        },
+        {
+            "b": 1,
+            "unit": "M2"
+        },
+        {
+            "c": 1,
+            "unit": "M2"
+        }
+    ],
+    "propulsion": [
+        {
+            "motor": "Power110"
+        },
+        {
+            "propeller": "APC 16x8e"
+        }
+    ],
+    "Manual-Points": [
+        {
+            "Test-ID": "ManualTest",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "RTSM",
+            "Start_us": "0",
+            "Stop_us": "100"
+        }
+    ],
+    "Test-Points": [
+        {
+            "Test-ID": "0",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17",
+            "Excitation": "LinChirpPitch",
+            "Start_us": "21637",
+            "Stop_us": "22367"
+        },
+        {
+            "Test-ID": "1",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17",
+            "Excitation": "LinChirpPitch_Long",
+            "Start_us": "22528",
+            "Stop_us": "24758"
+        },
+        {
+            "Test-ID": "2",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17",
+            "Excitation": "LinChirpPitch_Large",
+            "Start_us": "24894",
+            "Stop_us": "25481"
+        },
+        {
+            "Test-ID": "3",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17",
+            "Excitation": "RTSM_Med",
+            "Start_us": "25619",
+            "Stop_us": "26397"
+        },
+        {
+            "Test-ID": "4",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17",
+            "Excitation": "RTSM_Long",
+            "Start_us": "26491",
+            "Stop_us": "28638"
+        },
+        {
+            "Test-ID": "5",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17",
+            "Excitation": "RTSM_Large",
+            "Start_us": "28822",
+            "Stop_us": "29396"
+        },
+        {
+            "Test-ID": "6",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17_HighGain",
+            "Excitation": "LinChirpPitch",
+            "Start_us": "29971",
+            "Stop_us": "30618"
+        },
+        {
+            "Test-ID": "7",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17_HighGain",
+            "Excitation": "LinChirpPitch_Long",
+            "Start_us": "30734",
+            "Stop_us": "32862"
+        },
+        {
+            "Test-ID": "8",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17_HighGain",
+            "Excitation": "LinChirpPitch_Large",
+            "Start_us": "32993",
+            "Stop_us": "33780"
+        },
+        {
+            "Test-ID": "9",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17_HighGain",
+            "Excitation": "RTSM_Med",
+            "Start_us": "33925",
+            "Stop_us": "34610"
+        },
+        {
+            "Test-ID": "10",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17_HighGain",
+            "Excitation": "RTSM_Long",
+            "Start_us": "34741",
+            "Stop_us": "37001"
+        },
+        {
+            "Test-ID": "11",
+            "Sensor-Processing": "Baseline",
+            "Control": "Route17_HighGain",
+            "Excitation": "RTSM_Large",
+            "Start_us": "37158",
+            "Stop_us": "40787"
+        }
+    ]
+}

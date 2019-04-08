@@ -1,0 +1,582 @@
+{
+  "Sensors": [
+    { "Type": "Time", "Output": "Fmu/Time_us"},
+    { "Type": "InputVoltage", "Output": "Fmu/Voltage/Input_V"},
+    { "Type": "RegulatedVoltage", "Output": "Fmu/Voltage/Regulated_V"},
+    { "Type": "PwmVoltage", "Output": "Power/FuselageServoVoltage_V"},
+    { "Type": "InternalMpu9250", "Output": "Fmu/Mpu9250", "Rotation": [-1,0,0,0,-1,0,0,0,1], "DLPF-Bandwidth": "20Hz"},
+    { "Type": "InternalBme280", "Output": "Fmu/Bme280"},
+    { "Type": "Sbus", "Output": "Sbus"},
+    { "Type": "uBlox", "Output": "uBlox", "Uart": 4, "Baud": 115200},
+    { "Type": "Node", "Address": 3,
+      "Sensors": [
+        { "Type": "PwmVoltage", "Output": "Power/WingServoVoltage_V"},
+        { "Type": "Swift", "Output": "Swift", "I2c": 1,
+          "Static": {"Address": 20},
+          "Differential": {"Address": 21, "Transducer": "AMS5915-0020-D"}
+        }
+      ]
+    }
+  ],
+
+  "Effectors": [
+    { "Type": "Motor", "Input": "/Control/cmdMotor_nd", "Channel": 0, "Calibration": [800, 1100], "Safed-Command": 0},
+    { "Type": "Pwm", "Input": "/Control/cmdElev_rad", "Channel": 1, "Calibration": [ 0.0, 0.0, 945.56893619, 1532.92371906]},
+    { "Type": "Pwm", "Input": "/Control/cmdRud_rad", "Channel": 2, "Calibration": [ -406.23428499, -72.84894531, -822.84212170, 1495.85430736]},
+    { "Type": "Node", "Address": 3,
+      "Effectors": [
+        { "Type": "Pwm", "Input": "/Control/cmdAilR_rad", "Channel": 0, "Calibration": [ 0.0, 24.74931945, -877.03584524, 1501.05819261]},
+        { "Type": "Pwm", "Input": "/Control/cmdFlapR_rad", "Channel": 2, "Calibration": [ 0.0, -167.40715677, 830.81057931, 1499.57954854]},
+        { "Type": "Pwm", "Input": "/Control/cmdFlapL_rad", "Channel": 5, "Calibration": [ -280.29921208, 75.65078940, -855.43748599, 1442.51416948]},
+        { "Type": "Pwm", "Input": "/Control/cmdAilL_rad", "Channel": 7, "Calibration": [ 0.0, -64.70244278, 828.18022105, 1519.68482092]}
+      ]
+    }
+  ],
+
+  "Telemetry": {
+    "Uart": "/dev/ttyO2",
+    "Baud": 115200,
+    "Time": "/Sensors/Fmu/Time_us",
+    "Static-Pressure": "/Sensors/Fmu/Bme280",
+    "Airspeed": "/Sensor-Processing/vIAS_ms",
+    "Altitude": "/Sensor-Processing/hBaro_m",
+    "Filter": "/Sensor-Processing",
+    "Gps": "/Sensors/uBlox",
+    "Imu": "/Sensors/Fmu/Mpu9250",
+    "Sbus": "/Sensors/Sbus"
+  },
+
+  "Sensor-Processing": {
+    "Baseline": [
+      { "Type": "AGL", "Output": "hBaro_m",
+        "Static-Pressure": ["/Sensors/Swift/Static/Pressure_Pa"], "Initialization-Time": 10},
+      { "Type": "IAS", "Output": "vIAS_ms",
+        "Differential-Pressure": ["/Sensors/Swift/Differential/Pressure_Pa"], "Initialization-Time": 10},
+      { "Type": "EKF15StateINS", "Output": "INS",
+        "Time": "/Sensors/Fmu/Time_us", "GPS": "/Sensors/uBlox", "IMU": "/Sensors/Fmu/Mpu9250"},
+      { "Type": "MinCellVolt", "Output": "MinCellVolt_V",
+        "Inputs": ["/Sensors/Fmu/Voltage/Input_V", "/Sensors/Fmu/Voltage/Input_V"],
+        "NumCells": [3, 3]
+      }
+    ]
+  },
+
+  "Control": {
+    "Fmu": "PilotDirect",
+    "Soc": ["PilotRate", "PilotAttitudeMan", "PilotAttitude17", "PilotAttitude14", "PilotAttitude20"],
+
+    "PilotDirect": [
+      { "Level": "SCAS-Rate",
+        "Components": [
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/7", "Output": "cmdMotor_nd", "Gain": 1, "Limits": {"Upper": 1, "Lower": 0}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/3", "Output": "cmdAilL_rad", "Gain": 0.45, "Limits": {"Upper": 0.45, "Lower": -0.45}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/3", "Output": "cmdAilR_rad", "Gain": -0.45, "Limits": {"Upper": 0.45, "Lower": -0.45}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/4", "Output": "cmdElev_rad", "Gain": -0.45, "Limits": {"Upper": 0.45, "Lower": -0.45}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/5", "Output": "cmdRud_rad", "Gain": -0.45, "Limits": {"Upper": 0.45, "Lower": -0.45}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/6", "Output": "cmdFlapL_rad", "Gain": 0.45, "Limits": {"Upper": 0.45, "Lower": -0.45}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/6", "Output": "cmdFlapR_rad", "Gain": 0.45, "Limits": {"Upper": 0.45, "Lower": -0.45}}
+        ]
+      }
+    ],
+
+    "PilotRate": [
+      { "Level": "SCAS-Rate",
+        "Components": [
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/7", "Output": "cmdMotor_nd", "Gain": 1, "Limits": {"Upper": 1, "Lower": 0}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/3", "Output": "cmdRoll_rads", "Gain": 1.0472, "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/4", "Output": "cmdPitch_rads", "Gain": 1.0472, "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/5", "Output": "cmdYaw_rads", "Gain": 0.523599, "Limits": {"Upper": 0.523599, "Lower": -0.523599}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/6", "Output": "refFlap_rad", "Gain": 0.436332, "Limits": {"Upper": 0.436332, "Lower": -0.436332}}
+        ]
+      },
+
+      { "Level": "Allocator",
+        "Components": [
+          { "Type": "PseudoInverse",
+            "Inputs": ["/Control/cmdRoll_rads", "/Control/cmdPitch_rads", "/Control/cmdYaw_rads"],
+            "Outputs": ["cmdElev_rad", "cmdRud_rad", "cmdAilR_rad", "cmdFlapR_alloc_rad", "cmdFlapL_alloc_rad", "cmdAilL_rad"],
+            "Effectiveness": [
+              [0.00000, 0.00000,-1.33700, 0.00000, 0.00000, 1.33700],
+              [-2.2716, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000],
+              [0.00000,-1.49900, 0.00000, 0.00000, 0.00000, 0.00000]],
+            "Limits": {
+              "Lower": [-0.436332, -0.261799, -0.436332, -0.436332, -0.436332, -0.436332],
+              "Upper": [0.436332, 0.261799, 0.436332, 0.436332, 0.436332, 0.436332]
+            }
+          }
+        ]
+      },
+      { "Level": "Effector",
+        "Components": [
+          { "Type": "Sum", "Inputs": ["/Control/refFlap_rad", "/Control/cmdFlapR_alloc_rad"], "Output": "cmdFlapR_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/refFlap_rad", "/Control/cmdFlapL_alloc_rad"], "Output": "cmdFlapL_rad"}
+        ]
+      }
+    ],
+
+    "PilotAttitudeMan": [
+      { "Level": "Pilot-Attitude",
+        "Components": [
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/7", "Output": "cmdMotor_nd", "Gain": 1, "Limits": {"Upper": 1, "Lower": 0}},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/3", "Output": "refPhi_rad", "Gain": 1.047198},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/4", "Output": "refTheta_rad", "Gain": 0.349066},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/5", "Output": "refPsi_rad", "Gain": 0.174533},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/6", "Output": "refFlap_nd", "Gain": 1.0}
+        ]
+      },
+
+      { "Level": "Pilot-Filt",
+        "Components": [
+          { "Type": "Filter", "Input": "/Control/refFlap_nd", "Output": "cmdFlap_nd",
+            "b": [0.131311455359006, 0.0863219057948165], "a": [1.0, -1.06697618218221, 0.284609543336029]}
+        ]
+      },
+
+      { "Level": "SCAS-Attitude",
+        "Components": [
+          { "Type": "PID2", "Reference": "/Control/refPhi_rad", "Feedback": "/Sensor-Processing/Roll_rad", "Output": "cmdRollPID_rads",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.64, "Integral": 0.2},
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensor-Processing/GyroX_rads", "Output": "cmdRollDamp_rads", "Gain": -0.070},
+
+          { "Type": "PID2", "Reference": "/Control/refTheta_rad", "Feedback": "/Sensor-Processing/Pitch_rad", "Output": "cmdPitchPID_rads",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.9, "Integral": 0.3},
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensor-Processing/GyroY_rads", "Output": "cmdPitchDamp_rads", "Gain": -0.080},
+
+          { "Type": "Filter", "Input": "/Sensor-Processing/GyroZ_rads", "Output": "cmdYawDamp_rads",
+            "b": [0.030, -0.030], "a": [1.0, -0.9418]}
+        ]
+      },
+
+      { "Level": "SCAS-Sum",
+        "Components": [
+          { "Type": "Sum", "Inputs": ["/Control/cmdRollPID_rads", "/Control/cmdRollDamp_rads"], "Output": "cmdRoll_rads"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdPitchPID_rads", "/Control/cmdPitchDamp_rads"], "Output": "cmdPitch_rads"},
+          { "Type": "Sum", "Inputs": ["/Control/refPsi_rad", "/Control/cmdYawDamp_rads"], "Output": "cmdYaw_rads"}
+        ]
+      },
+
+      { "Level": "Allocator",
+        "Components": [
+          { "Type": "PseudoInverse",
+            "Inputs": ["/Control/cmdRoll_rads", "/Control/cmdPitch_rads", "/Control/cmdYaw_rads"],
+            "Outputs": ["cmdElev_alloc_rad", "cmdRud_rad", "cmdAilR_alloc_rad", "cmdFlapR_alloc_rad", "cmdFlapL_alloc_rad", "cmdAilL_alloc_rad"],
+            "Effectiveness": [
+              [0.00000,-0.14177,-1.33413,-0.56342, 0.56342, 1.33413],
+              [-2.2716, 0.00000, 0.06000, 0.05800, 0.05800, 0.06000],
+              [0.00000,-1.59190, 0.10403, 0.03139,-0.03139,-0.10403]],
+            "Limits": {
+              "Lower": [-0.436332, -0.261799, -0.436332, -0.436332, -0.436332, -0.436332],
+              "Upper": [0.436332, 0.261799, 0.436332, 0.436332, 0.436332, 0.436332]
+            }
+          },
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdElev_flap_rad", "Gain": 0.02947},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilR_flap_rad", "Gain": 0.22472},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapR_flap_rad", "Gain": 0.34907},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapL_flap_rad", "Gain": 0.34907},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilL_flap_rad", "Gain": 0.22472}
+        ]
+      },
+
+      { "Level": "Effector",
+        "Components": [
+          { "Type": "Sum", "Inputs": ["/Control/cmdElev_alloc_rad", "/Control/cmdElev_flap_rad"], "Output": "cmdElev_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdAilR_alloc_rad", "/Control/cmdAilR_flap_rad"], "Output": "cmdAilR_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdFlapR_alloc_rad", "/Control/cmdFlapR_flap_rad"], "Output": "cmdFlapR_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdFlapL_alloc_rad", "/Control/cmdFlapL_flap_rad"], "Output": "cmdFlapL_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdAilL_alloc_rad", "/Control/cmdAilL_flap_rad"], "Output": "cmdAilL_rad"}
+        ]
+      }
+    ],
+
+    "PilotAttitude17": [
+      { "Level": "Guidance-Ref",
+        "Components": [
+          { "Type": "Constant", "Output": "refV_ms", "Constant": 17},
+          { "Type": "Latch", "Input": "/Sensor-Processing/hBaro_m", "Output": "refH_m"}
+        ]
+      },
+
+      { "Level": "Guidance",
+        "Components": [
+          { "Type": "PID2", "Reference": "/Control/refV_ms", "Feedback": "/Sensor-Processing/vIAS_ms", "Output": "cmdMotor_nd",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.150, "Integral": 0.10},
+            "Limits": {"Upper": 1, "Lower": 0}},
+          { "Type": "PID2", "Reference": "/Control/refH_m", "Feedback": "/Sensor-Processing/hBaro_m", "Output": "refTheta_guid_rad",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.000581776, "Integral": 0.0},
+            "Limits": {"Upper": 0.0873, "Lower": -0.0873}}
+        ]
+      },
+
+      { "Level": "Pilot-Attitude",
+        "Components": [
+          { "Type": "Constant", "Output": "refV_ms", "Constant": 20},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/3", "Output": "refPhi_rad", "Gain": 0.7854},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/4", "Output": "refTheta_pilot_rad", "Gain": 0.349066},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/6", "Output": "refFlap_rad", "Gain": 1.0}
+        ]
+      },
+
+      { "Level": "Pilot-Filt",
+        "Components": [
+          { "Type": "Filter", "Input": "/Control/refFlap_nd", "Output": "cmdFlap_nd",
+            "b": [0.131311455359006, 0.0863219057948165], "a": [1.0, -1.06697618218221, 0.284609543336029]},
+          { "Type": "Sum", "Inputs": ["/Control/refTheta_guid_rad", "/Control/refTheta_pilot_rad"], "Output": "refTheta_rad",
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}}
+        ]
+      },
+
+      { "Level": "SCAS-Attitude",
+        "Components": [
+          { "Type": "PID2", "Reference": "/Control/refPhi_rad", "Feedback": "/Sensor-Processing/Roll_rad", "Output": "cmdRollPID_rads",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.64, "Integral": 0.2},
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensor-Processing/GyroX_rads", "Output": "cmdRollDamp_rads", "Gain": -0.070},
+
+
+          { "Type": "PID2", "Reference": "/Control/refTheta_rad", "Feedback": "/Sensor-Processing/Pitch_rad", "Output": "cmdPitchPID_rads",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.9, "Integral": 0.3},
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensor-Processing/GyroY_rads", "Output": "cmdPitchDamp_rads", "Gain": -0.080},
+
+          { "Type": "Filter", "Input": "/Sensor-Processing/GyroZ_rads", "Output": "cmdYaw_rads",
+            "b": [0.030, -0.030], "a": [1.0, -0.9418]}
+        ]
+      },
+
+      { "Level": "SCAS-Sum",
+        "Components": [
+          { "Type": "Sum", "Inputs": ["/Control/cmdRollPID_rads", "/Control/cmdRollDamp_rads"], "Output": "cmdRoll_rads",
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+
+          { "Type": "Sum", "Inputs": ["/Control/cmdPitchPID_rads", "/Control/cmdPitchDamp_rads"], "Output": "cmdPitch_rads",
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}}
+        ]
+      },
+
+      { "Level": "Allocator",
+        "Components": [
+          { "Type": "PseudoInverse",
+            "Inputs": ["/Control/cmdRoll_rads", "/Control/cmdPitch_rads", "/Control/cmdYaw_rads"],
+            "Outputs": ["cmdElev_alloc_rad", "cmdRud_rad", "cmdAilR_alloc_rad", "cmdFlapR_alloc_rad", "cmdFlapL_alloc_rad", "cmdAilL_alloc_rad"],
+            "Effectiveness": [
+              [0.00000,-0.14177,-1.33413,-0.56342, 0.56342, 1.33413],
+              [-2.2716, 0.00000, 0.06000, 0.05800, 0.05800, 0.06000],
+              [0.00000,-1.59190, 0.10403, 0.03139,-0.03139,-0.10403]],
+            "Limits": {
+              "Lower": [-0.436332, -0.261799, -0.436332, -0.436332, -0.436332, -0.436332],
+              "Upper": [0.436332, 0.261799, 0.436332, 0.436332, 0.436332, 0.436332]
+            }
+          },
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdElev_flap_rad", "Gain": 0.02947},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilR_flap_rad", "Gain": 0.22472},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapR_flap_rad", "Gain": 0.34907},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapL_flap_rad", "Gain": 0.34907},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilL_flap_rad", "Gain": 0.22472}
+        ]
+      },
+
+      { "Level": "Effector",
+        "Components": [
+          { "Type": "Sum", "Inputs": ["/Control/cmdElev_alloc_rad", "/Control/cmdElev_flap_rad"], "Output": "cmdElev_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdAilR_alloc_rad", "/Control/cmdAilR_flap_rad"], "Output": "cmdAilR_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdFlapR_alloc_rad", "/Control/cmdFlapR_flap_rad"], "Output": "cmdFlapR_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdFlapL_alloc_rad", "/Control/cmdFlapL_flap_rad"], "Output": "cmdFlapL_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdAilL_alloc_rad", "/Control/cmdAilL_flap_rad"], "Output": "cmdAilL_rad"}
+        ]
+      }
+    ],
+
+    "PilotAttitude14": [
+      { "Level": "Guidance-Ref",
+        "Components": [
+          { "Type": "Constant", "Output": "refV_ms", "Constant": 14},
+          { "Type": "Latch", "Input": "/Sensor-Processing/hBaro_m", "Output": "refH_m"}
+        ]
+      },
+
+      { "Level": "Guidance",
+        "Components": [
+          { "Type": "PID2", "Reference": "/Control/refV_ms", "Feedback": "/Sensor-Processing/vIAS_ms", "Output": "cmdMotor_nd",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.150, "Integral": 0.10},
+            "Limits": {"Upper": 1, "Lower": 0}},
+          { "Type": "PID2", "Reference": "/Control/refH_m", "Feedback": "/Sensor-Processing/hBaro_m", "Output": "refTheta_guid_rad",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.000581776, "Integral": 0.0},
+            "Limits": {"Upper": 0.0873, "Lower": -0.0873}}
+        ]
+      },
+
+      { "Level": "Pilot-Attitude",
+        "Components": [
+          { "Type": "Constant", "Output": "refV_ms", "Constant": 20},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/3", "Output": "refPhi_rad", "Gain": 0.7854},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/4", "Output": "refTheta_pilot_rad", "Gain": 0.349066},
+          { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/6", "Output": "refFlap_rad", "Gain": 1.0}
+        ]
+      },
+
+      { "Level": "Pilot-Filt",
+        "Components": [
+          { "Type": "Filter", "Input": "/Control/refFlap_nd", "Output": "cmdFlap_nd",
+            "b": [0.131311455359006, 0.0863219057948165], "a": [1.0, -1.06697618218221, 0.284609543336029]},
+          { "Type": "Sum", "Inputs": ["/Control/refTheta_guid_rad", "/Control/refTheta_pilot_rad"], "Output": "refTheta_rad",
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}}
+        ]
+      },
+
+      { "Level": "SCAS-Attitude",
+        "Components": [
+          { "Type": "PID2", "Reference": "/Control/refPhi_rad", "Feedback": "/Sensor-Processing/Roll_rad", "Output": "cmdRollPID_rads",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.64, "Integral": 0.2},
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensor-Processing/GyroX_rads", "Output": "cmdRollDamp_rads", "Gain": -0.070},
+
+
+          { "Type": "PID2", "Reference": "/Control/refTheta_rad", "Feedback": "/Sensor-Processing/Pitch_rad", "Output": "cmdPitchPID_rads",
+            "Sample-Time": 0.02,
+            "Gains": {"Proportional": 0.9, "Integral": 0.3},
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+          { "Type": "Gain", "Input": "/Sensor-Processing/GyroY_rads", "Output": "cmdPitchDamp_rads", "Gain": -0.080},
+
+          { "Type": "Filter", "Input": "/Sensor-Processing/GyroZ_rads", "Output": "cmdYaw_rads",
+            "b": [0.030, -0.030], "a": [1.0, -0.9418]}
+        ]
+      },
+
+      { "Level": "SCAS-Sum",
+        "Components": [
+          { "Type": "Sum", "Inputs": ["/Control/cmdRollPID_rads", "/Control/cmdRollDamp_rads"], "Output": "cmdRoll_rads",
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+
+          { "Type": "Sum", "Inputs": ["/Control/cmdPitchPID_rads", "/Control/cmdPitchDamp_rads"], "Output": "cmdPitch_rads",
+            "Limits": {"Upper": 1.0472, "Lower": -1.0472}}
+        ]
+      },
+
+      { "Level": "Allocator",
+        "Components": [
+          { "Type": "PseudoInverse",
+            "Inputs": ["/Control/cmdRoll_rads", "/Control/cmdPitch_rads", "/Control/cmdYaw_rads"],
+            "Outputs": ["cmdElev_alloc_rad", "cmdRud_rad", "cmdAilR_alloc_rad", "cmdFlapR_alloc_rad", "cmdFlapL_alloc_rad", "cmdAilL_alloc_rad"],
+            "Effectiveness": [
+              [0.00000,-0.14177,-1.33413,-0.56342, 0.56342, 1.33413],
+              [-2.2716, 0.00000, 0.06000, 0.05800, 0.05800, 0.06000],
+              [0.00000,-1.59190, 0.10403, 0.03139,-0.03139,-0.10403]],
+            "Limits": {
+              "Lower": [-0.436332, -0.261799, -0.436332, -0.436332, -0.436332, -0.436332],
+              "Upper": [0.436332, 0.261799, 0.436332, 0.436332, 0.436332, 0.436332]
+            }
+          },
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdElev_flap_rad", "Gain": 0.02947},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilR_flap_rad", "Gain": 0.22472},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapR_flap_rad", "Gain": 0.34907},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapL_flap_rad", "Gain": 0.34907},
+          { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilL_flap_rad", "Gain": 0.22472}
+        ]
+      },
+
+      { "Level": "Effector",
+        "Components": [
+          { "Type": "Sum", "Inputs": ["/Control/cmdElev_alloc_rad", "/Control/cmdElev_flap_rad"], "Output": "cmdElev_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdAilR_alloc_rad", "/Control/cmdAilR_flap_rad"], "Output": "cmdAilR_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdFlapR_alloc_rad", "/Control/cmdFlapR_flap_rad"], "Output": "cmdFlapR_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdFlapL_alloc_rad", "/Control/cmdFlapL_flap_rad"], "Output": "cmdFlapL_rad"},
+          { "Type": "Sum", "Inputs": ["/Control/cmdAilL_alloc_rad", "/Control/cmdAilL_flap_rad"], "Output": "cmdAilL_rad"}
+        ]
+      }
+    ],
+
+    "PilotAttitude20": [
+          { "Level": "Guidance-Ref",
+            "Components": [
+              { "Type": "Constant", "Output": "refV_ms", "Constant": 20},
+              { "Type": "Latch", "Input": "/Sensor-Processing/hBaro_m", "Output": "refH_m"}
+            ]
+          },
+
+          { "Level": "Guidance",
+            "Components": [
+              { "Type": "PID2", "Reference": "/Control/refV_ms", "Feedback": "/Sensor-Processing/vIAS_ms", "Output": "cmdMotor_nd",
+                "Sample-Time": 0.02,
+                "Gains": {"Proportional": 0.150, "Integral": 0.10},
+                "Limits": {"Upper": 1, "Lower": 0}},
+              { "Type": "PID2", "Reference": "/Control/refH_m", "Feedback": "/Sensor-Processing/hBaro_m", "Output": "refTheta_guid_rad",
+                "Sample-Time": 0.02,
+                "Gains": {"Proportional": 0.000581776, "Integral": 0.0},
+                "Limits": {"Upper": 0.0873, "Lower": -0.0873}}
+            ]
+          },
+
+          { "Level": "Pilot-Attitude",
+            "Components": [
+              { "Type": "Constant", "Output": "refV_ms", "Constant": 20},
+              { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/3", "Output": "refPhi_rad", "Gain": 0.7854},
+              { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/4", "Output": "refTheta_pilot_rad", "Gain": 0.349066},
+              { "Type": "Gain", "Input": "/Sensors/Sbus/Channels/6", "Output": "refFlap_rad", "Gain": 1.0}
+            ]
+          },
+
+          { "Level": "Pilot-Filt",
+            "Components": [
+              { "Type": "Filter", "Input": "/Control/refFlap_nd", "Output": "cmdFlap_nd",
+                "b": [0.131311455359006, 0.0863219057948165], "a": [1.0, -1.06697618218221, 0.284609543336029]},
+              { "Type": "Sum", "Inputs": ["/Control/refTheta_guid_rad", "/Control/refTheta_pilot_rad"], "Output": "refTheta_rad",
+                "Limits": {"Upper": 1.0472, "Lower": -1.0472}}
+            ]
+          },
+
+          { "Level": "SCAS-Attitude",
+            "Components": [
+              { "Type": "PID2", "Reference": "/Control/refPhi_rad", "Feedback": "/Sensor-Processing/Roll_rad", "Output": "cmdRollPID_rads",
+                "Sample-Time": 0.02,
+                "Gains": {"Proportional": 0.64, "Integral": 0.2},
+                "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+              { "Type": "Gain", "Input": "/Sensor-Processing/GyroX_rads", "Output": "cmdRollDamp_rads", "Gain": -0.070},
+
+
+              { "Type": "PID2", "Reference": "/Control/refTheta_rad", "Feedback": "/Sensor-Processing/Pitch_rad", "Output": "cmdPitchPID_rads",
+                "Sample-Time": 0.02,
+                "Gains": {"Proportional": 0.9, "Integral": 0.3},
+                "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+              { "Type": "Gain", "Input": "/Sensor-Processing/GyroY_rads", "Output": "cmdPitchDamp_rads", "Gain": -0.080},
+
+              { "Type": "Filter", "Input": "/Sensor-Processing/GyroZ_rads", "Output": "cmdYaw_rads",
+                "b": [0.030, -0.030], "a": [1.0, -0.9418]}
+            ]
+          },
+
+          { "Level": "SCAS-Sum",
+            "Components": [
+              { "Type": "Sum", "Inputs": ["/Control/cmdRollPID_rads", "/Control/cmdRollDamp_rads"], "Output": "cmdRoll_rads",
+                "Limits": {"Upper": 1.0472, "Lower": -1.0472}},
+
+              { "Type": "Sum", "Inputs": ["/Control/cmdPitchPID_rads", "/Control/cmdPitchDamp_rads"], "Output": "cmdPitch_rads",
+                "Limits": {"Upper": 1.0472, "Lower": -1.0472}}
+            ]
+          },
+
+          { "Level": "Allocator",
+            "Components": [
+              { "Type": "PseudoInverse",
+                "Inputs": ["/Control/cmdRoll_rads", "/Control/cmdPitch_rads", "/Control/cmdYaw_rads"],
+                "Outputs": ["cmdElev_alloc_rad", "cmdRud_rad", "cmdAilR_alloc_rad", "cmdFlapR_alloc_rad", "cmdFlapL_alloc_rad", "cmdAilL_alloc_rad"],
+                "Effectiveness": [
+                  [0.00000,-0.14177,-1.33413,-0.56342, 0.56342, 1.33413],
+                  [-2.2716, 0.00000, 0.06000, 0.05800, 0.05800, 0.06000],
+                  [0.00000,-1.59190, 0.10403, 0.03139,-0.03139,-0.10403]],
+                "Limits": {
+                  "Lower": [-0.436332, -0.261799, -0.436332, -0.436332, -0.436332, -0.436332],
+                  "Upper": [0.436332, 0.261799, 0.436332, 0.436332, 0.436332, 0.436332]
+                }
+              },
+              { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdElev_flap_rad", "Gain": 0.02947},
+              { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilR_flap_rad", "Gain": 0.22472},
+              { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapR_flap_rad", "Gain": 0.34907},
+              { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdFlapL_flap_rad", "Gain": 0.34907},
+              { "Type": "Gain", "Input": "/Control/cmdFlap_nd", "Output": "cmdAilL_flap_rad", "Gain": 0.22472}
+            ]
+          },
+
+          { "Level": "Effector",
+            "Components": [
+              { "Type": "Sum", "Inputs": ["/Control/cmdElev_alloc_rad", "/Control/cmdElev_flap_rad"], "Output": "cmdElev_rad"},
+              { "Type": "Sum", "Inputs": ["/Control/cmdAilR_alloc_rad", "/Control/cmdAilR_flap_rad"], "Output": "cmdAilR_rad"},
+              { "Type": "Sum", "Inputs": ["/Control/cmdFlapR_alloc_rad", "/Control/cmdFlapR_flap_rad"], "Output": "cmdFlapR_rad"},
+              { "Type": "Sum", "Inputs": ["/Control/cmdFlapL_alloc_rad", "/Control/cmdFlapL_flap_rad"], "Output": "cmdFlapL_rad"},
+              { "Type": "Sum", "Inputs": ["/Control/cmdAilL_alloc_rad", "/Control/cmdAilL_flap_rad"], "Output": "cmdAilL_rad"}
+            ]
+          }
+        ]
+
+  },
+
+  "Excitation": {
+    "Time": "/Sensors/Fmu/Time_us",
+    "Groups": [
+      { "Name": "RTSM", "Components": [
+        { "Level": "SCAS-Attitude", "Components": [
+          { "Waveform": "OMS_1", "Signal": "/Control/refPhi_rad", "Start-Time": 1, "Scale-Factor": 0.174532925199433},
+          { "Waveform": "OMS_2", "Signal": "/Control/refTheta_rad", "Start-Time": 1, "Scale-Factor": 0.0349065850398866}
+        ]}
+      ]},
+      { "Name": "AeroSym1", "Components": [
+        { "Level": "Effector", "Components": [
+          { "Waveform": "OMS_1", "Signal": "/Control/cmdElev_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdAilL_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdAilR_rad", "Start-Time": 1, "Scale-Factor": 0.0698132}
+        ]}
+      ]},
+      { "Name": "AeroAsym1", "Components": [
+        { "Level": "Effector", "Components": [
+          { "Waveform": "OMS_1", "Signal": "/Control/cmdRud_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdAilL_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdAilR_rad", "Start-Time": 1, "Scale-Factor": -0.0698132}
+        ]}
+      ]},
+      { "Name": "AeroSym2", "Components": [
+        { "Level": "Effector", "Components": [
+          { "Waveform": "OMS_1", "Signal": "/Control/cmdAilL_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_1", "Signal": "/Control/cmdAilR_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdFlapL_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdFlapR_rad", "Start-Time": 1, "Scale-Factor": 0.0698132}
+        ]}
+      ]},
+      { "Name": "AeroAsym2", "Components": [
+        { "Level": "Effector", "Components": [
+          { "Waveform": "OMS_1", "Signal": "/Control/cmdAilL_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_1", "Signal": "/Control/cmdAilR_rad", "Start-Time": 1, "Scale-Factor": -0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdFlapL_rad", "Start-Time": 1, "Scale-Factor": 0.0698132},
+          { "Waveform": "OMS_2", "Signal": "/Control/cmdFlapR_rad", "Start-Time": 1, "Scale-Factor": -0.0698132}
+        ]}
+      ]}
+    ],
+
+    "OMS_1": { "Type": "MultiSine", "Duration": 10,
+      "Frequency": [0.62831853071795862,1.8849555921538761,3.1415926535897931,4.39822971502571,5.6548667764616276,6.9115038378975457,8.1681408993334639,9.4247779607693811,10.681415022205298,11.938052083641214,13.194689145077131,14.45132620651305,15.707963267948969,16.964600329384883,18.221237390820804,19.477874452256717,20.734511513692635,21.991148575128555,23.247785636564469,24.50442269800039,25.7610597594363,27.017696820872221,28.274333882308138,29.530970943744055,30.787608005179976,32.044245066615886,33.3008821280518,34.557519189487721,35.814156250923645,37.070793312359562,38.327430373795472,39.58406743523139,40.840704496667314,42.097341558103231,43.353978619539149,44.610615680975059,45.867252742410976,47.123889803846893,48.380526865282818,49.637163926718735,50.893800988154645,52.150438049590569,53.407075111026487,54.6637121724624,55.920349233898321,57.176986295334231,58.433623356770156,59.690260418206066,60.94689747964199,62.203534541077907,63.460171602513817,64.716808663949749,65.973445725385659,67.230082786821583,68.4867198482575,69.7433569096934,70.999993971129328,72.256631032565238,73.513268094001162,74.769905155437073,76.026542216873,77.283179278308921,78.539816339744831,79.796453401180742,81.053090462616652,82.309727524052576,83.566364585488486,84.823001646924411,86.079638708360321,87.336275769796245,88.592912831232169,89.84954989266808,91.106186954104,92.362824015539914,93.619461076975824,94.876098138411749,96.132735199847659,97.389372261283583,98.6460093227195,99.902646384155418,101.15928344559134,102.41592050702724,103.67255756846318,104.92919462989909,106.185831691335,107.44246875277094,108.69910581420685,109.95574287564276,111.21237993707867,112.46901699851459,113.72565405995051,114.98229112138644,116.23892818282235,117.49556524425826,118.75220230569417,120.00883936713011,121.26547642856602,122.52211349000193,123.77875055143784,125.03538761287376,126.29202467430969,127.54866173574561,128.80529879718151,130.06193585861743,131.31857292005336,132.57520998148928,133.8318470429252,135.0884841043611,136.34512116579702,137.60175822723292,138.85839528866887,140.11503235010477,141.37166941154069,142.62830647297659,143.88494353441251,145.14158059584844,146.39821765728436,147.65485471872029,148.91149178015618,150.16812884159211,151.42476590302803,152.68140296446396,153.93804002589985,155.19467708733578,156.4513141487717],
+      "Phase": [6.21842819746388,0.24800331633520178,5.9539083871391485,5.0488412656872068,4.4904776322281172,3.4946920811380542,2.5567827061875477,1.5153814129170569,6.2569980549719393,4.3406678453853926,2.3242543705754986,6.0223916666140278,4.1055081622490652,1.6002776180904166,4.8748866317198782,1.9458561164689043,5.1595312214983178,2.273172051622252,4.5641904890451919,1.4010482048445061,3.33657748963597,5.6535217210770332,1.4456921809327967,3.1923691082273562,5.2169049304845112,5.7036992251938976,6.83098615577532,1.5494189990134266,2.0830511783420542,2.7373845542886608,3.1657206942228497,3.5048378848145822,3.3863965732145807,2.7641838392363338,2.5015694569012314,1.8176074451346795,7.3535796013315649,5.94846184571915,5.128394260192,2.5847046008446712,2.0369264602082455,6.3876214172354109,3.8117231428069638,2.0232212900247353,5.5348539409474338,3.0103520761625537,6.1200092396255314,2.6513159907007884,6.4626062566611004,3.1272710632960572,5.0281913382625678,7.8735992753273285,3.3427496696023216,5.2058561479848926,7.1642753752250563,2.2711228048727659,4.0755810063458311,5.1470285455214908,5.9346550107729543,7.422294571236205,7.7071484090195916,7.8639886370186387,7.5981812153378767,8.1045072887507281,8.194803956988391,7.8340025147368051,6.6292587986279985,6.1008964886906814,5.1106037051238413,3.4821501676908948,8.5266897366312566,6.6121881245902925,5.0796970837528459,3.3229776255487,6.9859186743016606,5.2485827289483051,2.5401016448489231,5.244904130796253,8.8134065583499428,5.6918437968859825,8.5079214572291946,5.1513487387767425,7.1504577919152412,3.6946245290737831,5.6824562737988193,6.4065701329370661,9.0739716077271879,3.7642046719373834,5.4154242392514762,6.3180214453910022,7.1492075775520032,7.597097970112193,8.2087673194119759,8.5980024199209826,8.6323752241772755,8.1999354039543544,7.62501716719504,7.3949108068993024,6.455585951284764,5.576741281273728,5.2414958964943743,3.3362382241424018,8.1073253333880331,6.1474825622803078,4.0076309844128755,8.3780714217569781,5.5435686859030078,9.6668784592725938,6.4957235940318832,3.5622850650429374,6.6430846310617078,9.6627238590138056,6.1239672183805443,8.271701047824525,4.69155348786335,6.7320203895883362,8.9716300433215,4.11327543259699,5.5089587863360059,6.6300796254796941,7.7846266528518253,8.5517224900520663,9.64496418048562,4.06454358164455,10.115844493739214],
+      "Amplitude": [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+     },
+    "OMS_2": { "Type": "MultiSine", "Duration": 10,
+      "Frequency": [1.2566370614359172,2.5132741228718345,3.7699111843077517,5.026548245743669,6.2831853071795862,7.5398223686155044,8.79645943005142,10.053096491487338,11.309733552923257,12.566370614359172,13.823007675795091,15.079644737231009,16.336281798666924,17.592918860102841,18.849555921538762,20.106192982974676,21.362830044410597,22.61946710584651,23.876104167282428,25.132741228718345,26.389378290154262,27.646015351590176,28.902652413026093,30.159289474462014,31.415926535897931,32.672563597333848,33.929200658769766,35.185837720205683,36.4424747816416,37.699111843077517,38.955748904513435,40.212385965949352,41.469023027385269,42.725660088821186,43.982297150257104,45.238934211693021,46.495571273128938,47.752208334564855,49.008845396000773,50.26548245743669,51.5221195188726,52.778756580308524,54.035393641744442,55.292030703180366,56.548667764616276,57.805304826052186,59.061941887488111,60.318578948924028,61.575216010359952,62.831853071795862,64.088490133231787,65.3451271946677,66.6017642561036,67.858401317539531,69.115038378975441,70.371675440411366,71.62831250184729,72.8849495632832,74.141586624719125,75.398223686155035,76.654860747590959,77.911497809026869,79.168134870462779,80.4247719318987,81.681408993334628,82.938046054770538,84.194683116206448,85.451320177642373,86.707957239078283,87.964594300514207,89.221231361950117,90.477868423386028,91.734505484821952,92.991142546257876,94.247779607693786,95.504416669129711,96.761053730565621,98.017690792001545,99.274327853437455,100.53096491487338,101.78760197630929,103.0442390377452,104.30087609918114,105.55751316061703,106.81415022205297,108.07078728348888,109.32742434492479,110.58406140636073,111.84069846779664,113.09733552923255,114.35397259066846,115.61060965210437,116.86724671354031,118.12388377497622,119.38052083641213,120.63715789784806,121.89379495928397,123.1504320207199,124.40706908215581,125.66370614359172,126.92034320502763,128.17698026646354,129.4336173278995,130.69025438933539,131.94689145077132,133.20352851220721,134.46016557364314,135.71680263507906,136.973439696515,138.23007675795088,139.48671381938681,140.74335088082273,141.99998794225866,143.25662500369458,144.51326206513048,145.7698991265664,147.0265361880023,148.28317324943825,149.53981031087415,150.79644737231007,152.053084433746,153.30972149518189,154.56635855661784,155.82299561805374,157.07963267948966],
+      "Phase": [0.1152536038892225,5.8412187481972753,5.8792983697528083,4.9479737658831935,4.6606890478346,3.6687576670788538,1.9469754418205816,0.82761875215055647,5.4429984832915546,3.9942720688341651,2.1107125156680508,5.8069729834343287,3.5175240101922438,7.0179297466048416,4.31505487486456,1.6804797173488351,4.0032377404978217,7.1710966165973673,3.7917780218426929,6.3152650446747556,2.22567279582323,4.4454088833482723,5.7759211724416133,1.8700657990458913,3.1246685065019433,4.1264237207460734,5.2992972590264529,6.0815140073536025,6.9354397124168683,7.0996491883652766,7.9721912510750421,7.2571888103128064,7.3182471732291274,7.1731413921212663,6.2625410244645474,5.8295678581242045,4.31665692292479,4.0826294748241807,8.44015329883205,7.0038636457409824,5.374284806430337,2.900005899787506,7.3572299196488551,4.897594763981532,8.8627245904938086,5.47397155811393,9.20869375449437,6.1115871177060477,9.1453051326710462,5.5334593060183579,8.2921766162987,4.5225044693212766,6.2501367429110557,8.4540318615257881,3.6281811138084956,5.2343076478838038,6.6254058963578641,8.2474546991009561,9.0040773740443178,9.4531011851821916,9.6871779467115253,10.322457119069533,10.29452796907052,10.040421295462643,10.140886816374422,9.6798171429722615,9.1094892041578035,8.0853337725761456,6.8998759332697475,5.298363600851129,10.329706055400905,8.421081916641155,6.7360357364785175,10.962385643900067,8.2114882459714647,5.8316283061489465,9.4601464945356177,6.5504990472350295,9.2931073756431033,6.535335149429101,9.2603883422300246,5.4158462205502973,7.9074371503638794,10.279488783562341,6.2961204885860091,7.4877967821935449,9.4378548672945,10.362473161240269,11.934485586909084,6.2408499386188376,7.4435244190128973,7.9066613808447253,8.4063523138324818,8.5612269226960311,8.6233286204087314,8.5309460327687781,7.6857782378214043,7.3879282162336981,12.659341832946904,11.875462744149162,10.665227226259375,8.7268640811694986,7.4842381438865981,11.829463024751464,9.9488085210596573,7.7712911172421375,11.016052785385941,8.264081413049702,12.429408009206844,9.129919992225263,12.017694436115743,8.5612325279631385,11.561771469823213,7.9405281520235844,9.8195866161463243,11.626849714796334,13.626268745005063,8.2154163118873011,10.517553848371199,11.950453141033705,12.254471798116263,13.522171051179566,13.805623183442693,8.1850846683285816,14.501504597099469],
+      "Amplitude": [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    }
+  },
+
+  "Mission-Manager": {
+    "Fmu-Soc-Switch": {"Source": "/Sensors/Sbus/Channels/0", "Threshold": 0.0, "Gain": 1},
+    "Throttle-Safety-Switch": {"Source": "/Sensors/Sbus/Channels/1", "Threshold": 0.33, "Gain": 1},
+    "Control-Select-Switch": {"Source": "/Sensors/Sbus/Channels/8", "Threshold": 0.33, "Gain": 1},
+    "Test-Increment-Switch": {"Source": "/Sensors/Sbus/Channels/9", "Threshold": 0.33, "Gain": 1},
+    "Test-Decrement-Switch": {"Source": "/Sensors/Sbus/Channels/9", "Threshold": 0.33, "Gain": -1},
+    "Trigger-Switch": {"Source": "/Sensors/Sbus/Channels/10", "Threshold": 0.0, "Gain": 1},
+    "Launch-Switch": {"Source": "/Sensors/Sbus/Channels/11", "Threshold": 0.33, "Gain": -1},
+    "Land-Switch": {"Source": "/Sensors/Sbus/Channels/11", "Threshold": 0.33, "Gain": 1},
+    "Baseline-Controller":"PilotAttitudeMan",
+    "Launch-Controller":"PilotRate",
+    "Land-Controller":"PilotAttitudeMan",
+
+    "Test-Points": [
+      { "Test-ID": "5", "Sensor-Processing": "Baseline", "Control": "PilotAttitude14", "Excitation": "RTSM"},
+      { "Test-ID": "6", "Sensor-Processing": "Baseline", "Control": "PilotAttitude14", "Excitation": "AeroSym1"},
+      { "Test-ID": "7", "Sensor-Processing": "Baseline", "Control": "PilotAttitude14", "Excitation": "AeroAsym1"},
+      { "Test-ID": "8", "Sensor-Processing": "Baseline", "Control": "PilotAttitude14", "Excitation": "AeroSym2"},
+      { "Test-ID": "9", "Sensor-Processing": "Baseline", "Control": "PilotAttitude14", "Excitation": "AeroAsym2"},
+      { "Test-ID": "10", "Sensor-Processing": "Baseline", "Control": "PilotAttitude17", "Excitation": "RTSM"},
+      { "Test-ID": "11", "Sensor-Processing": "Baseline", "Control": "PilotAttitude17", "Excitation": "AeroSym1"},
+      { "Test-ID": "12", "Sensor-Processing": "Baseline", "Control": "PilotAttitude17", "Excitation": "AeroAsym1"},
+      { "Test-ID": "13", "Sensor-Processing": "Baseline", "Control": "PilotAttitude17", "Excitation": "AeroSym2"},
+      { "Test-ID": "14", "Sensor-Processing": "Baseline", "Control": "PilotAttitude17", "Excitation": "AeroAsym2"}
+    ]
+  }
+}

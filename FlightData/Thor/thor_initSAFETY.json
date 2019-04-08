@@ -1,0 +1,195 @@
+{
+    "mass_balance": [
+        {
+            "emptywt": 7.411,
+            "unit": "KG"
+        },
+        {
+            "ixx": 0.8568,
+            "unit": "KG*M2"
+        },
+        {
+            "iyy": 1.0095,
+            "unit": "KG*M2"
+        },
+        {
+            "izz": 1.7005,
+            "unit": "KG*M2"
+        },
+        {
+            "ixy": 0.0,
+            "unit": "KG*M2"
+        },
+        {
+            "ixz": 0.18981451275,
+            "unit": "KG*M2"
+        },
+        {
+            "iyz": 0.0,
+            "unit": "KG*M2"
+        },
+        {
+            "CG": [
+                {
+                    "x": 0.315,
+                    "unit": "M"
+                },
+                {
+                    "y": 0.0,
+                    "unit": "M"
+                },
+                {
+                    "z": 0.072,
+                    "unit": "M"
+                }
+            ]
+        }
+    ],
+    "size": [
+        {
+            "S": 1,
+            "unit": "M2"
+        },
+        {
+            "b": 1,
+            "unit": "M2"
+        },
+        {
+            "c": 1,
+            "unit": "M2"
+        }
+    ],
+    "propulsion": [
+        {
+            "motor": "Power110"
+        },
+        {
+            "propeller": "APC 16x8e"
+        }
+    ],
+    "Tests": [
+        {
+            "Test-ID": "5",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "RTSM",
+            "Time": []
+        },
+        {
+            "Test-ID": "6",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroSym1"
+        },
+        {
+            "Test-ID": "7",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroAsym1"
+        },
+        {
+            "Test-ID": "Landing",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroSym2"
+        },
+        {
+            "Test-ID": "9",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroAsym2"
+        },
+        {
+            "Test-ID": "10",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "RTSM"
+        },
+        {
+            "Test-ID": "11",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroSym1"
+        },
+        {
+            "Test-ID": "12",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroAsym1"
+        },
+        {
+            "Test-ID": "13",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroSym2"
+        },
+        {
+            "Test-ID": "14",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroAsym2"
+        }
+    ],
+    "Test-Points": [
+        {
+            "Test-ID": "5",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "RTSM"
+        },
+        {
+            "Test-ID": "6",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroSym1"
+        },
+        {
+            "Test-ID": "7",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroAsym1"
+        },
+        {
+            "Test-ID": "8",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroSym2"
+        },
+        {
+            "Test-ID": "9",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude14",
+            "Excitation": "AeroAsym2"
+        },
+        {
+            "Test-ID": "10",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "RTSM"
+        },
+        {
+            "Test-ID": "11",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroSym1"
+        },
+        {
+            "Test-ID": "12",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroAsym1"
+        },
+        {
+            "Test-ID": "13",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroSym2"
+        },
+        {
+            "Test-ID": "14",
+            "Sensor-Processing": "Baseline",
+            "Control": "PilotAttitude17",
+            "Excitation": "AeroAsym2"
+        }
+    ]
+}
