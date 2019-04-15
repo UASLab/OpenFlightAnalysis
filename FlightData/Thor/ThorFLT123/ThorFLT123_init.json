@@ -77,7 +77,7 @@
             "Stop_us": "100"
         }
     ],
-    "Test-Points": [
+    "Auto-Points": [
         {
             "Test-ID": "0",
             "Sensor-Processing": "Baseline",
