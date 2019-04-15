@@ -11,7 +11,7 @@ Created on Wed Feb  6 14:19:58 2019
 import csv
 import numpy as np
 
-def CSVread(filename):
+def JSBcsvRead(filename):
 
     #csvFilename = '/Users/louismueller/Documents/UAV_LAB/FlightAnalysis/FlightData/Thor/jsbsim_log.csv'
     
@@ -34,6 +34,9 @@ def CSVread(filename):
     csvFile.close()
     
     #%% Renaming
+    #for k,v in simFile.items():
+        #print(k)
+    
     
     simStruct = {}
     
@@ -48,11 +51,11 @@ def CSVread(filename):
     
     # IMU
     simStruct['accel_true_fps2'] = np.array([simFile['/fdm/jsbsim/sensor/imu/accelX_true_fps2'], simFile['/fdm/jsbsim/sensor/imu/accelY_true_fps2'], simFile['/fdm/jsbsim/sensor/imu/accelZ_true_fps2']])
-    simStruct['gyro_true_rps'] = np.array([simFile['/fdm/jsbsim/sensor/imu/gyroX_true_rps'], simFile['/fdm/jsbsim/sensor/imu/gyroY_true_rps'], simFile['/fdm/jsbsim/sensor/imu/gyroZ_true_rps']])
+    #simStruct['gyro_true_rps'] = np.array([simFile['/fdm/jsbsim/sensor/imu/gyroX_true_rps'], simFile['/fdm/jsbsim/sensor/imu/gyroY_true_rps'], simFile['/fdm/jsbsim/sensor/imu/gyroZ_true_rps']])
     
     # Pitot
-    simStruct['presStatic_true_pa'] = simFile['/fdm/jsbsim/sensor/pitot/presStatic_true_pa']
-    simStruct['presTip_true_pa'] = simFile['/fdm/jsbsim/sensor/pitot/presTip_true_pa']
+    simStruct['presStatic_true_pa'] = simFile['/fdm/jsbsim/sensor/pitot/presStatic_true_Pa']
+    simStruct['presTip_true_pa'] = simFile['/fdm/jsbsim/sensor/pitot/presTip_true_Pa']
     simStruct['temp_true_C'] = simFile['/fdm/jsbsim/sensor/pitot/temp_true_C']
     
     # Altitude
