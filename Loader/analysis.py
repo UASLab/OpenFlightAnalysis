@@ -13,7 +13,6 @@ General Steps:
 1. Load .h5 (and csv) data from flightFolder
 2. Load requested excitation times from _init.json
 3. Split flight data from using times and store desired excitations
-4. ?Interpolate? and compare flight and sim data
 
 """
 
@@ -43,8 +42,6 @@ init_jsonfilename = os.path.join(basepath, 'Thor',flight,flight + '_init.json')
 flight_jsonfilename = os.path.join(basepath, 'Thor', flight, flight + '.json')
 simfilename = os.path.join(basepath, 'Thor', sim, sim + '.csv')
 
-#%% Analysis Runs
-
 # Read h5
 h5dict, h5data = h5read(h5filename)
 
@@ -66,7 +63,6 @@ manualPoints = json_init['Manual-Points']
 startTime = []
 stopTime = []
 oData= {}
-
 
 def oDataTimes(request, points):
     for excitation in request:
@@ -102,21 +98,23 @@ if args.auto:
     oDataTimes(args.auto, autoPoints)   
 
 if args.manual:
-    oDataTimes(args.manual, manualPoints)
-                
-
-
+    oDataTimes(args.manual, manualPoints)               
 
 #Test Plot
-f, ax1 = plt.subplots()
+f1, ax1 = plt.subplots()
 flightTime = oData['excitation_ManualTest']['flt']['Time_us']
 flightAlt = oData['excitation_ManualTest']['flt']['altAD_m']
 ax1.plot(flightTime, flightAlt)
 
-f, ax2 = plt.subplots()
+f2, ax2 = plt.subplots()
 simTime = oData['excitation_ManualTest']['sim']['time_s']
 simAlt = oData['excitation_ManualTest']['sim']['alt_AGL_ft']
 ax2.plot(simTime, simAlt)
 
+if args.savefigs:
+    f1.savefig('flt.png')
+    f2.savefig('sim.png')
+else:
+    plt.show()     
 
-plt.show()     
+

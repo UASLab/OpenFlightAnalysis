@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Feb  6 14:19:58 2019
+Louis Mueller
+University of Minnesota UAV Lab
 
-@author: louismueller
+Description:
+Read and rename sim data .csv file.    
+    
 """
-
-# JSBSim csv parser
 
 import csv
 import numpy as np
 
 def JSBcsvRead(filename):
-
-    #csvFilename = '/Users/louismueller/Documents/UAV_LAB/FlightAnalysis/FlightData/Thor/jsbsim_log.csv'
     
     simFile = {}
     
@@ -33,11 +32,6 @@ def JSBcsvRead(filename):
             count += 1
     
     csvFile.close()
-    
-    #%% Renaming
-    #for k,v in simFile.items():
-        #print(k)
-    
     
     simStruct = {}
     
