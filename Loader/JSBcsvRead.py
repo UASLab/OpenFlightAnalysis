@@ -20,6 +20,7 @@ def JSBcsvRead(filename):
     with open(filename, 'r') as csvFile:
         reader = csv.reader(csvFile)
         count = 0
+
         for row in reader:
             if count == 0:
                 names = row
