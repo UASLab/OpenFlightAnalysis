@@ -61,7 +61,8 @@ plt.show()
 ## Compute Spectrum of each channel
 scaleType = 'spectrum'
 winType = ('tukey', 0.0)
-detrendType = 'constant'
+detrendType = 'linear'
+smooth = ('box', 1)
 
 freq_fft = []
 P_dB_fft = []
@@ -69,12 +70,12 @@ freq_czt = []
 P_dB_czt = []
 
 for iChan, sig in enumerate(sigList):
-    freq_rps_fft, _, P_fft  = FreqTrans.Spectrum(sig, fs = freqRate_hz * hz2rps, dftType = 'fft', winType = winType, detrendType = detrendType, scaleType = scaleType)
+    freq_rps_fft, _, P_fft  = FreqTrans.Spectrum(sig, freqRate_hz * hz2rps, None, 'fft', winType, detrendType, smooth, scaleType)
     freq_fft.append(freq_rps_fft * rps2hz)
     P_dB_fft.append(20*np.log10(P_fft))
     
     freqChan_rps = freqElem_rps[sigIndx[iChan]]
-    freq_rps_czt, _, P_czt  = FreqTrans.Spectrum(sig, fs = freqRate_hz * hz2rps, freq = freqChan_rps, dftType = 'czt', winType = winType, detrendType = detrendType, scaleType = scaleType)
+    freq_rps_czt, _, P_czt  = FreqTrans.Spectrum(sig, freqRate_hz * hz2rps, freqChan_rps, 'czt', winType, detrendType, smooth, scaleType)
     freq_czt.append(freq_rps_czt * rps2hz)
     P_dB_czt.append(20*np.log10(P_czt))
     
@@ -83,12 +84,13 @@ nChan = len(P_dB_fft)
 plt.figure()
 for iChan in range(0, nChan):
     plt.subplot(nChan, 1, iChan+1)
-    plt.plot(freq_fft[iChan], P_dB_fft[iChan])
-    plt.plot(freq_czt[iChan], P_dB_czt[iChan])
+    plt.plot(freq_fft[iChan], P_dB_fft[iChan], '-k', label='FFT Pxx')
+    plt.plot(freq_czt[iChan], P_dB_czt[iChan], '.r-', label='CZT Pxx')
     plt.grid()
     plt.ylabel('Spectrum (dB)');
 
 plt.xlabel('frequency (Hz)');
+plt.legend()
 plt.show()
 
 

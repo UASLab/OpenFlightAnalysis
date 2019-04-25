@@ -9,6 +9,8 @@ Author: Chris Regan
 
 import numpy as np
 import scipy.signal as signal
+import scipy.interpolate as interp
+import scipy.linalg
 
 # Constants
 hz2rps = 2*np.pi
@@ -17,9 +19,84 @@ rps2hz = 1/hz2rps
 rad2deg = 180/np.pi
 
 
+#%% Estimate Transfer Function from Time history data
+def FreqRespFuncEstNoise(x, y, fs, freqE = None, freqN = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
+    '''
+    Estimates the Transfer Function Response from input/output time histories
+    Single-Input Multi-Output at a Single-FreqVector
+    
+    x and y are real and must be the same length
+    Assumes x and y have uniform spacing
+
+    x has dimension (1, p) or (p,) at input and is expanded to (1, p)
+    y has dimension (n, p) or (p,) at input and is expanded to (n, p)
+    Pxx has dimension (1, r) and is reduced to (1, r) or (r,) depending on input form of x
+    Pyy has dimension (n, r) and is reduced to (n, r) or (r,) depending on input form of x
+    Pxy, Cxy, and Txy has dimension (n, r) or (r,)
+
+        m is the number of input signals
+        n is the number of output signals
+        p is the length of the each signal
+        r is the length of the freq vector
+        
+    returns the onesided DFT
+    fs and freq must have same units. (Puu and Pyy will only have correct power scale if units are rad/sec)
+    
+    '''
+    
+    # Compute the Power Spectrums    
+    _, xDft_E, Pxx_E = Spectrum(x, fs, freqE, dftType, winType, detrendType, smooth, scaleType)
+    _, yDft_E, Pyy_E = Spectrum(y, fs, freqE, dftType, winType, detrendType, smooth, scaleType)
+    _, yDft_N, Pyy_N = Spectrum(y, fs, freqN, dftType, winType, detrendType, smooth, scaleType)
+        
+    # Interpolate freqN into freqE, in polar coordinates
+    def interpPolar(z, freqN, freqE):
+        amp = np.abs(z)
+        theta = np.angle(z)
+                
+        interpAmp = interp.interp1d(freqN, amp, fill_value="extrapolate")
+        interpTheta = interp.interp1d(freqN, theta, fill_value="extrapolate")
+
+        ampE = interpAmp(freqE)
+        thetaE = interpTheta(freqE)
+    
+        zE = ampE * np.exp( 1j * thetaE )
+            
+        return zE
+    
+    yDft_N = interpPolar(yDft_N, freqN, freqE)
+    Pyy_N = interpPolar(Pyy_N, freqN, freqE)
+    
+    # Compute Cross Spectrum Power with scaling
+    lenX = x.shape[-1]
+    win = signal.get_window(winType, lenX)
+    scale = PowerScale(scaleType, fs, win)
+    
+    Pxy_E = np.conjugate(xDft_E) * yDft_E * 2*scale # Scale is doubled because one-sided DFT
+    Pxy_N = np.conjugate(xDft_E) * yDft_N * 2*scale # Scale is doubled because one-sided DFT
+    
+    Pxx = Pxx_E
+#    Pyy = Pyy_E - Pyy_N
+    Pyy = Pyy_E
+#    Pxy = Pxy_E - Pxy_N
+    Pxy = Pxy_E
+    
+    # Smooth - 
+    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
+    
+    # Coherence, use the Smoothed Cross Spectrum
+    Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
+    
+    # Compute complex transfer function approximation
+    Txy = Pxy / Pxx
+    TxyUnc = Pxy_N / Pxx
+
+    return freqE, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc
+
+
 
 #%% Estimate Transfer Function from Time history data
-def TransFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
+def FreqRespFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
     '''
     Estimates the Transfer Function Response from input/output time histories
     Single-Input Multi-Output at a Single-FreqVector
@@ -68,11 +145,11 @@ def TransFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0
     Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
     
     # Smooth - 
-    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
-    #Pxy = Smooth(np.abs(Pxy), smooth) * np.exp(1j * Smooth(np.angle(Pxy), smooth))
+#    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
+    Pxy_smooth = Smooth(np.abs(Pxy), smooth) * np.exp(1j * Smooth(np.angle(Pxy), smooth))
     
     # Coherence, use the Smoothed Cross Spectrum
-    Cxy = (abs(Pxy_smooth)**2 / (Pxx * Pyy)).real
+    Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
     
     # Compute complex transfer function approximation
     Txy = Pxy / Pxx
@@ -86,11 +163,8 @@ def TransFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0
         Pxy = np.squeeze(Pxy)
         Cxy = np.squeeze(Cxy)
         Txy = np.squeeze(Txy)
-    
-    # Gain and Phase
-    gain_dB, phase_deg = GainPhase(Txy)
-    
-    return freq, gain_dB, phase_deg, Cxy, Txy, Pxx, Pyy, Pxy
+        
+    return freq, Txy, Cxy, Pxx, Pyy, Pxy
 
 
 #%%
@@ -107,13 +181,14 @@ def Spectrum(x, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detr
     # Detrend and Window
     lenX = x.shape[-1]
     win = signal.get_window(winType, lenX)
+    xWin = win*x
     
     # Compute Power scaling
     scale = PowerScale(scaleType, fs, win)
         
     # Compute the Fourier Transforms    
-    if dftType is 'fft':
-        freq, xDft  = FFT(x, fs)
+    if dftType == 'fft':
+        freq, xDft  = FFT(xWin, fs)
         
         # Compute Power
         P = (np.conjugate(xDft) * xDft).real * scale
@@ -130,10 +205,10 @@ def Spectrum(x, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detr
             xDft = xDft[..., 1:]
             P = P[..., 1:]
         
-    if dftType is 'czt':
+    if dftType == 'czt':
         if freq is None:
             raise ValueError('CZT frequency vector must be provided')
-        freq, xDft  = CZT(x, freq, fs)
+        freq, xDft  = CZT(xWin, freq, fs)
     
         # Compute Power, factor of 2 because CZT is one-sided
         P = (np.conjugate(xDft) * xDft).real * 2*scale

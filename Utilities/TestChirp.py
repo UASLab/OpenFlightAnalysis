@@ -16,6 +16,7 @@ import scipy.signal as signal
 import json
 
 import GenExcite
+import FreqTrans
 
 # Constants
 hz2rps = 2*np.pi
@@ -50,24 +51,22 @@ plt.show()
 ## Compute Spectrum of each channel
 scaleType = 'spectrum'
 winType = ('tukey', 0.0)
+detrendType = 'constant'
+smooth = ('box', 1)
 
-freq_hz, P  = signal.periodogram(sig, freqRate_hz, scaling=scaleType, window=winType)
-#freq_hz, P  = signal.welch(sig, freqRate_hz, noverlap=0, scaling=scaleType, window=winType)
-Psd_mag = np.sqrt(np.abs(P))
-
+freq_hz, sigDft, Psd_mag = FreqTrans.Spectrum(sig, freqRate_hz, None, 'fft', winType, detrendType, smooth, scaleType)
 Psd_dB = 20*np.log10(Psd_mag)
 
-## Plot Spectrum of each channel
+## Plot Spectrum
 plt.figure()
-plt.plot(freq_hz, Psd_mag)
+plt.plot(freq_hz, Psd_dB)
 plt.xlabel('frequency (Hz)');
-plt.ylabel('Spectrum (mag)');
+plt.ylabel('Spectrum (dB)');
 plt.grid()
 plt.show()
 
 
 #%% Create the output for JSON config
-
 timeFinal_s = time_s[-1]
 timeStart_s = time_s[0]
 

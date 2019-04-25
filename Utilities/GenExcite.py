@@ -248,8 +248,8 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
 
     # Frequencies of all the components
     numElem = int(round((freqMax_hz - freqMin_hz) / freqStep_hz)) + 1
-    phaseElem_hz = np.linspace(freqMin_hz, freqMax_hz, numElem)
-    freqElem_rps = phaseElem_hz * hz2rps
+    freqElem_hz = np.linspace(freqMin_hz, freqMax_hz, numElem)
+    freqElem_rps = freqElem_hz * hz2rps
 
 
     ## Distribute the frequency components into the signals
@@ -259,9 +259,11 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
     # Distribution methods
     if methodSW in ['zipper', 'zip']:
         # Zippered distribution
-        sigIndx = []
+        numElem =  int(np.floor(numElem/numChan) * numChan) # truncate
+        sigIndx = np.zeros((numChan, int(numElem/numChan)), dtype=int)
+        
         for iSignal in range(0, numChan):
-          sigIndx.append(list(range(iSignal, numElem, numChan)))
+          sigIndx[iSignal, ] = range(iSignal, numElem, numChan)
 
     else:
         print('MultiSineComponent - Distribution method type not understood')
