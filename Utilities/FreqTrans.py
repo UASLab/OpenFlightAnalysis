@@ -10,7 +10,6 @@ Author: Chris Regan
 import numpy as np
 import scipy.signal as signal
 import scipy.interpolate as interp
-import scipy.linalg
 
 # Constants
 hz2rps = 2*np.pi

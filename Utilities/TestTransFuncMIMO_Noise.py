@@ -11,7 +11,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as signal
 
-
 import FreqTrans
 import GenExcite
 

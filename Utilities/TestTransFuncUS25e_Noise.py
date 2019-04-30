@@ -9,98 +9,137 @@ Author: Chris Regan
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as patch
 import scipy.interpolate as interp
 import scipy.signal as signal
 import control
 
-
 import FreqTrans
 import GenExcite
+import Systems
 
 # Constants
 hz2rps = 2*np.pi
 rps2hz = 1/hz2rps
-d2r = np.pi/180
-r2d = 1/d2r
+
+rad2deg = 180/np.pi
+deg2rad = 1/rad2deg
 
 
 #%% Define a linear systems
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 
-freqSys_hz = np.linspace(0.1, 15, 300)
+freqSys_hz = np.logspace(np.log10(0.01), np.log10(25), 800)
 freqSys_rps = freqSys_hz*hz2rps
 
-nFreq = len(freqSys_rps)
-linInNames = ['excP',  'excQ', 'excR']; nIn = len(linInNames)
-linOutNames = sysOL_OutputNames; nOut = len(linOutNames)
 
-inList = [sysOL_InputNames.index(s) for s in linInNames]
-outList = [sysOL_OutputNames.index(s) for s in linOutNames]
-sysOL_gain_nd = np.zeros([nOut, nIn, nFreq])
-sysOL_phase_rad = np.zeros([nOut, nIn, nFreq])
-sysOL_T = np.zeros([nOut, nIn, nFreq], dtype=complex)
+# OL : Mixer -> Plant -> SCAS_FB
+inNames = sysMixer_InputNames + sysPlant_InputNames + sysScas_InputNames
+outNames = sysMixer_OutputNames + sysPlant_OutputNames + sysScas_OutputNames
+
+sysOL_ConnectNames = sysPlant_InputNames[:7] + sysScas_InputNames[1::3]
+sysOL_InputNames = sysMixer_InputNames + sysPlant_InputNames[-7:]
+sysOL_OutputNames = sysScas_OutputNames[2::4]
+
+sysOL = Systems.ConnectName(control.append(sysMixer, sysPlant, sysScas), inNames, outNames, sysOL_ConnectNames, sysOL_InputNames, sysOL_OutputNames)
+
+
+# CL: Ctrl -> Plant
+inNames = sysCtrl_InputNames + sysPlant_InputNames
+outNames = sysCtrl_OutputNames + sysPlant_OutputNames
+
+sysCL_ConnectNames = ['cmdThrot', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
+sysCL_InputNames = [inNames[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
+sysCL_OutputNames = [outNames[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
+
+sysCL = Systems.ConnectName(control.append(sysCtrl, sysPlant), inNames, outNames, sysCL_ConnectNames, sysCL_InputNames, sysCL_OutputNames)
+
+
+# Look at only the in-out of the OL
+nFreq = len(freqSys_rps)
+sysSimOL_InputNames = ['cmdP',  'cmdQ', 'cmdR']; nIn = len(sysSimOL_InputNames)
+sysSimOL_OutputNames = ['fbP', 'fbQ', 'fbR']; nOut = len(sysSimOL_OutputNames)
+
+inList = [sysOL_InputNames.index(s) for s in sysSimOL_InputNames]
+outList = [sysOL_OutputNames.index(s) for s in sysSimOL_OutputNames]
+sysSimOL_gain_nd = np.zeros([nOut, nIn, nFreq])
+sysSimOL_phase_rad = np.zeros([nOut, nIn, nFreq])
+sysSimOL = np.zeros([nOut, nIn, nFreq], dtype=complex)
 
 for iOut, outEntry in enumerate(outList):
     for iIn, inEntry in enumerate(inList):
-        sysOL_gain_nd[iOut, iIn, :], sysOL_phase_rad[iOut, iIn], _ = control.bode_plot(sysOL[outEntry, inEntry], omega = freqSys_rps, Plot = False)
+        sysSimOL_gain_nd[iOut, iIn], sysSimOL_phase_rad[iOut, iIn], _ = control.bode_plot(sysOL[outEntry, inEntry], omega = freqSys_rps, Plot = False)
         Treal, Timag, _ = control.nyquist_plot(sysOL[outEntry, inEntry], omega = freqSys_rps, Plot = False)
-        sysOL_T[iOut, iIn, :] = Treal + 1j*Timag
+        sysSimOL[iOut, iIn, :] = Treal + 1j*Timag
 
-sysOL_gain_nd[sysOL_gain_nd == 0] = 1e-6
-sysOL_gain_dB = 20*np.log10(sysOL_gain_nd)
-sysOL_phase_deg = sysOL_phase_rad * r2d
+#sysSimOL_gain_nd[sysSimOL_gain_nd == 0] = 1e-6
+sysSimOL_gain_dB = 20*np.log10(sysSimOL_gain_nd)
+sysSimOL_phase_deg = sysSimOL_phase_rad * rad2deg
+sysSimOL_sigma_mag = np.abs(sysSimOL - (0 - 1j))
 
 
 #%% Excitation
 numExc = 3
 numCycles = 1
-ampInit = 1
-ampFinal = 1
+ampInit = 4 * deg2rad
+ampFinal = ampInit
 freqMinDes_rps = 0.1 * hz2rps * np.ones(numExc)
 freqMaxDes_rps = 15 * hz2rps *  np.ones(numExc)
-freqStepDes_rps = (10/freqRate_hz) * hz2rps
+freqStepDes_rps = (10 / freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 # Generate MultiSine Frequencies
 freqExc_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles, freqStepDes_rps, methodSW)
 freqGap_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
-
 freqNull_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 # Generate Schroeder MultiSine Signal
 ampExc_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(freqExc_rps))
 exc, _, sigExc = GenExcite.Schroeder(freqExc_rps, ampExc_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
-
+exc_names = ['excP', 'excQ', 'excR']
 
 # Generate Noise
 dist_names = ['phiDist', 'thetaDist', 'pDist', 'qDist', 'rDist', 'VDist', 'hDist']
-sigmaNoise = 0.1 * ampInit
-shapeDist = (len(dist_names), len(time_s))
-dist = np.random.normal(0, sigmaNoise, size = shapeDist)
+angleDist = np.random.normal(0, 0.0 * ampInit, size = (2, len(time_s)))
+pqrDist = np.random.normal(0, 0.0 * ampInit, size = (3, len(time_s)))
+airDist = np.random.normal(0, 0.0 * ampInit, size = (2, len(time_s)))
+dist = np.concatenate((angleDist, pqrDist, airDist))
 
+
+# Reference Inputs
+ref_names = ['refPhi', 'refTheta', 'refYaw']
+shapeRef = (len(ref_names), len(time_s))
+ref = np.random.normal(0, 0.0 * ampInit, size = (3, len(time_s)))
+ref[1] = 0.0 * deg2rad + ref[1]
 
 # Simulate the excitation through the system, with noise
-exc_names = ['excP', 'excQ', 'excR']
-indxIn = [sysCL_InputNames.index(s) for s in exc_names + dist_names]
-
-sysExc = sysCL[:,indxIn]
-sysExc_InputNames = exc_names + dist_names
+sysExc_InputNames = sysCL_InputNames
 sysExc_OutputNames = sysCL_OutputNames
+sysExc = control.StateSpace(sysCL.A, sysCL.B, sysCL.C, sysCL.D)
 
-_, out, stateSim = control.forced_response(sysExc, T = time_s, U=np.concatenate((exc, dist)), X0=0.0, transpose=False)
+u = np.concatenate((ref, exc, dist))
+_, out, stateSim = control.forced_response(sysExc, T = time_s, U = u, X0 = 0.0, transpose = False)
 
-sens_names = sysExc_OutputNames[:7]
-sens = out[:7]
+# Time shift
+#time_s = time_s[0:-1]
+#ref = ref[:,0:-1]
+#exc = exc[:,0:-1]
+#dist = dist[:,0:-1]
+#u = u[:,0:-1]
+#out = out[:, 1:]
 
-fb_names = sysExc_OutputNames[7:10]
-fb = out[7:10]
+fb_names = sysExc_OutputNames[:3]
+fb = out[:3]
 
-v_names = sysExc_OutputNames[10:]
-v = out[10:]
+v_names = sysExc_OutputNames[3:6]
+v = out[3:6]
 
-#plt.plot(time_s, ySim[8])
+sens_names = sysExc_OutputNames[-7:]
+sens = out[-7:]
+
+#plt.plot(time_s, exc[1], time_s, v[1], time_s, fb[1])
 
 #%% Estimate the transfer functions
 dftType = 'czt'
@@ -128,68 +167,50 @@ TevUnc = np.zeros([nB, nIn, nFreq], dtype=complex)
 for iExc in range(0, numExc):
     freqChan_rps = freqExc_rps[sigIndx[iExc]]
     freqNull_rps = freqGap_rps
-    freq_rps[:, iExc, :], _, _, Ceb[:, iExc, :], Teb[:, iExc, :], _, _, _, TebUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], fb, freqRate_rps, freqChan_rps, freqNull_rps, dftType, winType, detrendType, smooth, scaleType)
-
-    _, _, _, Cev[:, iExc, :], Tev[:, iExc, :], _, _, _ = FreqTrans.FreqRespFuncEst(exc[np.newaxis, iExc], v, freqRate_rps, freqChan_rps, dftType, winType, detrendType, smooth, scaleType)
+    freq_rps[:, iExc, :], Teb[:, iExc, :], Ceb[:, iExc, :], _, _, _, TebUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], fb, freqRate_rps, freqChan_rps, freqNull_rps, dftType, winType, detrendType, smooth, scaleType)
+    _, Tev[:, iExc, :], Cev[:, iExc, :], _, _, _, TevUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], v, freqRate_rps, freqChan_rps, freqNull_rps, dftType, winType, detrendType, smooth, scaleType)
     
 
 freq_hz = freq_rps * rps2hz
-T = Teb / (Tev + 1)
-TUnc = TebUnc / (Tev + 1)
+eye = np.tile(np.eye(3), (nFreq, 1, 1)).T
+
+# Form the Frequency Response
+T = Teb / (Tev + TevUnc)
+TUnc = TebUnc / (Tev + TevUnc)
+
+T_InputNames = exc_names
+T_OutputNames = fb_names
 
 gain_dB, phase_deg = FreqTrans.GainPhase(T)
 phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg
+sigma_mag = np.abs(T - (0 - 1j)) # Distance from (0,-1j)
 
 
-#%% Plot
-plt.figure(1)
-
-iIn = 0
-iOut = 0
-ax1 = plt.subplot(4,2,1)
-ax1.semilogx(freqSys_hz, sysOL_gain_dB[iOut,iIn], 'k')
-ax1.semilogx(freq_hz[iOut,iIn], gain_dB[iOut,iIn], '.')
-
-ax3 = plt.subplot(4,2,3, sharex = ax1)
-ax3.semilogx(freqSys_hz, sysOL_phase_deg[iOut,iIn], 'k')
-ax3.semilogx(freq_hz[iOut,iIn], phase_deg[iOut,iIn], '.')
-
-iIn = 0
-iOut = 1
-ax2 = plt.subplot(4,2,2)
-ax2.semilogx(freqSys_hz, sysOL_gain_dB[iOut,iIn], 'k')
-ax2.semilogx(freq_hz[iOut,iIn], gain_dB[iOut,iIn], '.')
-
-ax4 = plt.subplot(4,2,4, sharex = ax2)
-ax4.semilogx(freqSys_hz, sysOL_phase_deg[iOut,iIn], 'k')
-ax4.semilogx(freq_hz[iOut,iIn], phase_deg[iOut,iIn], '.')
-
-iIn = 1
-iOut = 0
-ax5 = plt.subplot(4,2,5);
-ax5.semilogx(freqSys_hz, sysOL_gain_dB[iOut,iIn], 'k')
-ax5.semilogx(freq_hz[iOut,iIn], gain_dB[iOut,iIn], '.')
-
-ax7 = plt.subplot(4,2,7, sharex = ax5);
-ax7.semilogx(freqSys_hz, sysOL_phase_deg[iOut,iIn], 'k')
-ax7.semilogx(freq_hz[iOut,iIn], phase_deg[iOut,iIn], '.')
-
-iIn = 1
-iOut = 1
-ax6 = plt.subplot(4,2,6);
-ax6.semilogx(freqSys_hz, sysOL_gain_dB[iOut,iIn], 'k')
-ax6.semilogx(freq_hz[iOut,iIn], gain_dB[iOut,iIn], '.')
-
-ax8 = plt.subplot(4,2,8, sharex = ax6);
-ax8.semilogx(freqSys_hz, sysOL_phase_deg[iOut,iIn], 'k')
-ax8.semilogx(freq_hz[iOut,iIn], phase_deg[iOut,iIn], '.')
-
-
-    
-#%%
+#%% Disk Margin Plots
 inPlot = exc_names # Elements of exc_names
 outPlot = fb_names # Elements of fb_names
 
+fig, ax = plt.subplots(len(outPlot), len(inPlot), sharex=True, sharey=True, num = 1)
+for iIn, inName in enumerate(inPlot):
+    inElem = exc_names.index(inName)
+
+    for iOut, outName in enumerate(outPlot):
+        outElem = fb_names.index(outName)
+        
+        uncDisk = np.abs(TUnc[iOut, iIn])
+        
+        ax[iOut, iIn].semilogx(freqSys_hz, sysSimOL_sigma_mag[iOut, iIn], 'k')
+        ax[iOut, iIn].errorbar(freq_hz[iOut, iIn], sigma_mag[iOut, iIn], yerr = uncDisk, fmt = 'b.')
+        ax[iOut, iIn].grid()
+        ax[iOut, iIn].set_xlim(left = 0.05, right = freqRate_hz/2)
+        ax[iOut, iIn].set_ylim(bottom = 0.0, top = 2.0)
+        
+        ax[iOut, iIn].plot(freqSys_hz, 0.4 * np.ones_like(freqSys_hz), 'r-')
+        
+
+#%% Nyquist Plots
+inPlot = exc_names # Elements of exc_names
+outPlot = fb_names # Elements of fb_names
 
 fig, ax = plt.subplots(len(outPlot), len(inPlot), num = 2)
 for iIn, inName in enumerate(inPlot):
@@ -198,17 +219,35 @@ for iIn, inName in enumerate(inPlot):
     for iOut, outName in enumerate(outPlot):
         outElem = fb_names.index(outName)
     
-        ax[iOut, iIn].plot(sysOL_T[outElem, inElem].imag, sysOL_T[outElem, inElem].real, 'k')
-        ax[iOut, iIn].plot(T[outElem, inElem].imag, T[outElem, inElem].real, '.')
+        ax[iOut, iIn].plot(sysSimOL[iOut, iIn].imag, sysSimOL[iOut, iIn].real, 'k')
+        ax[iOut, iIn].plot(T[iOut, iIn].imag, T[iOut, iIn].real, 'b.')
         ax[iOut, iIn].grid()
-        critCirc = plt.Circle((-1, 0), 0.4, color='r', alpha=0.5)
-        ax[iOut, iIn].add_artist(critCirc)
+        critPatch = patch.Ellipse((-1, 0), 2*0.4, 2*0.4, color='r', alpha=0.25)
+        ax[iOut, iIn].add_artist(critPatch)
         
-        for iNom, nom in enumerate(T[outElem, inElem]):
-            unc = np.abs(TUnc[outElem, inElem][iNom])
-            uncCirc = plt.Circle((nom.imag, nom.real), unc, color='b', alpha=0.5)
-            ax[iOut, iIn].add_artist(uncCirc)
+        for iNom, nom in enumerate(T[iOut, iIn]):
+            unc = TUnc[iOut, iIn][iNom]
+            uncPatch = patch.Ellipse((nom.imag, nom.real), 2*unc.imag, 2*unc.real, color='b', alpha=0.25)
+            ax[iOut, iIn].add_artist(uncPatch)
 
-        ax[iOut,iIn].set_xlim(-2, 0)
-        ax[iOut,iIn].set_ylim(-1, 1)
+        ax[iOut,iIn].set_xlim(-3, 1)
+        ax[iOut,iIn].set_ylim(-2, 2)
         
+
+#%% Bode Plots
+#for iIn in range(0, 3):
+#    plt.figure(3 + iIn)
+#    
+#    for iOut in range(0, 3):
+#        iAx = 2 * iOut + 1
+#        ax1 = plt.subplot(6, 1, iAx)
+#        ax1.semilogx(freqSys_hz, sysSimOL_gain_dB[iOut, iIn], 'k')
+#        ax1.semilogx(freq_hz[iOut, iIn], gain_dB[iOut, iIn], '.')
+#        ax1.grid(); ax1.set_ylabel('Gain (dB)')
+#        
+#        iAx = 2 * iOut + 2
+#        ax2 = plt.subplot(6, 1, iAx, sharex = ax1)
+#        ax2.semilogx(freqSys_hz, sysSimOL_phase_deg[iOut, iIn], 'k')
+#        ax2.semilogx(freq_hz[iOut, iIn], phase_deg[iOut, iIn], '.')
+#        ax2.grid(); ax2.set_xlabel('Freq (Hz)'); ax2.set_ylabel('Phase (deg)')
+#
