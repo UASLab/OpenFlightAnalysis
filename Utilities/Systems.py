@@ -24,7 +24,10 @@ def ConnectName(sys, inNames, outNames, connectNames, inKeep, outKeep):
 
 
 #%% Controller Models
-def PID2(Kp, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0):
+def PID2(Kp = 1, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0):
+    # Inputs: ['ref', 'sens', 'exc']
+    # Outputs: ['cmd', 'ff', 'fb', 'exc']
+
     sysR = control.tf2ss(control.tf([Kp*b*Tf + Kd*c, Kp*b + Ki*Tf, Ki], [Tf, 1, 0]))
     sysY = control.tf2ss(control.tf([Kp*Tf + Kd, Kp + Ki*Tf, Ki], [Tf, 1, 0]))
     sysX = control.tf2ss(control.tf(1,1)) # Excitation Input
@@ -41,6 +44,9 @@ def PID2(Kp, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0):
 
 #%% Effector Models
 def ActuatorModel(bw, delay = (0, 1)):
+    # Inputs: ['cmd']
+    # Outputs: ['pos']
+    
     sysNom = control.tf2ss(control.tf(1, [1/bw, 1]))
 
     delayPade = control.pade(delay[0], n=delay[1])
@@ -53,6 +59,9 @@ def ActuatorModel(bw, delay = (0, 1)):
 
 #%% Sensor models
 def SensorModel(bw, delay = (0, 1)):
+    # Inputs: ['meas', 'dist']
+    # Outputs: ['sens']
+    
     sysNom = control.tf2ss(control.tf(1, [1/bw, 1]))
 
     delayPade = control.pade(delay[0], n=delay[1])
