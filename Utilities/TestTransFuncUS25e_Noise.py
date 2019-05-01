@@ -49,7 +49,7 @@ sysOL = Systems.ConnectName(control.append(sysMixer, sysPlant, sysScas), inNames
 inNames = sysCtrl_InputNames + sysPlant_InputNames
 outNames = sysCtrl_OutputNames + sysPlant_OutputNames
 
-sysCL_ConnectNames = ['cmdThrot', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
+sysCL_ConnectNames = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
 sysCL_InputNames = [inNames[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
 sysCL_OutputNames = [outNames[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
 
@@ -142,11 +142,6 @@ sens = out[-7:]
 #plt.plot(time_s, exc[1], time_s, v[1], time_s, fb[1])
 
 #%% Estimate the transfer functions
-dftType = 'czt'
-scaleType = 'spectrum'
-detrendType = 'constant'
-winType = ('tukey', 0.0)
-smooth = ('box', 1)
 
 nIn = len(exc)
 nSens = len(sens)
@@ -164,11 +159,14 @@ Cev = np.zeros([nB, nIn, nFreq])
 Tev = np.zeros([nB, nIn, nFreq], dtype=complex)
 TevUnc = np.zeros([nB, nIn, nFreq], dtype=complex)
 
+optSpect = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3))
+optSpectN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
+
 for iExc in range(0, numExc):
-    freqChan_rps = freqExc_rps[sigIndx[iExc]]
-    freqNull_rps = freqGap_rps
-    freq_rps[:, iExc, :], Teb[:, iExc, :], Ceb[:, iExc, :], _, _, _, TebUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], fb, freqRate_rps, freqChan_rps, freqNull_rps, dftType, winType, detrendType, smooth, scaleType)
-    _, Tev[:, iExc, :], Cev[:, iExc, :], _, _, _, TevUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], v, freqRate_rps, freqChan_rps, freqNull_rps, dftType, winType, detrendType, smooth, scaleType)
+    optSpect.freq = freqExc_rps[sigIndx[iExc]]
+    optSpectN.freq = freqGap_rps
+    freq_rps[:, iExc, :], Teb[:, iExc, :], Ceb[:, iExc, :], _, _, _, TebUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], fb, optSpect, optSpectN)
+    _                   , Tev[:, iExc, :], Cev[:, iExc, :], _, _, _, TevUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], v, optSpect, optSpectN)
     
 
 freq_hz = freq_rps * rps2hz
@@ -235,19 +233,25 @@ for iIn, inName in enumerate(inPlot):
         
 
 #%% Bode Plots
-#for iIn in range(0, 3):
-#    plt.figure(3 + iIn)
-#    
-#    for iOut in range(0, 3):
-#        iAx = 2 * iOut + 1
-#        ax1 = plt.subplot(6, 1, iAx)
-#        ax1.semilogx(freqSys_hz, sysSimOL_gain_dB[iOut, iIn], 'k')
-#        ax1.semilogx(freq_hz[iOut, iIn], gain_dB[iOut, iIn], '.')
-#        ax1.grid(); ax1.set_ylabel('Gain (dB)')
-#        
-#        iAx = 2 * iOut + 2
-#        ax2 = plt.subplot(6, 1, iAx, sharex = ax1)
-#        ax2.semilogx(freqSys_hz, sysSimOL_phase_deg[iOut, iIn], 'k')
-#        ax2.semilogx(freq_hz[iOut, iIn], phase_deg[iOut, iIn], '.')
-#        ax2.grid(); ax2.set_xlabel('Freq (Hz)'); ax2.set_ylabel('Phase (deg)')
-#
+for iIn in range(0, 3):
+    for iOut in range(0, 3):
+        
+        plt.figure()
+        
+        ax1 = plt.subplot(3, 1, 1)
+        ax1.semilogx(freqSys_hz, sysSimOL_gain_dB[iOut, iIn], 'k')
+        ax1.semilogx(freq_hz[iOut, iIn], gain_dB[iOut, iIn], '.')
+        ax1.grid(); ax1.set_ylabel('Gain (dB)')
+        
+        ax2 = plt.subplot(3, 1, 2, sharex = ax1)
+        ax2.semilogx(freqSys_hz, sysSimOL_phase_deg[iOut, iIn], 'k')
+        ax2.semilogx(freq_hz[iOut, iIn], phase_deg[iOut, iIn], '.')
+        ax2.grid(); ax2.set_ylabel('Phase (deg)')
+        
+        ax3 = plt.subplot(3, 1, 3, sharex = ax1)
+        ax3.semilogx(freqSys_hz, np.ones_like(freqSys_hz), 'k')
+        ax3.semilogx(freq_hz[iOut, iIn], Ceb[iOut, iIn], '.')
+        ax3.semilogx(freq_hz[iOut, iIn], Cev[iOut, iIn], '.')
+        ax3.grid(); ax3.set_xlabel('Freq (Hz)'); ax3.set_ylabel('Coherence (nd)')
+        ax3.set_ylim(0, 1)
+

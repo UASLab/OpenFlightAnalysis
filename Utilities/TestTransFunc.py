@@ -51,12 +51,9 @@ x, ampChirpX, freqChirp_rps = GenExcite.Chirp(freqInit_rps, freqFinal_rps, time_
 time_s, y, _ = signal.lsim(sys, x, time_s)
 
 # Estimate the transfer function
-dftType = 'fft'
-scaleType = 'spectrum'
-detrendType = None
-winType = ('tukey', 0.0)
-smooth = ('box', 5)
-freq_rps, gain_dB, phase_deg, Cxy, Txy, Pxx, Pyy, Pxy = FreqTrans.TransFuncEst(x, y, freqRate_rps, dftType = dftType, winType = winType, detrendType = detrendType, smooth = smooth, scaleType = scaleType)
+optSpec = FreqTrans.OptSpect(freqRate = freqRate_rps, smooth = ('box', 5))
+freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(x, y, optSpec)
+gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 freq_hz = freq_rps * rps2hz
 
 plt.figure(1)
@@ -93,9 +90,9 @@ time_s, y, _ = signal.lsim(sys, x.squeeze(), time_s)
 
 
 # Estimate the transfer function
-dftType = 'czt'
-
-freq_rps, gain_dB, phase_deg, Cxy, Txy, Pxx, Pyy, Pxy = FreqTrans.TransFuncEst(x, y, freqRate_rps, freq = freqElem_rps,  dftType = dftType, winType = winType, detrendType = detrendType, smooth = smooth, scaleType = scaleType)
+optSpectCzt = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, freq = freqElem_rps)
+freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(x, y, optSpectCzt)
+gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 freq_hz = freq_rps * rps2hz
 
 

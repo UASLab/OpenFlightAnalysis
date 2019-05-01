@@ -12,7 +12,6 @@ Exampe script for generating sin sweep type excitations.
 
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.signal as signal
 import json
 
 import GenExcite
@@ -49,12 +48,9 @@ plt.show()
 
 #%% Plot the Excitation Spectrum
 ## Compute Spectrum of each channel
-scaleType = 'spectrum'
-winType = ('tukey', 0.0)
-detrendType = 'constant'
-smooth = ('box', 1)
+optSpect = FreqTrans.OptSpect(freqRate = freqRate_hz)
 
-freq_hz, sigDft, Psd_mag = FreqTrans.Spectrum(sig, freqRate_hz, None, 'fft', winType, detrendType, smooth, scaleType)
+freq_hz, sigDft, Psd_mag = FreqTrans.Spectrum(sig, optSpect)
 Psd_dB = 20*np.log10(Psd_mag)
 
 ## Plot Spectrum

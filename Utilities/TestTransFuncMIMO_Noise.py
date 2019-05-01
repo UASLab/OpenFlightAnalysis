@@ -102,12 +102,6 @@ y += yNoise
 
 
 # Estimate the transfer function
-dftType = 'czt'
-scaleType = 'spectrum'
-detrendType = 'constant'
-winType = ('tukey', 0.0)
-smooth = ('box', 1)
-
 nIn = len(exc)
 nY = len(y)
 nFreq = int(len(freqExc_rps) / numExc)
@@ -123,17 +117,15 @@ Pyy = np.zeros([nY, nIn, nFreq], dtype=complex)
 Pxy = np.zeros([nY, nIn, nFreq], dtype=complex)
 TxyUnc = np.zeros([nY, nIn, nFreq], dtype=complex)
 
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
 
 for iExc in range(0, numExc):
-    freqChan_rps = freqExc_rps[sigIndx[iExc]]
-    freqNull_rps = freqGap_rps
-    freq_rps[:, iExc, :], Txy[:, iExc, :], Cxy[:, iExc, :], Pxx[:, iExc, :], Pyy[:, iExc, :], Pxy[:, iExc, :], TxyUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], y, freqRate_rps, freqChan_rps, freqNull_rps, dftType, winType, detrendType, smooth, scaleType)
-#    freq_rps[:, iExc, :], Txy[:, iExc, :], CxySmooth[:, iExc, :], Pxx[:, iExc, :], Pyy[:, iExc, :], Pxy[:, iExc, :] = FreqTrans.FreqRespFuncEst(exc[np.newaxis, iExc], y, freqRate_rps, freqChan_rps, dftType, winType, detrendType, smooth, scaleType)
-    
+    optSpec.freq = freqExc_rps[sigIndx[iExc]]
+    optSpecN.freq = freqGap_rps
+    freq_rps[:, iExc, :], Txy[:, iExc, :], Cxy[:, iExc, :], Pxx[:, iExc, :], Pyy[:, iExc, :], Pxy[:, iExc, :], TxyUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], y, optSpec, optSpecN)
+  
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
-
-#Cxy = np.abs(Pxy)**2 / (Pxx * Pyy).real
-#TxyUnc = Pyy**2 / (Pxx * Pxy)
 
 freq_hz = freq_rps * rps2hz
 phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg

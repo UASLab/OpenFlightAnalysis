@@ -81,11 +81,7 @@ y[0] = out11 + out12
 y[1] = out21 + out22
 
 # Estimate the transfer function
-dftType = 'czt'
-scaleType = 'spectrum'
-detrendType = 'constant'
-winType = ('tukey', 0.0)
-smooth = ('box', 1)
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
 
 freqMat_hz = []
 gainMat_dB = []
@@ -95,8 +91,8 @@ CxyMat = []
 PxxMat = []
 PyyMat = []
 for iChan in range(0, numChan):
-    freqChan_rps = freqExcit_rps[sigIndx[iChan]]
-    freqChan_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(exc[np.newaxis, iChan], y, freqRate_rps, freqChan_rps,  dftType, winType, detrendType, smooth, scaleType)
+    optSpec.freq = freqExcit_rps[sigIndx[iChan]]
+    freqChan_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(exc[np.newaxis, iChan], y, optSpec)
     gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
     
     freqMat_hz.append(freqChan_rps * rps2hz)

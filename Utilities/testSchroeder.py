@@ -59,10 +59,8 @@ plt.show()
 #%% Plot the Excitation Spectrum
 
 ## Compute Spectrum of each channel
-scaleType = 'spectrum'
-winType = ('tukey', 0.0)
-detrendType = 'linear'
-smooth = ('box', 1)
+optFFT = FreqTrans.OptSpect(freqRate = freqRate_hz * hz2rps)
+optCZT = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps)
 
 freq_fft = []
 P_dB_fft = []
@@ -70,12 +68,12 @@ freq_czt = []
 P_dB_czt = []
 
 for iChan, sig in enumerate(sigList):
-    freq_rps_fft, _, P_fft  = FreqTrans.Spectrum(sig, freqRate_hz * hz2rps, None, 'fft', winType, detrendType, smooth, scaleType)
+    freq_rps_fft, _, P_fft  = FreqTrans.Spectrum(sig, optFFT)
     freq_fft.append(freq_rps_fft * rps2hz)
     P_dB_fft.append(20*np.log10(P_fft))
     
-    freqChan_rps = freqElem_rps[sigIndx[iChan]]
-    freq_rps_czt, _, P_czt  = FreqTrans.Spectrum(sig, freqRate_hz * hz2rps, freqChan_rps, 'czt', winType, detrendType, smooth, scaleType)
+    optCZT.freq = freqElem_rps[sigIndx[iChan]]
+    freq_rps_czt, _, P_czt  = FreqTrans.Spectrum(sig, optCZT)
     freq_czt.append(freq_rps_czt * rps2hz)
     P_dB_czt.append(20*np.log10(P_czt))
     

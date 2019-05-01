@@ -17,9 +17,19 @@ rps2hz = 1/hz2rps
 
 rad2deg = 180/np.pi
 
+class OptSpect:
+    def __init__(self, freqRate = 1, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
+        self.freqRate = freqRate
+        self.freq = freq
+        self.dftType = dftType
+        self.winType = winType
+        self.detrendType = detrendType
+        self.smooth = smooth
+        self.scaleType = scaleType
+
 
 #%% Estimate Transfer Function from Time history data
-def FreqRespFuncEstNoise(x, y, fs, freqE = None, freqN = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
+def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
     '''
     Estimates the Transfer Function Response from input/output time histories
     Single-Input Multi-Output at a Single-FreqVector
@@ -42,12 +52,12 @@ def FreqRespFuncEstNoise(x, y, fs, freqE = None, freqN = None, dftType = 'fft', 
     fs and freq must have same units. (Puu and Pyy will only have correct power scale if units are rad/sec)
     
     '''
-    
+
     # Compute the Power Spectrums    
-    _, xDft_E, Pxx_E = Spectrum(x, fs, freqE, dftType, winType, detrendType, smooth, scaleType)
-    _, yDft_E, Pyy_E = Spectrum(y, fs, freqE, dftType, winType, detrendType, smooth, scaleType)
-    _, yDft_N, Pyy_N = Spectrum(y, fs, freqN, dftType, winType, detrendType, smooth, scaleType)
-        
+    _   , xDft_E, Pxx_E = Spectrum(x, opt)
+    freq, yDft_E, Pyy_E = Spectrum(y, opt)
+    freqN, yDft_N, Pyy_N = Spectrum(y, optN)
+    
     # Interpolate freqN into freqE, in polar coordinates
     def interpPolar(z, freqN, freqE):
         amp = np.abs(z)
@@ -63,13 +73,13 @@ def FreqRespFuncEstNoise(x, y, fs, freqE = None, freqN = None, dftType = 'fft', 
             
         return zE
     
-    yDft_N = interpPolar(yDft_N, freqN, freqE)
-    Pyy_N = interpPolar(Pyy_N, freqN, freqE)
+    yDft_N = interpPolar(yDft_N, freqN, freq)
+    Pyy_N = interpPolar(Pyy_N, freqN, freq)
     
     # Compute Cross Spectrum Power with scaling
     lenX = x.shape[-1]
-    win = signal.get_window(winType, lenX)
-    scale = PowerScale(scaleType, fs, win)
+    win = signal.get_window(opt.winType, lenX)
+    scale = PowerScale(opt.scaleType, opt.freqRate, win)
     
     Pxy_E = np.conjugate(xDft_E) * yDft_E * 2*scale # Scale is doubled because one-sided DFT
     Pxy_N = np.conjugate(xDft_E) * yDft_N * 2*scale # Scale is doubled because one-sided DFT
@@ -81,7 +91,7 @@ def FreqRespFuncEstNoise(x, y, fs, freqE = None, freqN = None, dftType = 'fft', 
     Pxy = Pxy_E
     
     # Smooth - 
-    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
+    Pxy_smooth = Smooth(np.copy(Pxy), opt.smooth)
     
     # Coherence, use the Smoothed Cross Spectrum
     Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
@@ -90,12 +100,12 @@ def FreqRespFuncEstNoise(x, y, fs, freqE = None, freqN = None, dftType = 'fft', 
     Txy = Pxy / Pxx
     TxyUnc = Pxy_N / Pxx
 
-    return freqE, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc
+    return freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc
 
 
 
 #%% Estimate Transfer Function from Time history data
-def FreqRespFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
+def FreqRespFuncEst(x, y, opt = OptSpect()):
     '''
     Estimates the Transfer Function Response from input/output time histories
     Single-Input Multi-Output at a Single-FreqVector
@@ -132,20 +142,20 @@ def FreqRespFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 
 
     
     # Compute the Power Spectrums
-    _   , xDft, Pxx = Spectrum(x, fs, freq, dftType, winType, detrendType, smooth, scaleType)
-    freq, yDft, Pyy = Spectrum(y, fs, freq, dftType, winType, detrendType, smooth, scaleType)
+    _   , xDft, Pxx = Spectrum(x, opt)
+    freq, yDft, Pyy = Spectrum(y, opt)
     
     
     # Compute Cross Spectrum Power with scaling
     lenX = x.shape[-1]
-    win = signal.get_window(winType, lenX)
-    scale = PowerScale(scaleType, fs, win)
+    win = signal.get_window(opt.winType, lenX)
+    scale = PowerScale(opt.scaleType, opt.freqRate, win)
     
     Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
     
     # Smooth - 
 #    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
-    Pxy_smooth = Smooth(np.abs(Pxy), smooth) * np.exp(1j * Smooth(np.angle(Pxy), smooth))
+    Pxy_smooth = Smooth(np.abs(Pxy), opt.smooth) * np.exp(1j * Smooth(np.angle(Pxy), opt.smooth))
     
     # Coherence, use the Smoothed Cross Spectrum
     Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
@@ -167,27 +177,27 @@ def FreqRespFuncEst(x, y, fs, freq = None, dftType = 'fft', winType = ('tukey', 
 
 
 #%%
-def Spectrum(x, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
+def Spectrum(x, opt = OptSpect()):
     '''
     x is real
     returns the onesided DFT
     fs in rps (required for correct power scale)
     freq in rps (required for correct power scale)
-    
-    
     '''
 
     # Detrend and Window
     lenX = x.shape[-1]
-    win = signal.get_window(winType, lenX)
+    win = signal.get_window(opt.winType, lenX)
     xWin = win*x
     
     # Compute Power scaling
-    scale = PowerScale(scaleType, fs, win)
-        
-    # Compute the Fourier Transforms    
-    if dftType == 'fft':
-        freq, xDft  = FFT(xWin, fs)
+    scale = PowerScale(opt.scaleType, opt.freqRate, win)
+    
+    # Compute the Fourier Transforms
+    if opt.dftType == 'fft':
+        if opt.freq is not None:
+            raise ValueError('FFT frequencies vector must be None')
+        freq, xDft  = FFT(xWin, opt.freqRate)
         
         # Compute Power
         P = (np.conjugate(xDft) * xDft).real * scale
@@ -199,21 +209,21 @@ def Spectrum(x, fs, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detr
             P[..., 1:-1] *= 2
 
         # If the signal was detrended the zero frequency component is removed
-        if detrendType in ['constant', 'linear']:
+        if opt.detrendType in ['constant', 'linear']:
             freq = freq[1:]
             xDft = xDft[..., 1:]
             P = P[..., 1:]
         
-    if dftType == 'czt':
-        if freq is None:
+    if opt.dftType == 'czt':
+        if opt.freq is None:
             raise ValueError('CZT frequency vector must be provided')
-        freq, xDft  = CZT(xWin, freq, fs)
+        freq, xDft  = CZT(xWin, opt.freq, opt.freqRate)
     
         # Compute Power, factor of 2 because CZT is one-sided
         P = (np.conjugate(xDft) * xDft).real * 2*scale
     
     # Smooth the Power
-    P = Smooth(P, kern = smooth)
+    P = Smooth(P, opt.smooth)
 
     return freq, xDft, P
 
