@@ -89,13 +89,9 @@ def Chirp(freqInit_rps, freqFinal_rps, time_s, ampInit = 1.0, ampFinal = 1.0, fr
     return (signal, amp, freq_rps)
 
 
-#%% Multisine
-def MultiSine():
 
-    return
-
-#%% Schroeder Multisine
-def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = None):
+#%% Peak Minimal Optimal Multisine
+def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = None, costType = 'Schoeder'):
 
     #Reference:
     # "Synthesis of Low-Peak-Factor Signals and Binary Sequences with Low
@@ -105,12 +101,20 @@ def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
     # "Tailored Excitation for Multivariable Stability Margin Measurement
     # Applied to the X-31A Nonlinear Simulation"  NASA TM-113085
     # John Bosworth and John Burken
-    #
+    #    
     # "Multiple Input Design for Real-Time Parameter Estimation"
     # Eugene A. Morelli, 2003
 
-    # Schoeder based component phase distribution
-    phaseElem_rad, sigPowerRel = SchroederPhase(ampElem_nd, phaseInit_rad, boundPhase)
+
+    if costType.lower() == 'schoeder': # Schoeder Wave
+        phaseElem_rad = SchroederPhase(ampElem_nd, phaseInit_rad, boundPhase)
+        
+    elif costType.lower() in ['oms', 'norm2', 'squaresum', 'max']: # Optimal Multisine Wave for minimum peak factor
+        if costType.lower() == 'oms':
+            costType = 'norm2'
+            
+        phaseElem_rad = OptimalPhase(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad, boundPhase, costType)
+
 
     # Generate the signals
     [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
@@ -121,9 +125,8 @@ def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
         # Phase shift required for each of the frequency components
         phaseElem_rad += PhaseShift(sigList, time_s, freqElem_rps, sigIndx)
 
-        # Recompute the sweep signals based on the new phasings
+        # Recompute the signals with the phases
         [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
-
 
     # Re-scale and re-assemble to achieve unity peak-to-peak amplitude on each channel
     if normalize is 'peak':
@@ -134,12 +137,9 @@ def Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
         [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
 
 
-    return (np.asarray(sigList), phaseElem_rad, sigElem)
+    return np.asarray(sigList), phaseElem_rad, sigElem
 
-#%% Peak Minimal Optimal Multisine
-def OMS():
 
-    return
 
 #%% SchroederPhase
 def SchroederPhase(ampElem_nd, phaseInit_rad = 0, boundPhase = 1):
@@ -172,7 +172,60 @@ def SchroederPhase(ampElem_nd, phaseInit_rad = 0, boundPhase = 1):
         phaseElem_rad = np.mod(phaseElem_rad, 2*np.pi);
 
 
-    return (phaseElem_rad, sigPowerRel)
+    return phaseElem_rad
+
+
+#%% Optimal Phase
+def OptimalPhase(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, costType = 'norm2'):
+    #Reference:
+    # "Multiple Input Design for Real-Time Parameter Estimation"
+    # Eugene A. Morelli, 2003
+    
+    from scipy.optimize import minimize
+    
+    if sigIndx is None:
+        sigIndx = np.ones_like(ampElem_nd)
+        
+    # Initial Guess for Phase based on Schroeder
+    phaseElem_rad = SchroederPhase(ampElem_nd, phaseInit_rad, boundPhase = 1)
+    #phaseElem_rad = np.zeros_like(ampElem_nd)
+    #phaseElem_rad = np.random.normal(0.0, np.pi, (ampElem_nd.shape))
+
+    # Define the Cost Function for the Optimization
+    def OMSCostFunc(phaseElem_rad, freqElem_rps, ampElem_nd, time_s, sigIndx, costType = 'norm2'):
+        sigList, sigElem = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
+        peakfactor = PeakFactor(sigList)
+        
+        # Cost Type
+        cost = []
+        if costType.lower() == 'norm2':
+            cost = np.linalg.norm(peakfactor, 2)
+        
+        elif costType.lower() == 'squaresum':
+            cost = sum(peakfactor**2)
+        
+        elif costType.lower() == 'max':
+            cost = max(peakfactor)
+            
+        return cost
+
+    # Compute the optimal phases
+    optMethod = 'BFGS'
+    #optOptions = {'maxiter': 100, 'disp': True}
+    optOptions = {'maxiter': 400, 'disp': True}
+    #optOptions = {'disp': True}
+
+    optResult = minimize(OMSCostFunc, phaseElem_rad, args = (freqElem_rps, ampElem_nd, time_s, sigIndx, costType), method = optMethod, options = optOptions)
+    phaseElem_rad = np.copy(optResult.x)
+
+
+    # Bound Phases
+    # Correct phases to be in the range [0, 2*pi), optional
+    if boundPhase:
+        phaseElem_rad = np.mod(phaseElem_rad, 2*np.pi);
+
+
+    return phaseElem_rad
 
 
 #%% MultiSineAssemble
@@ -202,7 +255,7 @@ def MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx =
         sig = sum(sigElem[iElem])
         sigList.append(sig)
 
-    return (sigList, sigElem)
+    return sigList, sigElem
 
 #%%
 def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles = 1, freqStepDes_rps = 0, methodSW = 'zipper'):
@@ -268,7 +321,7 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
     else:
         print('MultiSineComponent - Distribution method type not understood')
 
-    return (freqElem_rps, sigIndx, time_s)
+    return freqElem_rps, sigIndx, time_s
 
 
 #%% PhaseShift

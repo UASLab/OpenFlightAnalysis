@@ -72,4 +72,5 @@ jsonChirp['Duration'] = timeDur_s
 jsonChirp['ampitude'] = [ampInit, ampFinal]
 jsonChirp['Frequency'] = [freqInit_rps, freqFinal_rps]
 
-print(json.dumps(jsonChirp))
+#print(json.dumps(['Chirp', jsonChirp], separators=(', ', ': ')))
+

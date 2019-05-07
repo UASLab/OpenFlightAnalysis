@@ -40,7 +40,7 @@ timeDur_s = time_s[-1] - time_s[0]
 
 ## Generate Schroeder MultiSine Signal
 ampElem_nd = np.ones_like(freqElem_rps) ## Approximate relative signal amplitude, create flat
-sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Schoeder', phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
+sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Norm2', phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
 
 
 ## Results
@@ -50,7 +50,6 @@ print(peakFactorRel)
 
 # Signal Power
 sigPowerRel = (ampElem_nd / max(ampElem_nd))**2 / len(ampElem_nd)
-
 
 plt.figure()
 for iChan in range(0, numChan):
@@ -105,7 +104,7 @@ timeStart_s = time_s[0]
 jsonMulti = {}
 for iChan in range(0, numChan):
     iElem = sigIndx[iChan]
-        
+    
     dictChan = {}
     dictChan['Type'] = 'MultiSine'
     dictChan['Duration'] = timeDur_s
@@ -117,4 +116,5 @@ for iChan in range(0, numChan):
     
     jsonMulti[nameChan] = dictChan
 
-#print(json.dumps(jsonMulti, separators=(', ', ': ')))
+print(json.dumps(jsonMulti, separators=(', ', ': ')))
+
