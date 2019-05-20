@@ -52,53 +52,112 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
     fs and freq must have same units. (Puu and Pyy will only have correct power scale if units are rad/sec)
     
     '''
-
-    # Compute the Power Spectrums    
-    _   , xDft_E, Pxx_E = Spectrum(x, opt)
-    freq, yDft_E, Pyy_E = Spectrum(y, opt)
-    freqN, yDft_N, Pyy_N = Spectrum(y, optN)
     
-    # Interpolate freqN into freqE, in polar coordinates
-    def interpPolar(z, freqN, freqE):
-        amp = np.abs(z)
-        theta = np.angle(z)
-                
-        interpAmp = interp.interp1d(freqN, amp, fill_value="extrapolate")
-        interpTheta = interp.interp1d(freqN, theta, fill_value="extrapolate")
-
-        ampE = interpAmp(freqE)
-        thetaE = interpTheta(freqE)
+    x = np.atleast_2d(x)
+    y = np.atleast_2d(y)
+    freqOpt = np.atleast_2d(opt.freq)
+    freqOptN = np.atleast_2d(optN.freq)
     
-        zE = ampE * np.exp( 1j * thetaE )
+    # Get the shape of the inputs and outputs. Expand dimensions
+    numIn = x.shape[0]
+    numFreq = freqOpt.shape[0]
+    numFreqN = freqOptN.shape[0]
+
+    # If the input is multidimensional, recursively call
+    if numIn > 1: # Multi-Input
+        if not ((numFreq is numIn) or (numFreq is 1)):
+            raise Exception('Number of frequency vectors should either be 1 or match the number of vectors in x; value: {}'.format(numFreq))
+        freq = []
+        Txy = []
+        Cxy = []
+        Pxx = []
+        Pyy = []
+        Pxy = []
+        TxyUnc = []
+        
+        optIn = opt
+        optInN = optN
+        
+        for iInput in range(0, numIn):
+            if numFreq == 1:
+                freqOptIn = freqOpt
+            else: # Multi-Input, Multi-FreqVector
+                freqOptIn = freqOpt[iInput]
             
-        return zE
+            if numFreqN == 1:
+                freqOptInN = freqOptN
+            else: # Multi-Input, Multi-FreqNullVector 
+                freqOptInN = freqOptN[iInput]
+            
+            optIn.freq = np.atleast_2d(freqOptIn)
+            optInN.freq = np.atleast_2d(freqOptInN)
+            freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn, TxyUncIn = FreqRespFuncEstNoise(np.atleast_2d(x[iInput]), y, optIn, optInN)
+            
+            freq.append(freqIn)
+            Txy.append(TxyIn)
+            Cxy.append(CxyIn)
+            Pxx.append(PxxIn)
+            Pyy.append(PyyIn)
+            Pxy.append(PxyIn)
+            TxyUnc.append(TxyUncIn)
+
+    else: # Single-Input, Sigle-FreqVector
     
-    yDft_N = interpPolar(yDft_N, freqN, freq)
-    Pyy_N = interpPolar(Pyy_N, freqN, freq)
+        # Compute the Power Spectrums    
+        _   , xDft_E, Pxx_E = Spectrum(x, opt)
+        freq, yDft_E, Pyy_E = Spectrum(y, opt)
+        freqN, yDft_N, Pyy_N = Spectrum(y, optN)
+        
+        # Interpolate freqN into freqE, in polar coordinates
+        def interpPolar(z, freqN, freqE):
+            amp = np.abs(z)
+            theta = np.angle(z)
+                    
+            interpAmp = interp.interp1d(np.squeeze(freqN), amp, fill_value="extrapolate")
+            interpTheta = interp.interp1d(np.squeeze(freqN), theta, fill_value="extrapolate")
     
-    # Compute Cross Spectrum Power with scaling
-    lenX = x.shape[-1]
-    win = signal.get_window(opt.winType, lenX)
-    scale = PowerScale(opt.scaleType, opt.freqRate, win)
-    
-    Pxy_E = np.conjugate(xDft_E) * yDft_E * 2*scale # Scale is doubled because one-sided DFT
-    Pxy_N = np.conjugate(xDft_E) * yDft_N * 2*scale # Scale is doubled because one-sided DFT
-    
-    Pxx = Pxx_E
-#    Pyy = Pyy_E - Pyy_N
-    Pyy = Pyy_E
-#    Pxy = Pxy_E - Pxy_N
-    Pxy = Pxy_E
-    
-    # Smooth - 
-    Pxy_smooth = Smooth(np.copy(Pxy), opt.smooth)
-    
-    # Coherence, use the Smoothed Cross Spectrum
-    Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
-    
-    # Compute complex transfer function approximation
-    Txy = Pxy / Pxx
-    TxyUnc = Pxy_N / Pxx
+            ampE = interpAmp(np.squeeze(freqE))
+            thetaE = interpTheta(np.squeeze(freqE))
+        
+            zE = ampE * np.exp( 1j * thetaE )
+                
+            return zE
+        
+        yDft_N = interpPolar(yDft_N, freqN, freq)
+        Pyy_N = interpPolar(Pyy_N, freqN, freq)
+        
+        # Compute Cross Spectrum Power with scaling
+        lenX = x.shape[-1]
+        win = signal.get_window(opt.winType, lenX)
+        scale = PowerScale(opt.scaleType, opt.freqRate, win)
+        
+        Pxy_E = np.conjugate(xDft_E) * yDft_E * 2*scale # Scale is doubled because one-sided DFT
+        Pxy_N = np.conjugate(xDft_E) * yDft_N * 2*scale # Scale is doubled because one-sided DFT
+        
+        Pxx = Pxx_E
+    #    Pyy = Pyy_E - Pyy_N
+        Pyy = Pyy_E
+    #    Pxy = Pxy_E - Pxy_N
+        Pxy = Pxy_E
+        
+        # Smooth - 
+        Pxy_smooth = Smooth(np.copy(Pxy), opt.smooth)
+        
+        # Coherence, use the Smoothed Cross Spectrum
+        Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
+        
+        # Compute complex transfer function approximation
+        Txy = Pxy / Pxx
+        TxyUnc = Pxy_N / Pxx
+
+    # Ensure outputs are 2D
+    freq = np.atleast_2d(freq)
+    Txy = np.atleast_2d(Txy)
+    Cxy = np.atleast_2d(Cxy)
+    Pxx = np.atleast_2d(Pxx)
+    Pyy = np.atleast_2d(Pyy)
+    Pxy = np.atleast_2d(Pxy)
+    TxyUnc = np.atleast_2d(TxyUnc)
 
     return freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc
 
@@ -129,49 +188,72 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
     
     '''
     
+    x = np.atleast_2d(x)
+    y = np.atleast_2d(y)
+    freqOpt = np.atleast_2d(opt.freq)
+    
     # Get the shape of the inputs and outputs. Expand dimensions
-    xSingleton = False
-    if len(x.shape) is 1:
-        xSingleton = True
-        x = x[np.newaxis, :]
-    
-    ySingleton = False
-    if len(y.shape) is 1:
-        ySingleton = True
-        y = y[np.newaxis, :]
+    numIn = x.shape[0]
+    numFreq = freqOpt.shape[0]
 
-    
-    # Compute the Power Spectrums
-    _   , xDft, Pxx = Spectrum(x, opt)
-    freq, yDft, Pyy = Spectrum(y, opt)
-    
-    
-    # Compute Cross Spectrum Power with scaling
-    lenX = x.shape[-1]
-    win = signal.get_window(opt.winType, lenX)
-    scale = PowerScale(opt.scaleType, opt.freqRate, win)
-    
-    Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
-    
-    # Smooth - 
-#    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
-    Pxy_smooth = Smooth(np.abs(Pxy), opt.smooth) * np.exp(1j * Smooth(np.angle(Pxy), opt.smooth))
-    
-    # Coherence, use the Smoothed Cross Spectrum
-    Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
-    
-    # Compute complex transfer function approximation
-    Txy = Pxy / Pxx
-    
-    # Collapse the singlton dimensions, if x and/or y where singleton
-    if xSingleton:
-        Pxx = np.squeeze(Pxx)
+    # If the input is multidimensional, recursively call
+    if numIn > 1: # Multi-Input
+        if not ((numFreq is numIn) or (numFreq is 1)):
+            raise Exception('Number of frequency vectors should either be 1 or match the number of vectors in x; value: {}'.format(numFreq))
+        freq = []
+        Txy = []
+        Cxy = []
+        Pxx = []
+        Pyy = []
+        Pxy = []
         
-    if ySingleton:
-        Pyy = np.squeeze(Pyy)
-        Pxy = np.squeeze(Pxy)
-        Cxy = np.squeeze(Cxy)
-        Txy = np.squeeze(Txy)
+        optIn = opt
+        
+        for iInput in range(0, numIn):
+            if numFreq == 1:
+                freqOptIn = freqOpt
+            else: # Multi-Input, Multi-Freqvector
+                freqOptIn = freqOpt[iInput]
+            
+            optIn.freq = np.atleast_2d(freqOptIn)
+            freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn = FreqRespFuncEst(np.atleast_2d(x[iInput]), y, optIn)
+            
+            freq.append(freqIn)
+            Txy.append(TxyIn)
+            Cxy.append(CxyIn)
+            Pxx.append(PxxIn)
+            Pyy.append(PyyIn)
+            Pxy.append(PxyIn)
+
+    else: # Single-Input, Sigle-FreqVector
+        # Compute the Power Spectrums
+        _   , xDft, Pxx = Spectrum(x, opt)
+        freq, yDft, Pyy = Spectrum(y, opt)
+        
+        # Compute Cross Spectrum Power with scaling
+        lenX = x.shape[-1]
+        win = signal.get_window(opt.winType, lenX)
+        scale = PowerScale(opt.scaleType, opt.freqRate, win)
+        
+        Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
+        
+        # Smooth - 
+    #    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
+        Pxy_smooth = Smooth(np.abs(Pxy), opt.smooth) * np.exp(1j * Smooth(np.angle(Pxy), opt.smooth))
+        
+        # Coherence, use the Smoothed Cross Spectrum
+        Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
+        
+        # Compute complex transfer function approximation
+        Txy = Pxy / Pxx
+        
+    # Ensure outputs are 2D
+    freq = np.atleast_2d(freq)
+    Txy = np.atleast_2d(Txy)
+    Cxy = np.atleast_2d(Cxy)
+    Pxx = np.atleast_2d(Pxx)
+    Pyy = np.atleast_2d(Pyy)
+    Pxy = np.atleast_2d(Pxy)
         
     return freq, Txy, Cxy, Pxx, Pyy, Pxy
 
@@ -185,6 +267,10 @@ def Spectrum(x, opt = OptSpect()):
     freq in rps (required for correct power scale)
     '''
 
+    # Get the shape of the inputs and outputs. Expand dimensions
+    x = np.atleast_2d(x)
+    opt.freq = np.atleast_2d(opt.freq)
+
     # Detrend and Window
     lenX = x.shape[-1]
     win = signal.get_window(opt.winType, lenX)
@@ -195,14 +281,14 @@ def Spectrum(x, opt = OptSpect()):
     
     # Compute the Fourier Transforms
     if opt.dftType == 'fft':
-        if opt.freq is not None:
+        if opt.freq[0][0] is not None:
             raise ValueError('FFT frequencies vector must be None')
         freq, xDft  = FFT(xWin, opt.freqRate)
         
         # Compute Power
         P = (np.conjugate(xDft) * xDft).real * scale
                 
-        if len(P) % 2:
+        if P.shape[-1] % 2:
             P[..., 1:] *= 2
         else:
             # Last point is unpaired Nyquist freq point, don't double
@@ -210,7 +296,7 @@ def Spectrum(x, opt = OptSpect()):
 
         # If the signal was detrended the zero frequency component is removed
         if opt.detrendType in ['constant', 'linear']:
-            freq = freq[1:]
+            freq = freq[..., 1:]
             xDft = xDft[..., 1:]
             P = P[..., 1:]
         
@@ -224,6 +310,12 @@ def Spectrum(x, opt = OptSpect()):
     
     # Smooth the Power
     P = Smooth(P, opt.smooth)
+
+
+    # Ensure the outputs are at least 2D
+    freq = np.atleast_2d(freq)
+    xDft = np.atleast_2d(xDft)
+    P = np.atleast_2d(P)
 
     return freq, xDft, P
 
@@ -272,12 +364,7 @@ def FFT(x, fs):
     '''
     
     # Ensure x is an array
-    x = np.asarray(x)
-    
-    xSingleton = False
-    if len(x.shape) is 1:
-        xSingleton = True
-        x = x[np.newaxis,:]
+    x = np.atleast_2d(np.asarray(x))
     
     # Compute the discrete fourier transform
     nfft = x.shape[-1]
@@ -287,10 +374,10 @@ def FFT(x, fs):
     
     # Perform the fft
     xDft = np.fft.rfft(x, n = nfft)
-
-    if xSingleton:
-        xDft = np.squeeze(xDft)
-
+    
+    # Output as 2D
+    freq = np.atleast_2d(freq)
+    xDft = np.atleast_2d(xDft)
 
     return freq, xDft
 
@@ -303,8 +390,9 @@ def CZT(x, freq, fs):
     '''
     
     # Ensure x is an array
-    x = np.asarray(x)
-    
+    x = np.atleast_2d(x)
+    freq = np.atleast_2d(freq)
+
     # Length x should be even, remove the last data to make even
     lenX = x.shape[-1]
     if lenX % 2 is not True:
@@ -316,7 +404,7 @@ def CZT(x, freq, fs):
     freqMin = np.min(freq)
     freqMax = np.max(freq)
     
-    mChirp = len(freq)
+    mChirp = freq.shape[-1]
     freqStep = (freqMax - freqMin) / (mChirp - 1)
     
     # Ratio between points
@@ -334,7 +422,6 @@ def CZT(x, freq, fs):
     
     # Re-form the frequency vector
     freq = -k * freqStep + freqMin
-        
 
     return freq, xDft
 
@@ -362,18 +449,12 @@ def Smooth(x, kern = ('box', 1), padMode = 'edge', convMode = 'valid'):
     # Required pad length
     nPad = len(v) // 2 # length of the required pad
     
-    xSingleton = False
-    if len(x.shape) is 1:
-        xSingleton = True
-        x = x[np.newaxis,:]
+
+    x = np.atleast_2d(x)
 
     # Pad and Convolve x
     for iX in range(x.shape[0]):
         xPad = np.pad(x[iX], nPad, mode = padMode)
         x[iX] = np.convolve(xPad, v, mode = convMode)
 
-    
-    if xSingleton:
-        x = np.squeeze(x)
-        
     return x

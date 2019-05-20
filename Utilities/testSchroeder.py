@@ -40,7 +40,7 @@ timeDur_s = time_s[-1] - time_s[0]
 
 ## Generate Schroeder MultiSine Signal
 ampElem_nd = np.ones_like(freqElem_rps) ## Approximate relative signal amplitude, create flat
-sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Schoeder', phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
+sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Schroeder', phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
 
 
 ## Results
@@ -87,8 +87,8 @@ nChan = len(P_dB_fft)
 plt.figure()
 for iChan in range(0, nChan):
     plt.subplot(nChan, 1, iChan+1)
-    plt.plot(freq_fft[iChan], P_dB_fft[iChan], '-k', label='FFT Pxx')
-    plt.plot(freq_czt[iChan], P_dB_czt[iChan], '.r-', label='CZT Pxx')
+    plt.plot(freq_fft[iChan].T, P_dB_fft[iChan].T, '-k', label='FFT Pxx')
+    plt.plot(freq_czt[iChan].T, P_dB_czt[iChan].T, '.r-', label='CZT Pxx')
     plt.grid()
     plt.ylabel('Spectrum (dB)');
 

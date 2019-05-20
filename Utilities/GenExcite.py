@@ -106,7 +106,7 @@ def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
     # Eugene A. Morelli, 2003
 
 
-    if costType.lower() == 'schoeder': # Schoeder Wave
+    if costType.lower() == 'schroeder': # Schroeder Wave
         phaseElem_rad = SchroederPhase(ampElem_nd, phaseInit_rad, boundPhase)
         
     elif costType.lower() in ['oms', 'norm2', 'squaresum', 'max']: # Optimal Multisine Wave for minimum peak factor

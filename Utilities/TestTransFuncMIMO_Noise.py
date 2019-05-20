@@ -70,7 +70,7 @@ freqGap_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 # Generate Schroeder MultiSine Signal
 ampExcit_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(freqExc_rps))
-exc, _, sigExcit = GenExcite.Schroeder(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
+exc, _, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
 
 # Simulate the excitation through the system
 _, out11, _ = signal.lsim2(sys11, exc[0], time_s)
@@ -101,31 +101,23 @@ for iOut in range(0, len(inNoise)):
 y += yNoise
 
 
-# Estimate the transfer function
-nIn = len(exc)
-nY = len(y)
-nFreq = int(len(freqExc_rps) / numExc)
-
-freq_rps = np.zeros([nY, nIn, nFreq])
-gain_dB = np.zeros([nY, nIn, nFreq])
-phase_deg = np.zeros([nY, nIn, nFreq])
-Cxy = np.zeros([nY, nIn, nFreq])
-CxySmooth = np.zeros([nY, nIn, nFreq])
-Txy = np.zeros([nY, nIn, nFreq], dtype=complex)
-Pxx = np.zeros([nY, nIn, nFreq], dtype=complex)
-Pyy = np.zeros([nY, nIn, nFreq], dtype=complex)
-Pxy = np.zeros([nY, nIn, nFreq], dtype=complex)
-TxyUnc = np.zeros([nY, nIn, nFreq], dtype=complex)
-
+#%% Estimate the frequency response function
 optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
 optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
 
-for iExc in range(0, numExc):
-    optSpec.freq = freqExc_rps[sigIndx[iExc]]
-    optSpecN.freq = freqGap_rps
-    freq_rps[:, iExc, :], Txy[:, iExc, :], Cxy[:, iExc, :], Pxx[:, iExc, :], Pyy[:, iExc, :], Pxy[:, iExc, :], TxyUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], y, optSpec, optSpecN)
-  
+# Excited Frequencies per input channel
+optSpec.freq = []
+for iChan in range(0, numExc):
+    optSpec.freq.append(freqExc_rps[sigIndx[iChan]])
+optSpec.freq = np.asarray(optSpec.freq)
+
+# Null Frequencies
+optSpecN.freq = freqGap_rps
+
+# FRF Estimate
+freq_rps, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc = FreqTrans.FreqRespFuncEstNoise(exc, y, optSpec, optSpecN)
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
+
 
 freq_hz = freq_rps * rps2hz
 phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg
@@ -161,22 +153,22 @@ ax4.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
 
 ax5 = plt.subplot(4,2,5); ax5.grid()
 ax5.semilogx(freqSys_hz, gainSys12_dB)
-ax5.semilogx(freq_hz[0, 1], gain_dB[0, 1], '.')
+ax5.semilogx(freq_hz[0, 0], gain_dB[0, 1], '.')
 ax5.semilogx(freqSys_hz, sigmaNoise_dB * np.ones_like(freqSys_hz))
-ax5.semilogx(freq_hz[0, 1], gainUnc_dB[0, 1], '.')
+ax5.semilogx(freq_hz[0, 0], gainUnc_dB[0, 1], '.')
 ax7 = plt.subplot(4,2,7, sharex = ax5); ax7.grid()
 ax7.semilogx(freqSys_hz, phaseSys12_deg)
-ax7.semilogx(freq_hz[0, 1], phase_deg[0, 1], '.')
+ax7.semilogx(freq_hz[0, 0], phase_deg[0, 1], '.')
 ax7.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
 
 ax6 = plt.subplot(4,2,6); ax6.grid()
 ax6.semilogx(freqSys_hz, gainSys22_dB)
-ax6.semilogx(freq_hz[1, 1], gain_dB[1, 1], '.')
+ax6.semilogx(freq_hz[1, 0], gain_dB[1, 1], '.')
 ax6.semilogx(freqSys_hz, sigmaNoise_dB * np.ones_like(freqSys_hz))
-ax6.semilogx(freq_hz[1, 1], gainUnc_dB[1, 1], '.')
+ax6.semilogx(freq_hz[1, 0], gainUnc_dB[1, 1], '.')
 ax8 = plt.subplot(4,2,8, sharex = ax6); ax8.grid()
 ax8.semilogx(freqSys_hz, phaseSys22_deg)
-ax8.semilogx(freq_hz[1, 1], phase_deg[1, 1], '.')
+ax8.semilogx(freq_hz[1, 0], phase_deg[1, 1], '.')
 ax8.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
 
 

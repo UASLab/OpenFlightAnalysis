@@ -97,7 +97,7 @@ freqNull_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 # Generate Schroeder MultiSine Signal
 ampExc_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(freqExc_rps))
-exc, _, sigExc = GenExcite.Schroeder(freqExc_rps, ampExc_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
+exc, _, sigExc = GenExcite.MultiSine(freqExc_rps, ampExc_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
 exc_names = ['excP', 'excQ', 'excR']
 
 # Generate Noise
@@ -141,33 +141,26 @@ sens = out[-7:]
 
 #plt.plot(time_s, exc[1], time_s, v[1], time_s, fb[1])
 
-#%% Estimate the transfer functions
 
-nIn = len(exc)
-nSens = len(sens)
-nB = len(fb)
-nV = len(v)
-nFreq = int(len(freqExc_rps) / numExc)
 
-freq_rps = np.zeros([nB, nIn, nFreq])
+#%% Estimate the frequency response function
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3))
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
 
-Ceb = np.zeros([nB, nIn, nFreq])
-Teb = np.zeros([nB, nIn, nFreq], dtype=complex)
-TebUnc = np.zeros([nB, nIn, nFreq], dtype=complex)
+# Excited Frequencies per input channel
+optSpec.freq = []
+for iChan in range(0, numExc):
+    optSpec.freq.append(freqExc_rps[sigIndx[iChan]])
+optSpec.freq = np.asarray(optSpec.freq)
 
-Cev = np.zeros([nB, nIn, nFreq])
-Tev = np.zeros([nB, nIn, nFreq], dtype=complex)
-TevUnc = np.zeros([nB, nIn, nFreq], dtype=complex)
+# Null Frequencies
+optSpecN.freq = freqGap_rps
 
-optSpect = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3))
-optSpectN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
+# FRF Estimate
+freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc = FreqTrans.FreqRespFuncEstNoise(exc, fb, optSpec, optSpecN)
+_       , Tev, Cev, _  , Pvv, Pev, TevUnc = FreqTrans.FreqRespFuncEstNoise(exc, v, optSpec, optSpecN)
 
-for iExc in range(0, numExc):
-    optSpect.freq = freqExc_rps[sigIndx[iExc]]
-    optSpectN.freq = freqGap_rps
-    freq_rps[:, iExc, :], Teb[:, iExc, :], Ceb[:, iExc, :], _, _, _, TebUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], fb, optSpect, optSpectN)
-    _                   , Tev[:, iExc, :], Cev[:, iExc, :], _, _, _, TevUnc[:, iExc, :] = FreqTrans.FreqRespFuncEstNoise(exc[np.newaxis, iExc], v, optSpect, optSpectN)
-    
+nFreq = freq_rps.shape[-1]
 
 freq_hz = freq_rps * rps2hz
 eye = np.tile(np.eye(3), (nFreq, 1, 1)).T
@@ -198,7 +191,7 @@ for iIn, inName in enumerate(inPlot):
         uncDisk = np.abs(TUnc[iOut, iIn])
         
         ax[iOut, iIn].semilogx(freqSys_hz, sysSimOL_sigma_mag[iOut, iIn], 'k')
-        ax[iOut, iIn].errorbar(freq_hz[iOut, iIn], sigma_mag[iOut, iIn], yerr = uncDisk, fmt = 'b.')
+        ax[iOut, iIn].errorbar(freq_hz[iOut, 0], sigma_mag[iOut, iIn], yerr = uncDisk, fmt = 'b.')
         ax[iOut, iIn].grid()
         ax[iOut, iIn].set_xlim(left = 0.05, right = freqRate_hz/2)
         ax[iOut, iIn].set_ylim(bottom = 0.0, top = 2.0)
@@ -240,18 +233,18 @@ for iIn in range(0, 3):
         
         ax1 = plt.subplot(3, 1, 1)
         ax1.semilogx(freqSys_hz, sysSimOL_gain_dB[iOut, iIn], 'k')
-        ax1.semilogx(freq_hz[iOut, iIn], gain_dB[iOut, iIn], '.')
+        ax1.semilogx(freq_hz[iOut, 0], gain_dB[iOut, iIn], '.')
         ax1.grid(); ax1.set_ylabel('Gain (dB)')
         
         ax2 = plt.subplot(3, 1, 2, sharex = ax1)
         ax2.semilogx(freqSys_hz, sysSimOL_phase_deg[iOut, iIn], 'k')
-        ax2.semilogx(freq_hz[iOut, iIn], phase_deg[iOut, iIn], '.')
+        ax2.semilogx(freq_hz[iOut, 0], phase_deg[iOut, iIn], '.')
         ax2.grid(); ax2.set_ylabel('Phase (deg)')
         
         ax3 = plt.subplot(3, 1, 3, sharex = ax1)
         ax3.semilogx(freqSys_hz, np.ones_like(freqSys_hz), 'k')
-        ax3.semilogx(freq_hz[iOut, iIn], Ceb[iOut, iIn], '.')
-        ax3.semilogx(freq_hz[iOut, iIn], Cev[iOut, iIn], '.')
+        ax3.semilogx(freq_hz[iOut, 0], Ceb[iOut, iIn], '.')
+        ax3.semilogx(freq_hz[iOut, 0], Cev[iOut, iIn], '.')
         ax3.grid(); ax3.set_xlabel('Freq (Hz)'); ax3.set_ylabel('Coherence (nd)')
         ax3.set_ylim(0, 1)
 

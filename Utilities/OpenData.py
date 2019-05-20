@@ -27,6 +27,7 @@ def PlotOverview(oData):
     ax0.plot(time_s, vIas_mps, label='airspeed')
     ax0.plot(time_s, vGps_mps, '.', label='Gps')
     ax0.plot(time_s, vB_mps, label='Ekf')
+    ax0.grid()
     ax0.set_xlabel('Time (s)')
     ax0.set_ylabel('Airspeed (m/s)')
     ax0.set_title('Air Data Airspeed')
@@ -39,8 +40,9 @@ def PlotOverview(oData):
     fig1, ax1 = plt.subplots()
     ax1.plot(time_s, oData['refH_m'], label='ref')
     ax1.plot(time_s, altBaro_m, label='Baro')
-    ax1.plot(time_s, altGps_m - altGps_m[1000], '.', label='GPS')
-    ax1.plot(time_s[1000:], altB_m[1000:] - altB_m[1000], label='Ekf')
+    ax1.plot(time_s, altGps_m, '.', label='GPS')
+    ax1.plot(time_s, altB_m - altB_m, label='Ekf')
+    ax1.grid()
     ax1.set_xlabel('Time (s)')
     ax1.set_ylabel('Altitude (m)')
     ax1.set_title('Altitude')
@@ -53,12 +55,13 @@ def PlotOverview(oData):
     lonB_deg = oData['rB_D_ddm'][1]
     fig2, ax2 = plt.subplots()
     ax2.plot(lonGps_deg, latGps_deg, '.', label='GPS')
-    ax2.plot(lonB_deg[1000:], latB_deg[1000:], label='Ekf')
+    ax2.plot(lonB_deg, latB_deg, label='Ekf')
+    ax2.grid()
     ax2.axis('equal')
     ax2.set_xlabel('Longitude (deg)')
     ax2.set_ylabel('Latitude (deg)')
     ax2.set_title('Latitude and Longitude')
-    ax1.legend()
+    ax2.legend()
     
     # Voltage
     pwrFmu_V = oData['pwrFmu_V']
@@ -67,17 +70,19 @@ def PlotOverview(oData):
     ax3.set_xlabel('Time (s)')
     ax3.set_ylabel('Avionics Voltage (V)')
     ax3.set_title('Power')
+    ax3.grid()
     
     # 3D Position
     fig4 = plt.figure()
     ax4 = fig4.gca(projection='3d')
     ax4.plot(lonGps_deg, latGps_deg, altGps_m, '.', label='GPS')
-    ax4.plot(lonB_deg[1000:], latB_deg[1000:], altB_m[1000:], label='Ekf')
+    ax4.plot(lonB_deg, latB_deg, altB_m, label='Ekf')
     ax4.axis('equal')
+    ax4.grid()
     ax4.set_xlabel('Longitude (deg)')
     ax4.set_ylabel('Latitude (deg)')
     ax4.set_title('Flight Path')
-    ax1.legend()
+    ax4.legend()
     
     plt.show()
     
@@ -123,6 +128,21 @@ def TestPointOut(excList, testPointList):
     return testList
 
 #%% Segment oData by condition
+    
+def SliceDict(oData, iCond):
+    
+    oDataSeg = {}
+    
+    for k, v in oData.items():
+        if isinstance(v, dict):
+            oDataSeg[k] = {}
+            oDataSeg[k] = SliceDict(v, iCond)
+        else:
+            oDataSeg[k] = np.copy(v[...,iCond])
+    
+    return oDataSeg
+    
+# 
 def Segment(oData, cond):
     # cond = (condName, [min, max])
     # if cond is a list, will return a list of oData segments
@@ -142,8 +162,7 @@ def Segment(oData, cond):
     # Bool that matches the condition
     iCond = (oData[condName] >= condRange[0]) & (oData[condName] <= condRange[1])
     
-    oDataSeg = {}
-    for k,v in oData.items(): # Loop through oData
-        oDataSeg[k] = np.copy(v[...,iCond])
+    # Slice, with full copy, into segmented oData. SliceDict will handle recursive calls
+    oDataSeg = SliceDict(oData, iCond)
         
     return oDataSeg

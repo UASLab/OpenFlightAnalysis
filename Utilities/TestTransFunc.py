@@ -49,12 +49,18 @@ x, ampChirpX, freqChirp_rps = GenExcite.Chirp(freqInit_rps, freqFinal_rps, time_
 
 # Simulate the excitation through the system
 time_s, y, _ = signal.lsim(sys, x, time_s)
+y = np.atleast_2d(y)
 
 # Estimate the transfer function
 optSpec = FreqTrans.OptSpect(freqRate = freqRate_rps, smooth = ('box', 5))
 freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(x, y, optSpec)
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 freq_hz = freq_rps * rps2hz
+
+freq_hz = np.squeeze(freq_hz)
+gain_dB = np.squeeze(gain_dB)
+phase_deg = np.squeeze(phase_deg)
+Cxy = np.squeeze(Cxy)
 
 plt.figure(1)
 ax1 = plt.subplot(3,1,1); plt.grid
@@ -82,12 +88,12 @@ freqElem_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, fr
 
 # Generate Schroeder MultiSine Signal
 ampElem_nd = np.linspace(ampInit, ampInit, len(freqElem_rps)) / np.sqrt(len(freqElem_rps))
-x, _, sigElem = GenExcite.Schroeder(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
+x, _, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder');
 
 
 # Simulate the excitation through the system
 time_s, y, _ = signal.lsim(sys, x.squeeze(), time_s)
-
+y = np.atleast_2d(y)
 
 # Estimate the transfer function
 optSpectCzt = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, freq = freqElem_rps)
@@ -95,6 +101,11 @@ freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(x, y, optSpectCzt)
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 freq_hz = freq_rps * rps2hz
 
+# Plot
+freq_hz = np.squeeze(freq_hz)
+gain_dB = np.squeeze(gain_dB)
+phase_deg = np.squeeze(phase_deg)
+Cxy = np.squeeze(Cxy)
 
 ax1.semilogx(freq_hz, gain_dB, '.')
 ax2.semilogx(freq_hz, phase_deg, '.')

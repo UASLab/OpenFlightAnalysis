@@ -49,15 +49,16 @@ def JsonWrite(filename, data):
 
 
 #%% HDF5 Read
-def Log_RAPTRS(filename):
+def Log_RAPTRS(filename, fileSysConfig):
     
-    h5Data = Load_h5(filename) # dictionary 
-    oData = OpenData_RAPTRS(h5Data)
+    h5Data = Load_h5(filename) # RAPTRS log data as hdf5     
+    sysConfig = JsonRead(fileSysConfig)
+    oData = OpenData_RAPTRS(h5Data, sysConfig)
     
     return oData, h5Data
 
 #%% Convert to OpenData Format
-def OpenData_RAPTRS(h5Data, oData = {}):
+def OpenData_RAPTRS(h5Data, sysConfig, oData = {}):
     
     r2d = 180/np.pi;
 
@@ -126,19 +127,24 @@ def OpenData_RAPTRS(h5Data, oData = {}):
     oData['refV_mps'] = h5Data['Control']['refV_ms']
     oData['refH_m'] = h5Data['Control']['refH_m']
     
-    if 'cmdElev_rad' in h5Data['Control']:
-        oData['cmdEff'] = np.array([h5Data['Control']['cmdMotor_nd'],h5Data['Control']['cmdElev_rad'],h5Data['Control']['cmdRud_rad'],h5Data['Control']['cmdAilL_rad'],h5Data['Control']['cmdFlapL_rad'],h5Data['Control']['cmdFlapR_rad'],h5Data['Control']['cmdAilR_rad']])
+    # Effectors
+    # Get the list of effectors
+    # sysConfig['Effectors']
+    effList = ['cmdMotor_nd', 'cmdElev_rad', 'cmdRud_rad', 'cmdAilL_rad', 'cmdAilR_rad', 'cmdFlapL_rad', 'cmdFlapR_rad', 
+               'cmdTE1L_rad', 'cmdTE1R_rad', 'cmdTE2L_rad', 'cmdTE2R_rad', 'cmdTE3L_rad', 'cmdTE3R_rad', 'cmdTE4L_rad', 'cmdTE4R_rad', 'cmdTE5L_rad', 'cmdTE5R_rad', 'cmdLEL_rad', 'cmdLER_rad']
     
-    if 'cmdTE1L_rad' in h5Data['Control']:
-        oData['cmdEff'] = np.array([h5Data['Control']['cmdMotor_nd'],h5Data['Control']['cmdTE1L_rad'],h5Data['Control']['cmdTE1R_rad'],h5Data['Control']['cmdTE2L_rad'],h5Data['Control']['cmdTE2R_rad'],h5Data['Control']['cmdTE3L_rad'],h5Data['Control']['cmdTE3R_rad'],h5Data['Control']['cmdTE4L_rad'],h5Data['Control']['cmdTE4R_rad'],h5Data['Control']['cmdTE5L_rad'],h5Data['Control']['cmdTE5R_rad'],h5Data['Control']['cmdLEL_rad'],h5Data['Control']['cmdLER_rad']])
+    oData['Effectors'] = {}
+    for eff in effList:
+        if eff in h5Data['Control']:
+             oData['Effectors'][eff] = h5Data['Control'][eff]
     
     # GPS
     oData['rGps_D_ddm'] = np.array([h5Data['Sensors']['uBlox']['Latitude_rad'] * r2d, h5Data['Sensors']['uBlox']['Longitude_rad'] * r2d, h5Data['Sensors']['uBlox']['Altitude_m']])
-    oData['vGps_L_mps'] = np.array([h5Data['Sensors']['uBlox']['EastVelocity_ms'], h5Data['Sensors']['uBlox']['NorthVelocity_ms'], h5Data['Sensors']['uBlox']['DownVelocity_ms']])
+    oData['vGps_L_mps'] = np.array([h5Data['Sensors']['uBlox']['NorthVelocity_ms'], h5Data['Sensors']['uBlox']['EastVelocity_ms'], h5Data['Sensors']['uBlox']['DownVelocity_ms']])
     
     # EKF
     oData['rB_D_ddm'] = np.array([h5Data['Sensor-Processing']['Latitude_rad'] * r2d, h5Data['Sensor-Processing']['Longitude_rad'] * r2d, h5Data['Sensor-Processing']['Altitude_m']])
-    oData['vB_L_mps'] = np.array([h5Data['Sensor-Processing']['EastVelocity_ms'], h5Data['Sensor-Processing']['NorthVelocity_ms'], h5Data['Sensor-Processing']['DownVelocity_ms']])
+    oData['vB_L_mps'] = np.array([h5Data['Sensor-Processing']['NorthVelocity_ms'], h5Data['Sensor-Processing']['EastVelocity_ms'], h5Data['Sensor-Processing']['DownVelocity_ms']])
     
     oData['aB_I_mps2'] = np.array([h5Data['Sensor-Processing']['AccelX_mss'], h5Data['Sensor-Processing']['AccelY_mss'], h5Data['Sensor-Processing']['AccelZ_mss']])
     oData['wB_I_rps'] = np.array([h5Data['Sensor-Processing']['GyroX_rads'], h5Data['Sensor-Processing']['GyroY_rads'], h5Data['Sensor-Processing']['GyroZ_rads']])
@@ -166,7 +172,22 @@ def OpenData_RAPTRS(h5Data, oData = {}):
         oData['pwrPropRight_A'] = h5Data['Sensors']['Power']['currPropRight']['CalibratedValue']
         oData['pwrPropRight_V'] = h5Data['Sensors']['Power']['voltPropRight']['CalibratedValue']
         
-        
+    
+    # Excitations
+    oData['Excitation'] = {}
+    for k, v in h5Data['Excitation'].items():
+        for sigName, sigVal in v.items():
+            if sigName in oData['Excitation']:
+                oData['Excitation'][sigName] += sigVal
+            else:
+                oData['Excitation'][sigName] = sigVal
+
+    # Make sure the base values are available from the excitation
+    sigExc = oData['Excitation'].keys()
+    for sigName in sigExc:
+        if sigName not in oData:
+            oData[sigName] = h5Data['Control'][sigName]
+    
     return oData
 
 
