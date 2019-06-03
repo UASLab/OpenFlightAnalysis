@@ -48,7 +48,7 @@ testPointList = sysConfig['Mission-Manager']['Test-Points']
 
 testDef['Test-Points'] = OpenData.TestPointOut(excList, testPointList)
 
-if False:
+if True:
     Loader.JsonWrite(fileTestDef, testDef)
     print('Init File Updated:\n', fileTestDef)
 else:
@@ -75,33 +75,6 @@ ax2.legend()
 
 plt.show()
 
-#%% Find turns using excitations
-
-
-
-
-
-
-
-
-
-#%% Wind/Air Cal
-windSeg = ('time_s', [524, 530])
-oDataWind = OpenData.Segment(oData, windSeg)
-
-#OpenData.PlotOverview(oDataWind)
-
-# #Convert GPS and Nav solution position to L frame
-# Change Nav Solution to L frame
-rB_L_m = KinematicTransforms.D2L(oDataWind['rB_D_ddm'][:, 0], oDataWind['rB_D_ddm'], degrees = True)
-
-# Change GPS Solution to L frame
-rGps_L_m = KinematicTransforms.D2L(oDataWind['rGps_D_ddm'][:, 0], oDataWind['rGps_D_ddm'], degrees = True)
-
-plt.figure()
-plt.plot(rB_L_m[1], rB_L_m[0], '-', rGps_L_m[1], rGps_L_m[0], '.')
-plt.figure()
-plt.plot(oDataWind['time_s'], rB_L_m[2], '-', oDataWind['time_s'], rGps_L_m[2], '.')
 
 
 #%%
@@ -150,27 +123,54 @@ pData['Pitot']['pTip']['K'] = 1.0
 pData['Pitot']['pStatic'] = pData['Pitot']['pTip'].copy()
 
 
-calib = AirData.AirDataCal(oDataWind, pData['Pitot'])
+#%% Find turns using excitations
+oDataWind = {}
+v_BA_B_mps = {}
+v_BA_L_mps = {}
+calib = {}
+v_AE_L_mps = {}
+vMean_AE_L_mps = {}
 
-v_BA_B_mps, v_BA_L_mps = Airspeed2NED(calib['v_PA_P_mps'], oDataWind['sB_L_rad'], pData['Pitot'])
+for iExc in range(1, len(excList)):
+    iturn = 'Turn_'+str(iExc)
+    windSegStart = (excList[iExc - 1][1][0] * 1e-6)
+    windSegEnd = (excList[iExc][1][1] * 1e-6)
+    windSeg = ('time_s', [windSegStart, windSegEnd])
+    oDataWind[iturn] = OpenData.Segment(oData, windSeg)
+    
+    # #Convert GPS and Nav solution position to L frame
+    # Change Nav Solution to L frame
+    rB_L_m = KinematicTransforms.D2L(oDataWind[iturn]['rB_D_ddm'][:, 0], oDataWind[iturn]['rB_D_ddm'], degrees = True)
+    
+    # Change GPS Solution to L frame
+    rGps_L_m = KinematicTransforms.D2L(oDataWind[iturn]['rGps_D_ddm'][:, 0], oDataWind[iturn]['rGps_D_ddm'], degrees = True)
+    
+    plt.figure()
+    plt.plot(rB_L_m[1], rB_L_m[0], '-', rGps_L_m[1], rGps_L_m[0], '.')
+    plt.figure()
+    plt.plot(oDataWind[iturn]['time_s'], rB_L_m[2], '-', oDataWind[iturn]['time_s'], rGps_L_m[2], '.')
 
-# Subtract the Estimated Body Airspeed from the Inertial Velocity
-#v_AE_L = v_BE_L - v_BA_L
-v_AE_L_mps = oDataWind['vB_L_mps'] - v_BA_L_mps
+    calib[iturn] = AirData.AirDataCal(oDataWind[iturn], pData['Pitot'])
+    
+    v_BA_B_mps[iturn], v_BA_L_mps[iturn] = Airspeed2NED(calib[iturn]['v_PA_P_mps'], oDataWind[iturn]['sB_L_rad'], pData['Pitot'])
+    
+    # Subtract the Estimated Body Airspeed from the Inertial Velocity
+    #v_AE_L = v_BE_L - v_BA_L
+    v_AE_L_mps[iturn] = oDataWind[iturn]['vB_L_mps'] - v_BA_L_mps[iturn]
+    
+    # Compute the Mean of the Wind Estimate, in NED
+    vMean_AE_L_mps[iturn] = np.mean(v_AE_L_mps[iturn], axis=1)
 
-# Compute the Mean of the Wind Estimate, in NED
-vMean_AE_L_mps = np.mean(v_AE_L_mps, axis=1)
 
-
-plt.subplot(3,1,1)
-plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][0])
-plt.plot(oDataWind['time_s'], v_BA_L_mps[0])
-plt.subplot(3,1,2)
-plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][1])
-plt.plot(oDataWind['time_s'], v_BA_L_mps[1])
-plt.subplot(3,1,3)
-plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][2])
-plt.plot(oDataWind['time_s'], v_BA_L_mps[2])
+    plt.subplot(3,1,1)
+    plt.plot(oDataWind[iturn]['time_s'], oDataWind[iturn]['vB_L_mps'][0])
+    plt.plot(oDataWind[iturn]['time_s'], v_BA_L_mps[iturn][0])
+    plt.subplot(3,1,2)
+    plt.plot(oDataWind[iturn]['time_s'], oDataWind[iturn]['vB_L_mps'][1])
+    plt.plot(oDataWind[iturn]['time_s'], v_BA_L_mps[iturn][1])
+    plt.subplot(3,1,3)
+    plt.plot(oDataWind[iturn]['time_s'], oDataWind[iturn]['vB_L_mps'][2])
+    plt.plot(oDataWind[iturn]['time_s'], v_BA_L_mps[iturn][2])
 
 #plt.plot(oDataWind['time_s'], v_AE_L_mps.T)
 
