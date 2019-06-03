@@ -59,7 +59,6 @@ else:
 
 time_s = oData['time_s']
 
-
 latGps_deg = oData['rGps_D_ddm'][0]
 lonGps_deg = oData['rGps_D_ddm'][1]
 latB_deg = oData['rB_D_ddm'][0]
@@ -74,28 +73,17 @@ ax2.set_ylabel('Latitude (deg)')
 ax2.set_title('Latitude and Longitude')
 ax2.legend()
 
-# Phi
-refPsi_rad = oData['refPsi_rad']
-fig3, ax3 = plt.subplots()
-ax3.plot(time_s, refPsi_rad)
-
-
-# 3D Position
-altBaro_m = oData['altBaro_m']
-altGps_m = oData['rGps_D_ddm'][2]
-altB_m = oData['rB_D_ddm'][2]
-fig4 = plt.figure()
-ax4 = fig4.gca(projection='3d')
-ax4.plot(lonGps_deg, latGps_deg, altGps_m, '.', label='GPS')
-#ax4.plot(lonB_deg, latB_deg, altB_m, label='Ekf')
-ax4.axis('equal')
-ax4.grid()
-ax4.set_xlabel('Longitude (deg)')
-ax4.set_ylabel('Latitude (deg)')
-ax4.set_title('Flight Path')
-ax4.legend()
-
 plt.show()
+
+#%% Find turns using excitations
+
+
+
+
+
+
+
+
 
 #%% Wind/Air Cal
 windSeg = ('time_s', [524, 530])
@@ -150,21 +138,21 @@ def Airspeed2NED(v_PA_P_mps, s_BL_rad, param):
 ## Pre-Optimization, Initial Guess for the Wind
 # Over-ride Default Error Model, Optional
 pData = {}
-pData['Swift'] = {}
-pData['Swift']['r_B_m'] = np.array([1.0, 0.0, 0.0])
-pData['Swift']['s_B_rad'] = np.array([0.0, 0.0, 0.0]) * 180.0/np.pi
+pData['Pitot'] = {}
+pData['Pitot']['r_B_m'] = np.array([1.0, 0.0, 0.0])
+pData['Pitot']['s_B_rad'] = np.array([0.0, 0.0, 0.0]) * 180.0/np.pi
 
-pData['Swift']['pTip'] = {}
-pData['Swift']['pTip']['errorType'] = 'ScaleBias+'
-pData['Swift']['pTip']['bias'] = 0
-pData['Swift']['pTip']['K'] = 1.0
+pData['Pitot']['pTip'] = {}
+pData['Pitot']['pTip']['errorType'] = 'ScaleBias+'
+pData['Pitot']['pTip']['bias'] = 0
+pData['Pitot']['pTip']['K'] = 1.0
 
-pData['Swift']['pStatic'] = pData['Swift']['pTip'].copy()
+pData['Pitot']['pStatic'] = pData['Pitot']['pTip'].copy()
 
 
-calib = AirData.AirDataCal(oDataWind, pData['Swift'])
+calib = AirData.AirDataCal(oDataWind, pData['Pitot'])
 
-v_BA_B_mps, v_BA_L_mps = Airspeed2NED(calib['v_PA_P_mps'], oDataWind['sB_L_rad'], pData['5Hole'])
+v_BA_B_mps, v_BA_L_mps = Airspeed2NED(calib['v_PA_P_mps'], oDataWind['sB_L_rad'], pData['Pitot'])
 
 # Subtract the Estimated Body Airspeed from the Inertial Velocity
 #v_AE_L = v_BE_L - v_BA_L
@@ -232,13 +220,13 @@ optOptions = {'maxiter': 400, 'disp': True}
 
 # Setup the parameter vector
 xOpt = vMean_AE_L_mps.tolist()
-xOpt.append(pData['5Hole']['pTip']['K'])
-xOpt.append(pData['5Hole']['pTip']['bias'])
+xOpt.append(pData['Pitot']['pTip']['K'])
+xOpt.append(pData['Pitot']['pTip']['bias'])
 
 # Test simple call to CostFunction
 #cost = AirspeedCostFunc(xOpt, oDataWind, pData['5Hole'])
 
-optResult = minimize(AirspeedCostFunc, xOpt, args = (oDataWind, pData['5Hole']), method = optMethod, options = optOptions, callback = xPrint)
+optResult = minimize(AirspeedCostFunc, xOpt, args = (oDataWind, pData['Pitot']), method = optMethod, options = optOptions, callback = xPrint)
 vOpt_AE_L_mps = np.copy(optResult.x[0:3])
 K = np.copy(optResult.x[3])
 bias = np.copy(optResult.x[4])
