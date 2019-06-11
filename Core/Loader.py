@@ -49,10 +49,10 @@ def JsonWrite(filename, data):
 
 
 #%% HDF5 Read
-def Log_RAPTRS(filename, fileSysConfig):
+def Log_RAPTRS(filename, fileConfig):
     
     h5Data = Load_h5(filename) # RAPTRS log data as hdf5     
-    sysConfig = JsonRead(fileSysConfig)
+    sysConfig = JsonRead(fileConfig)
     oData = OpenData_RAPTRS(h5Data, sysConfig)
     
     return oData, h5Data
@@ -69,15 +69,15 @@ def OpenData_RAPTRS(h5Data, sysConfig, oData = {}):
     
     # IMU (a, w, mag)
     oData['aImu_I_mps2'] = np.array([h5Data['Sensors']['Fmu']['Mpu9250']['AccelX_mss'],h5Data['Sensors']['Fmu']['Mpu9250']['AccelY_mss'],h5Data['Sensors']['Fmu']['Mpu9250']['AccelZ_mss']])
-    oData['wImu_I_rads'] = np.array([h5Data['Sensors']['Fmu']['Mpu9250']['GyroX_rads'],h5Data['Sensors']['Fmu']['Mpu9250']['GyroY_rads'],h5Data['Sensors']['Fmu']['Mpu9250']['GyroZ_rads']])
+    oData['wImu_I_rps'] = np.array([h5Data['Sensors']['Fmu']['Mpu9250']['GyroX_rads'],h5Data['Sensors']['Fmu']['Mpu9250']['GyroY_rads'],h5Data['Sensors']['Fmu']['Mpu9250']['GyroZ_rads']])
     oData['magImu_L_uT'] = np.array([h5Data['Sensors']['Fmu']['Mpu9250']['MagX_uT'],h5Data['Sensors']['Fmu']['Mpu9250']['MagY_uT'],h5Data['Sensors']['Fmu']['Mpu9250']['MagZ_uT']])
     
     
     if 'Imu' in h5Data['Sensors']:
         for imuName in h5Data['Sensors']['Imu'].keys():
             if imuName in h5Data['Sensors']['Imu']:
-                oData['a'+imuName+'IMU_IMU_mps2'] = np.array([h5Data['Sensors']['Imu'][imuName]['AccelX_mss'],h5Data['Sensors']['Fmu']['Mpu9250']['AccelY_mss'],h5Data['Sensors']['Fmu']['Mpu9250']['AccelZ_mss']])
-                oData['w'+imuName+'IMU_IMU_rads'] = np.array([h5Data['Sensors']['Imu'][imuName]['GyroX_rads'],h5Data['Sensors']['Fmu']['Mpu9250']['GyroY_rads'],h5Data['Sensors']['Fmu']['Mpu9250']['GyroZ_rads']])
+                oData['a'+imuName+'IMU_IMU_mps2'] = np.array([h5Data['Sensors']['Imu'][imuName]['AccelX_mss'],h5Data['Sensors']['Imu'][imuName]['AccelY_mss'],h5Data['Sensors']['Imu'][imuName]['AccelZ_mss']])
+                oData['w'+imuName+'IMU_IMU_rps'] = np.array([h5Data['Sensors']['Imu'][imuName]['GyroX_rads'],h5Data['Sensors']['Imu'][imuName]['GyroY_rads'],h5Data['Sensors']['Imu'][imuName]['GyroZ_rads']])
     
     # Thor Pitot-Static
     if 'Swift' in h5Data['Sensors']:

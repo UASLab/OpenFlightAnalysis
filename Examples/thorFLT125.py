@@ -1,18 +1,29 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Created on Tue May  7 13:43:19 2019
+University of Minnesota
+Aerospace Engineering and Mechanics - UAV Lab
+Copyright 2019 Regents of the University of Minnesota
+See: LICENSE.md for complete license details
 
-@author: rega0051
+Author: Chris Regan
+
+Analysis for Huginn (mAEWing2) FLT 02
 """
 
-#%%
-# Import Libraries
 import numpy as np
-import json
+import matplotlib.pyplot as plt
 
-import Loader
-import OpenData
+# Hack to allow loading the Core package
+if __name__ == "__main__" and __package__ is None:
+    from sys import path, argv
+    from os.path import dirname, abspath, join
+
+    path.insert(0, abspath(join(dirname(argv[0]), "..")))
+    path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
+    
+    del path, argv, dirname, abspath, join
+
+from Core import Loader
+from Core import OpenData
 
 
 fileLog = '/home/rega0051/FlightArchive/Thor/ThorFLT125/ThorFLT125.h5'
@@ -55,8 +66,7 @@ else:
 
 
 #%% RTSM
-    
-import FreqTrans
+from Core import FreqTrans
     
 segList = [('time_us', excList[0][1]), 
            ('time_us', excList[1][1]), 

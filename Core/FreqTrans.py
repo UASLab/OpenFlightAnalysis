@@ -52,19 +52,22 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
     fs and freq must have same units. (Puu and Pyy will only have correct power scale if units are rad/sec)
     
     '''
+    import copy
     
     x = np.atleast_2d(x)
     y = np.atleast_2d(y)
-    freqOpt = np.atleast_2d(opt.freq)
-    freqOptN = np.atleast_2d(optN.freq)
     
-    # Get the shape of the inputs and outputs. Expand dimensions
-    numIn = x.shape[0]
-    numFreq = freqOpt.shape[0]
-    numFreqN = freqOptN.shape[0]
-
     # If the input is multidimensional, recursively call
+    numIn = x.shape[0]
     if numIn > 1: # Multi-Input
+        
+        freqOpt = np.atleast_2d(opt.freq)
+        freqOptN = np.atleast_2d(optN.freq)
+        
+        # Get the shape of the frequency vectors
+        numFreq = freqOpt.shape[0]
+        numFreqN = freqOptN.shape[0]
+        
         if not ((numFreq is numIn) or (numFreq is 1)):
             raise Exception('Number of frequency vectors should either be 1 or match the number of vectors in x; value: {}'.format(numFreq))
         freq = []
@@ -75,31 +78,31 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
         Pxy = []
         TxyUnc = []
         
-        optIn = opt
-        optInN = optN
+        optIn = copy.deepcopy(opt)
+        optInN = copy.deepcopy(optN)
         
         for iInput in range(0, numIn):
             if numFreq == 1:
-                freqOptIn = freqOpt
+                freqOptIn = np.copy(freqOpt)
             else: # Multi-Input, Multi-FreqVector
-                freqOptIn = freqOpt[iInput]
+                freqOptIn = np.copy(freqOpt[iInput])
             
             if numFreqN == 1:
-                freqOptInN = freqOptN
+                freqOptInN = np.copy(freqOptN)
             else: # Multi-Input, Multi-FreqNullVector 
-                freqOptInN = freqOptN[iInput]
+                freqOptInN = np.copy(freqOptN[iInput])
             
             optIn.freq = np.atleast_2d(freqOptIn)
             optInN.freq = np.atleast_2d(freqOptInN)
             freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn, TxyUncIn = FreqRespFuncEstNoise(np.atleast_2d(x[iInput]), y, optIn, optInN)
             
-            freq.append(freqIn)
-            Txy.append(TxyIn)
-            Cxy.append(CxyIn)
-            Pxx.append(PxxIn)
-            Pyy.append(PyyIn)
-            Pxy.append(PxyIn)
-            TxyUnc.append(TxyUncIn)
+            freq.append(np.copy(freqIn))
+            Txy.append(np.copy(TxyIn))
+            Cxy.append(np.copy(CxyIn))
+            Pxx.append(np.copy(PxxIn))
+            Pyy.append(np.copy(PyyIn))
+            Pxy.append(np.copy(PxyIn))
+            TxyUnc.append(np.copy(TxyUncIn))
 
     else: # Single-Input, Sigle-FreqVector
     
@@ -112,15 +115,15 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
         def interpPolar(z, freqN, freqE):
             amp = np.abs(z)
             theta = np.angle(z)
-                    
-            interpAmp = interp.interp1d(np.squeeze(freqN), amp, fill_value="extrapolate")
-            interpTheta = interp.interp1d(np.squeeze(freqN), theta, fill_value="extrapolate")
-    
+            
+            interpAmp = interp.interp1d(np.squeeze(freqN), amp, fill_value = "extrapolate")
+            interpTheta = interp.interp1d(np.squeeze(freqN), theta, fill_value = "extrapolate")
+            
             ampE = interpAmp(np.squeeze(freqE))
             thetaE = interpTheta(np.squeeze(freqE))
-        
+            
             zE = ampE * np.exp( 1j * thetaE )
-                
+            
             return zE
         
         yDft_N = interpPolar(yDft_N, freqN, freq)
@@ -256,6 +259,56 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
     Pxy = np.atleast_2d(Pxy)
         
     return freq, Txy, Cxy, Pxx, Pyy, Pxy
+
+#%% Spectrogram
+def SpectTime(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
+    '''
+    x is real
+    returns the onesided DFT
+    fs in rps (required for correct power scale)
+    freq in rps (required for correct power scale)
+    '''
+        
+    lenX = len(x)
+    
+    #freqMin_rps = (lenSeg / freqRate_hz) * hz2rps
+    #opt.freq = opt.freq[...,freqMin_rps < freqExc_rps]
+    
+    lenFreq = opt.freq.shape[-1]
+    
+    numSeg = int((lenX - lenSeg) / lenOverlap)
+    P_mag = np.zeros((numSeg, lenFreq))
+    tSpec_s = np.zeros((numSeg))
+    for iSeg in range(0, numSeg):
+        
+        iSel = iSeg * lenOverlap + np.arange(0, lenSeg)
+        iCent = iSeg * lenOverlap + lenSeg//2
+    
+        tSpec_s[iSeg] = t[iCent]
+        
+        freq, _, P_mag[iSeg, ] = Spectrum(x[iSel], opt)
+        
+    return tSpec_s, freq, P_mag
+
+
+def Spectogram(freq, t, P):
+    import matplotlib.pyplot as plt
+    
+    freqArray, tArray = np.meshgrid(freq, t)
+    
+    fig = plt.figure()
+    fig.tight_layout()
+    ax = fig.gca(projection = '3d')
+    ax.view_init(elev = 90.0, azim = 0.0)
+    
+    ax.plot_surface(freqArray, tArray, P, rstride=1, cstride=1, cmap='nipy_spectral')
+    
+    ax.set_xlabel('Frequency ( )')
+    ax.set_ylabel('Time (s)')
+    ax.set_zlabel('Power ( )')
+    ax.set_title('Spectrogram')
+
+    return 
 
 
 #%%

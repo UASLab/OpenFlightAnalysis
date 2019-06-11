@@ -5,18 +5,28 @@ Copyright 2019 Regents of the University of Minnesota
 See: LICENSE.md for complete license details
 
 Author: Chris Regan
+
+Example script for testing Frequency Response Estimation - US25e with Noise.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patch
-import scipy.interpolate as interp
-import scipy.signal as signal
 import control
 
-import FreqTrans
-import GenExcite
-import Systems
+# Hack to allow loading the Core package
+if __name__ == "__main__" and __package__ is None:
+    from sys import path, argv
+    from os.path import dirname, abspath, join
+
+    path.insert(0, abspath(join(dirname(argv[0]), "..")))
+    path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
+    
+    del path, argv, dirname, abspath, join
+
+from Core import GenExcite
+from Core import FreqTrans
+from Core import Systems
 
 # Constants
 hz2rps = 2*np.pi
@@ -25,6 +35,9 @@ rps2hz = 1/hz2rps
 rad2deg = 180/np.pi
 deg2rad = 1/rad2deg
 
+
+# Load the US25e linear model
+exec(open("US25e_Lin.py").read())
 
 #%% Define a linear systems
 freqRate_hz = 50
@@ -144,8 +157,8 @@ sens = out[-7:]
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3))
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.1))
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.0))
 
 # Excited Frequencies per input channel
 optSpec.freq = []
@@ -190,13 +203,13 @@ for iIn, inName in enumerate(inPlot):
         
         uncDisk = np.abs(TUnc[iOut, iIn])
         
-        ax[iOut, iIn].semilogx(freqSys_hz, sysSimOL_sigma_mag[iOut, iIn], 'k')
-        ax[iOut, iIn].errorbar(freq_hz[iOut, 0], sigma_mag[iOut, iIn], yerr = uncDisk, fmt = 'b.')
+        ax[iOut, iIn].plot(freqSys_hz, sysSimOL_sigma_mag[iOut, iIn], 'k')
+        ax[iOut, iIn].errorbar(freq_hz[iOut, 0], sigma_mag[iOut, iIn], yerr = uncDisk, fmt = '.b', elinewidth = 0, capsize = 2)
         ax[iOut, iIn].grid()
         ax[iOut, iIn].set_xlim(left = 0.05, right = freqRate_hz/2)
         ax[iOut, iIn].set_ylim(bottom = 0.0, top = 2.0)
         
-        ax[iOut, iIn].plot(freqSys_hz, 0.4 * np.ones_like(freqSys_hz), 'r-')
+        ax[iOut, iIn].plot(freqSys_hz, 0.4 * np.ones_like(freqSys_hz), 'r--')
         
 
 #%% Nyquist Plots

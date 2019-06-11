@@ -9,13 +9,22 @@ Author: Chris Regan
 Exampe script for generating sin sweep type excitations.
 """
 
-
 import numpy as np
 import matplotlib.pyplot as plt
-import json
 
-import GenExcite
-import FreqTrans
+# Hack to allow loading the Core package
+if __name__ == "__main__" and __package__ is None:
+    from sys import path, argv
+    from os.path import dirname, abspath, join
+
+    path.insert(0, abspath(join(dirname(argv[0]), "..")))
+    path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
+    
+    del path, argv, dirname, abspath, join
+
+from Core import GenExcite
+from Core import FreqTrans
+
 
 # Constants
 hz2rps = 2*np.pi
@@ -29,7 +38,7 @@ timeDur_s = 10.0
 ampInit = 1.0
 ampFinal = 1.0
 
-time_s = np.linspace(0, timeDur_s, (timeDur_s * freqRate_hz) + 1)
+time_s = np.linspace(0, timeDur_s, int(timeDur_s * freqRate_hz) + 1)
 sig, ampChirp, freqChirp_rps = GenExcite.Chirp(freqInit_rps, freqFinal_rps, time_s, ampInit, ampFinal, freqType = 'linear', ampType = 'linear', initZero = 1)
 
 ## Results
@@ -72,5 +81,6 @@ jsonChirp['Duration'] = timeDur_s
 jsonChirp['ampitude'] = [ampInit, ampFinal]
 jsonChirp['Frequency'] = [freqInit_rps, freqFinal_rps]
 
-#print(json.dumps(['Chirp', jsonChirp], separators=(', ', ': ')))
+import json
+print(json.dumps(['Chirp', jsonChirp], separators=(', ', ': ')))
 

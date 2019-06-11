@@ -5,13 +5,25 @@ Copyright 2019 Regents of the University of Minnesota
 See: LICENSE.md for complete license details
 
 Author: Chris Regan
+
+UltraStick25e Linear Model with Controller.
 """
 
-import Systems
 import numpy as np
+import matplotlib.pyplot as plt
 import control
 
-import matplotlib.pyplot as plt
+# Hack to allow loading the Core package
+if __name__ == "__main__" and __package__ is None:
+    from sys import path, argv
+    from os.path import dirname, abspath, join
+
+    path.insert(0, abspath(join(dirname(argv[0]), "..")))
+    path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
+    
+    del path, argv, dirname, abspath, join
+    
+from Core import Systems
 
 
 # Constants
@@ -19,6 +31,8 @@ hz2rps = 2*np.pi
 rps2hz = 1/hz2rps
 d2r = np.pi/180
 r2d = 1/d2r
+
+plotFlag = False
 
 #%% US25e @17 m/s
 A = np.array([[-1.5075141732773e-08, 3.52548256695526e-09, 0, 1, -9.4614084373833e-05, 0.0551110840032007, 0, 0, 0, 0, 0, 0, 0],[-3.51480725402154e-09, 0, 0, 0, 0.999998526321596, 0.00171678613575457, 0, 0, 0, 0, 0, 0, 0],[-2.73955699015303e-07, 1.93999064761037e-10, 0, 0, -0.00171939130534064, 1.00151599299531, 0, 0, 0, 0, 0, 0, 0],[0, 0, 0, -16.093281964627, -0.139331847922205, 3.36733290152386, 0.0641598396789031, -2.82336072789796, 0.00341285522191952, 2.69406616153886e-09, -2.45351955099935e-09, -0.000305350541915879, -0.0128378125604161],[0, 0, 0, -1.65172003270966e-08, -15.8073729938731, 1.24355004881079, 1.0483672161376, 2.57438180638635e-09, -7.40469649475076, 6.76976259264397e-18, -6.16530696751281e-18, -7.67297665445943e-13, -0.0131461492171692],[0, 0, 0, 0.514001561383309, -0.711687216963793, -2.77502233193406, 0.00584617234727531, 1.70151703540306, 0.000314102055369676, 2.45489133138549e-10, -2.23570005930838e-10, -2.78242015390957e-05, -0.00116980825507311],[0, -9.79069403403114, 0, 1.43545992664233e-10, -0.8912294479237, 6.21652178060893e-08, -0.59452928348666, -0.000987234275265025, 0.808056371377502, -9.06225232545553e-10, 4.17164804178681e-10, 5.17480844884583e-05, 0.0125985024168313],[9.79067960570885, 0.000926337551399568, 0, 0.896756079983008, -9.16020039877139e-11, -16.8189425372007, 0.00197447678969674, -0.872591324595545, 0.000108887948499417, -2.82301420835357e-11, 1.29952571254347e-11, 1.61202397722137e-06, 0],[0.0168085278032739, -0.53957576134847, 0, -6.27260486611496e-08, 15.7185902206702, -5.34124623866913e-11, -0.73691437649521, -5.44780694701113e-05, -7.55980389894898, 1.64435725872259e-08, -7.56951313505922e-09, -0.000938976162094652, 0],[0.395312240136752, -9.78128998000427e-05, -7.1830544974382, 0, 0, 0, -0.904934576962061, -0.422532019375643, -0.0505974706279831, 0, 0, 0, 0],[0.847958979377808, 4.56109378542124e-05, -15.4079107971907, 0, 0, 0, 0.421977923367986, -0.906346376507767, 0.0216997241337062, 0, 0, 0, 0],[0.00160381869688203, -16.9999995467147, 0, 0, 0, 0, -0.0550276624532794, -0.00171418491415924, 0.9984833588687, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0, 135.454006056826, 5.00658966111091e-07, 7.46590165357177, 7.28257345721243e-07, -6.63233019810226e-07, -0.0825420616408248, -5.90289647474733]])
@@ -201,10 +215,11 @@ sysOL = Systems.ConnectName(control.append(sysCtrl, sysPlant), inNames, outNames
 
 
 # Bode Plots
-plt.figure(1)
-_ = control.bode_plot(sysOL[3,0], omega_limits = [0.01, 500], Hz = True, dB = True)
-_ = control.bode_plot(sysOL[4,1], omega_limits = [0.01, 500], Hz = True, dB = True)
-_ = control.bode_plot(sysOL[5,2], omega_limits = [0.01, 500], Hz = True, dB = True)
+if plotFlag:
+    plt.figure(1)
+    _ = control.bode_plot(sysOL[3,0], omega_limits = [0.01, 500], Hz = True, dB = True)
+    _ = control.bode_plot(sysOL[4,1], omega_limits = [0.01, 500], Hz = True, dB = True)
+    _ = control.bode_plot(sysOL[5,2], omega_limits = [0.01, 500], Hz = True, dB = True)
 
 
 #%% Closed-Loop System
@@ -223,44 +238,45 @@ timeStep_s = 5.0
 timeRate_s = 1.0/50.0
 time_s = np.linspace(0.0, timeStep_s, int(timeStep_s/timeRate_s)+1)
 
-plt.figure(2)
-_, stepPhiOut = control.step_response(sysCL, input=0, T=time_s)
-plt.subplot(4,1,1); plt.plot(time_s, stepPhiOut[0])
-plt.subplot(4,1,2); plt.plot(time_s, stepPhiOut[3])
-plt.subplot(4,1,3); plt.plot(time_s, stepPhiOut[6])
-plt.subplot(4,1,4); plt.plot(time_s, stepPhiOut[8])
-
-plt.figure(3)
-_, stepThetaOut = control.step_response(sysCL, input=1, T=time_s)
-plt.subplot(4,1,1); plt.plot(time_s, stepThetaOut[1])
-plt.subplot(4,1,2); plt.plot(time_s, stepThetaOut[4])
-plt.subplot(4,1,3); plt.plot(time_s, stepThetaOut[7])
-plt.subplot(4,1,4); plt.plot(time_s, stepThetaOut[9])
-
-plt.figure(4)
-_, stepYawOut = control.step_response(sysCL, input=2, T=time_s)
-plt.subplot(3,1,1); plt.plot(time_s, stepYawOut[2])
-plt.subplot(3,1,2); plt.plot(time_s, stepYawOut[5])
-plt.subplot(3,1,3); plt.plot(time_s, stepYawOut[10])
-
-
-plt.figure(5)
-_, stepExcP = control.step_response(sysCL, input=3, T=time_s)
-plt.subplot(4,1,1); plt.plot(time_s, stepExcP[0])
-plt.subplot(4,1,2); plt.plot(time_s, stepExcP[3])
-plt.subplot(4,1,3); plt.plot(time_s, stepExcP[6])
-plt.subplot(4,1,4); plt.plot(time_s, stepExcP[8])
-
-plt.figure(6)
-_, stepExcQ = control.step_response(sysCL, input=4, T=time_s)
-plt.subplot(4,1,1); plt.plot(time_s, stepExcQ[1])
-plt.subplot(4,1,2); plt.plot(time_s, stepExcQ[4])
-plt.subplot(4,1,3); plt.plot(time_s, stepExcQ[7])
-plt.subplot(4,1,4); plt.plot(time_s, stepExcQ[9])
-
-plt.figure(7)
-_, stepExcR = control.step_response(sysCL, input=5, T=time_s)
-plt.subplot(3,1,1); plt.plot(time_s, stepExcR[2])
-plt.subplot(3,1,2); plt.plot(time_s, stepExcR[5])
-plt.subplot(3,1,3); plt.plot(time_s, stepExcR[10])
+if plotFlag:
+    plt.figure(2)
+    _, stepPhiOut = control.step_response(sysCL, input=0, T=time_s)
+    plt.subplot(4,1,1); plt.plot(time_s, stepPhiOut[0])
+    plt.subplot(4,1,2); plt.plot(time_s, stepPhiOut[3])
+    plt.subplot(4,1,3); plt.plot(time_s, stepPhiOut[6])
+    plt.subplot(4,1,4); plt.plot(time_s, stepPhiOut[8])
+    
+    plt.figure(3)
+    _, stepThetaOut = control.step_response(sysCL, input=1, T=time_s)
+    plt.subplot(4,1,1); plt.plot(time_s, stepThetaOut[1])
+    plt.subplot(4,1,2); plt.plot(time_s, stepThetaOut[4])
+    plt.subplot(4,1,3); plt.plot(time_s, stepThetaOut[7])
+    plt.subplot(4,1,4); plt.plot(time_s, stepThetaOut[9])
+    
+    plt.figure(4)
+    _, stepYawOut = control.step_response(sysCL, input=2, T=time_s)
+    plt.subplot(3,1,1); plt.plot(time_s, stepYawOut[2])
+    plt.subplot(3,1,2); plt.plot(time_s, stepYawOut[5])
+    plt.subplot(3,1,3); plt.plot(time_s, stepYawOut[10])
+    
+    
+    plt.figure(5)
+    _, stepExcP = control.step_response(sysCL, input=3, T=time_s)
+    plt.subplot(4,1,1); plt.plot(time_s, stepExcP[0])
+    plt.subplot(4,1,2); plt.plot(time_s, stepExcP[3])
+    plt.subplot(4,1,3); plt.plot(time_s, stepExcP[6])
+    plt.subplot(4,1,4); plt.plot(time_s, stepExcP[8])
+    
+    plt.figure(6)
+    _, stepExcQ = control.step_response(sysCL, input=4, T=time_s)
+    plt.subplot(4,1,1); plt.plot(time_s, stepExcQ[1])
+    plt.subplot(4,1,2); plt.plot(time_s, stepExcQ[4])
+    plt.subplot(4,1,3); plt.plot(time_s, stepExcQ[7])
+    plt.subplot(4,1,4); plt.plot(time_s, stepExcQ[9])
+    
+    plt.figure(7)
+    _, stepExcR = control.step_response(sysCL, input=5, T=time_s)
+    plt.subplot(3,1,1); plt.plot(time_s, stepExcR[2])
+    plt.subplot(3,1,2); plt.plot(time_s, stepExcR[5])
+    plt.subplot(3,1,3); plt.plot(time_s, stepExcR[10])
 

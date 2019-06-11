@@ -10,6 +10,7 @@ Author: Chris Regan
 import numpy as np
 
 from SensorModel import SensorErrorModel
+import KinematicTransforms
 
 # Constants
 vSoundSL_mps = 340.29 # standard sea level speed of sound, m/s
@@ -87,8 +88,38 @@ def AeroAngle2(pTip, pAngle, kCal):
 
     return angle
 
+
+#%%
+def Airspeed2NED(v_PA_P_mps, s_BL_rad, param):
+
+    from scipy.spatial.transform import Rotation as R
+        
+    # Assume the rotation rate of the atmosphere is negligible
+    w_AL_L_rps = np.zeros_like(v_PA_P_mps)
+    
+    # Compute the Rotation rate of the Probe wrt the Atm
+    # w_BA_B_rps = w_BL_B_rps + T_L2B * w_AL_L_rps
+    # w_BA_B_rps = w_BL_B_rps + w_AL_L_rps # FIXIT - should have transformation from L to B
+    w_BA_B_rps = np.zeros_like(v_PA_P_mps)
+    
+    # Translate and Rotate the Pitot measurement to the Body frame
+    v_BA_B_mps = KinematicTransforms.TransPitot(v_PA_P_mps, w_BA_B_rps, param['s_B_rad'], param['r_B_m']);
+    
+    # Transform Coordinates from B to L
+    v_BA_L_mps = np.zeros_like(v_BA_B_mps)
+    numSamp = v_PA_P_mps.shape[-1]
+    for iSamp in range(0, numSamp):
+#        T_B2L = R.from_euler('XYZ', -s_BL_rad[:,iSamp], degrees = False).as_dcm().T
+        T_B2L = R.from_euler('ZYX', s_BL_rad[[2,1,0], iSamp], degrees = False).as_dcm()
+    
+        # Compute the NED velocity
+        v_BA_L_mps[:,iSamp] = T_B2L @ v_BA_B_mps[:,iSamp]
+
+    return v_BA_B_mps, v_BA_L_mps
+
+
 #%% Airdata
-def AirDataCal(meas, param):
+def ApplyCalibration(meas, param):
     ''' Compute the Airdata Parameters with a given sensor error/calibration model.
     
     Inputs:
@@ -185,7 +216,7 @@ def AirDataCal(meas, param):
         
         # Airspeed Vector ['u', 'v', 'w']
         calib['v_PA_P_mps'][0] = calib['vIas_mps']
-        #calib['v_PA_P_mps'][0] = calib['vIas_mps'] / (np.cos(calib['alpha_rad']) * np.cos(calib['beta_rad']))
+#        calib['v_PA_P_mps'][0] = calib['vIas_mps'] / (np.cos(calib['alpha_rad']) * np.cos(calib['beta_rad']))
         calib['v_PA_P_mps'][1] = calib['vIas_mps'] * np.sin(calib['beta_rad'])
         calib['v_PA_P_mps'][2] = calib['v_PA_P_mps'][0] * np.tan(calib['alpha_rad'])
 
@@ -207,7 +238,7 @@ def AirDataCal(meas, param):
         
         # Airspeed Vector ['u', 'v', 'w']
         calib['v_PA_P_mps'][0] = calib['vIas_mps']
-        #calib['v_PA_P_mps'][0] = calib['vIas_mps'] / (np.cos(calib['alpha_rad']) * np.cos(calib['beta_rad']))
+#        calib['v_PA_P_mps'][0] = calib['vIas_mps'] / (np.cos(calib['alpha_rad']) * np.cos(calib['beta_rad']))
         calib['v_PA_P_mps'][1] = calib['vIas_mps'] * np.sin(calib['beta_rad'])
         calib['v_PA_P_mps'][2] = calib['v_PA_P_mps'][0] * np.tan(calib['alpha_rad'])
         

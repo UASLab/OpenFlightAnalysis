@@ -9,14 +9,22 @@ Author: Chris Regan
 Example script for generating Schroeder type Multisine Excitations.
 """
 
-
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.signal as signal
-import json
 
-import GenExcite
-import FreqTrans
+# Hack to allow loading the Core package
+if __name__ == "__main__" and __package__ is None:
+    from sys import path, argv
+    from os.path import dirname, abspath, join
+
+    path.insert(0, abspath(join(dirname(argv[0]), "..")))
+    path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
+    
+    del path, argv, dirname, abspath, join
+
+from Core import GenExcite
+from Core import FreqTrans
+
 
 # Constants
 hz2rps = 2*np.pi
@@ -40,7 +48,7 @@ timeDur_s = time_s[-1] - time_s[0]
 
 ## Generate Schroeder MultiSine Signal
 ampElem_nd = np.ones_like(freqElem_rps) ## Approximate relative signal amplitude, create flat
-sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Norm2', phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
+sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Schroeder', phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
 
 
 ## Results
@@ -50,6 +58,7 @@ print(peakFactorRel)
 
 # Signal Power
 sigPowerRel = (ampElem_nd / max(ampElem_nd))**2 / len(ampElem_nd)
+
 
 plt.figure()
 for iChan in range(0, numChan):
@@ -86,8 +95,8 @@ nChan = len(P_dB_fft)
 plt.figure()
 for iChan in range(0, nChan):
     plt.subplot(nChan, 1, iChan+1)
-    plt.plot(freq_fft[iChan], P_dB_fft[iChan], '-k', label='FFT Pxx')
-    plt.plot(freq_czt[iChan], P_dB_czt[iChan], '.r-', label='CZT Pxx')
+    plt.plot(freq_fft[iChan].T, P_dB_fft[iChan].T, '-k', label='FFT Pxx')
+    plt.plot(freq_czt[iChan].T, P_dB_czt[iChan].T, '.r-', label='CZT Pxx')
     plt.grid()
     plt.ylabel('Spectrum (dB)');
 
@@ -104,7 +113,7 @@ timeStart_s = time_s[0]
 jsonMulti = {}
 for iChan in range(0, numChan):
     iElem = sigIndx[iChan]
-    
+        
     dictChan = {}
     dictChan['Type'] = 'MultiSine'
     dictChan['Duration'] = timeDur_s
@@ -116,5 +125,5 @@ for iChan in range(0, numChan):
     
     jsonMulti[nameChan] = dictChan
 
+import json
 print(json.dumps(jsonMulti, separators=(', ', ': ')))
-

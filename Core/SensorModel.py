@@ -31,6 +31,12 @@ def SensorErrorModel(xMeas, param):
         xTrue = xMeas + param['bias']
     elif param['errorType'].lower() == 'scalebias+': # Scale and Bias
         xTrue = param['K'] * xMeas + param['bias']
+    elif param['errorType'].lower() == 'quad+': # Quad, Scale, Bias
+        xTrue = param['quad'] * xMeas**2 + param['K'] * xMeas + param['bias']
+    elif param['errorType'].lower() == 'sqrt+': # Sqrt, Scale, and Bias
+        xTrue = param['quad'] * np.sqrt(xMeas) + param['K'] * xMeas + param['bias']
+    elif param['errorType'].lower() == 'inv+': # Inv, Scale, and Bias
+        xTrue = param['inv'] / xMeas + param['K'] * xMeas + param['bias']
     else:
         print('Unkown Option')
 

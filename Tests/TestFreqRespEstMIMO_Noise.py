@@ -5,14 +5,27 @@ Copyright 2019 Regents of the University of Minnesota
 See: LICENSE.md for complete license details
 
 Author: Chris Regan
+
+Example script for testing Frequency Response Estimation - MIMO with Noise.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as signal
 
-import FreqTrans
-import GenExcite
+# Hack to allow loading the Core package
+if __name__ == "__main__" and __package__ is None:
+    from sys import path, argv
+    from os.path import dirname, abspath, join
+
+    path.insert(0, abspath(join(dirname(argv[0]), "..")))
+    path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
+    
+    del path, argv, dirname, abspath, join
+
+from Core import GenExcite
+from Core import FreqTrans
+
 
 # Constants
 hz2rps = 2*np.pi
@@ -20,6 +33,7 @@ rps2hz = 1/hz2rps
 
 rad2deg = 180/np.pi
 deg2rad = 1/rad2deg
+
 
 #%% Define a linear systems
 freqRate_hz = 50

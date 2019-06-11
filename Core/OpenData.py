@@ -128,17 +128,22 @@ def TestPointOut(excList, testPointList):
     return testList
 
 #%% Segment oData by condition
-    
+import copy
+
 def SliceDict(oData, iCond):
     
     oDataSeg = {}
     
+    lenCond = len(iCond)
     for k, v in oData.items():
         if isinstance(v, dict):
             oDataSeg[k] = {}
             oDataSeg[k] = SliceDict(v, iCond)
-        else:
-            oDataSeg[k] = np.copy(v[...,iCond])
+        else:    
+            if v.shape[-1] >= lenCond:
+                oDataSeg[k] = np.copy(v[...,iCond])
+            else:
+                oDataSeg[k] = np.copy(v)
     
     return oDataSeg
     
@@ -152,17 +157,23 @@ def Segment(oData, cond):
     if type(cond) is list:
         oDataSeg = []
         for c in cond:
-            oDataSeg.append(Segment(oData, c))
+            seg = copy.deepcopy(Segment(oData, c))
+            oDataSeg.append(seg)
         return oDataSeg
-            
+    
     # Slice into Segments
     condName = cond[0]
     condRange = cond[1]
+    if len(cond) > 2:
+        condDesc = cond[2]
+    else:
+        condDesc = ''
     
     # Bool that matches the condition
     iCond = (oData[condName] >= condRange[0]) & (oData[condName] <= condRange[1])
     
     # Slice, with full copy, into segmented oData. SliceDict will handle recursive calls
-    oDataSeg = SliceDict(oData, iCond)
-        
+    oDataSeg = copy.deepcopy(SliceDict(oData, iCond))
+    oDataSeg['Desc'] = condDesc
+    
     return oDataSeg
