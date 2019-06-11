@@ -85,6 +85,12 @@ def OpenData_RAPTRS(h5Data, sysConfig, oData = {}):
         oData['pStatic_Pa'] = h5Data['Sensors']['Swift']['Static']['Pressure_Pa']
         oData['tempProbe_C'] = np.mean([h5Data['Sensors']['Swift']['Differential']['Temperature_C'], h5Data['Sensors']['Swift']['Static']['Temperature_C']], axis=0)
 
+    if 'Pitot' in h5Data['Sensors']:
+        oData['pTip_Pa'] = h5Data['Sensors']['Pitot']['Differential']['Pressure_Pa']
+        oData['pStatic_Pa'] = h5Data['Sensors']['Pitot']['Static']['Pressure_Pa']
+        oData['tempProbe_C'] = np.mean([h5Data['Sensors']['Pitot']['Differential']['Temperature_C'], h5Data['Sensors']['Pitot']['Static']['Temperature_C']], axis=0)
+
+    
     # Huginn Pitot-Static
     if '5Hole' in h5Data['Sensors']:
         if 'Alpha1' in h5Data['Sensors']['5Hole']: # For Huginn
