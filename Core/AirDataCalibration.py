@@ -28,8 +28,14 @@ def CostFunc(xOpt, optInfo, oDataList, param):
         vWind.append(xOpt[iSlice])
     
     # Apply global free variables
-    param['pTip']['K'] = xOpt[iEnd]
-    param['pTip']['bias'] = xOpt[iEnd+1]
+#    param['pTip']['K'] = xOpt[iEnd]
+#    param['pTip']['bias'] = xOpt[iEnd+1]
+    param['v']['K'] = xOpt[iEnd]
+    param['v']['bias'] = xOpt[iEnd+1]
+    param['alpha']['K'] = xOpt[iEnd+2]
+    param['alpha']['bias'] = xOpt[iEnd+3]
+    param['beta']['K'] = xOpt[iEnd+4]
+    param['beta']['bias'] = xOpt[iEnd+5]
     
     costList = []
     for iSeg, oData in enumerate(oDataList):
@@ -38,9 +44,10 @@ def CostFunc(xOpt, optInfo, oDataList, param):
         oData['vMean_AE_L_mps'] = vWind[iSeg]
         
         # Compute the Airspeed solution with error model parameters
+#        calib = AirData.ApplyPressureCalibration(oData, param)
         calib = AirData.ApplyCalibration(oData, param)
         v_BA_B_mps, v_BA_L_mps = AirData.Airspeed2NED(calib['v_PA_P_mps'], oData['sB_L_rad'], param)
-    
+        
         # Compute the Ground Speeds
         # Wind Estimate, assume constant at mean value
         numSamp = v_BA_B_mps.shape[-1]
@@ -82,7 +89,7 @@ def EstCalib(opt, oDataList, param):
     for p in opt['param']:
         xOpt.append(p['val'])
         xBnds.append([p['lb'], p['ub']])
-    
+        
     
     # Initial Guess, based on assuming perfect calibration, constant wind.
     for iSeg, oData in enumerate(oDataList):
@@ -93,8 +100,8 @@ def EstCalib(opt, oDataList, param):
         # Subtract the Estimated Body Airspeed from the Inertial Velocity
         #v_AE_L = v_BE_L - v_BA_L
         oData['vMean_AE_L_mps'] = np.mean(oData['vB_L_mps'] - v_BA_L_mps, axis=1)
-               
-
+        
+    
     # Optimization Info dict, pass to function
     optInfo = {}
     optInfo['wind'] = opt['wind']

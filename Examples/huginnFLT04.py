@@ -6,7 +6,7 @@ See: LICENSE.md for complete license details
 
 Author: Chris Regan
 
-Analysis for Huginn (mAEWing2) FLT 03
+Analysis for Huginn (mAEWing2) FLT 04
 """
 
 #%%
@@ -26,6 +26,7 @@ if __name__ == "__main__" and __package__ is None:
 
 from Core import Loader
 from Core import OpenData
+from Core import FreqTrans
 
 
 # Constants
@@ -60,151 +61,103 @@ oDataExc = OpenData.Segment(oData, segList)
 
 
 #%% Wind/Air Cal
-windSegList = [
-        ('time_us', [825000000, excList[0][1][0]]),
-        ('time_us', [excList[1][1][1], excList[2][1][0]]),
-        ('time_us', [excList[3][1][1], excList[4][1][0]]),
-        ('time_us', [excList[5][1][1], excList[6][1][0]]),
-        ('time_us', [excList[9][1][0], 1188000000])
-        ]
-
-
-oDataWindList = OpenData.Segment(oData, windSegList)
-
-
-fig, ax = plt.subplots(nrows=2)
-for oDataWind in oDataWindList:
-#    OpenData.PlotOverview(oDataWind)
-    latGps_deg = oDataWind['rGps_D_ddm'][0]
-    lonGps_deg = oDataWind['rGps_D_ddm'][1]
-    latB_deg = oDataWind['rB_D_ddm'][0]
-    lonB_deg = oDataWind['rB_D_ddm'][1]
-    ax[0].plot(lonGps_deg, latGps_deg, '.', label='GPS')
-#    ax[0].plot(lonB_deg, latB_deg, label='Ekf')
-    ax[0].grid()
-    ax[1].plot(oDataWind['time_s'], oDataWind['vIas_mps'])
-    ax[1].grid()
-
-
-#%%
-## Pre-Optimization, Initial Guess for the Wind
-# Over-ride Default Error Model, Optional
 pData = {}
 pData['5Hole'] = {}
 pData['5Hole']['r_B_m'] = np.array([1.0, 0.0, 0.0])
 pData['5Hole']['s_B_rad'] = np.array([0.0, 0.0, 0.0]) * 180.0/np.pi
 
-pData['5Hole']['pTip'] = {}
-pData['5Hole']['pTip']['errorType'] = 'ScaleBias+'
-pData['5Hole']['pTip']['K'] = 1.0
-pData['5Hole']['pTip']['bias'] = 0.0
+pData['5Hole']['v'] = {}
+pData['5Hole']['v']['errorType'] = 'ScaleBias+'
+pData['5Hole']['v']['K'] = 1.0
+pData['5Hole']['v']['bias'] = 0.0
 
-pData['5Hole']['pStatic'] = pData['5Hole']['pTip'].copy()
-pData['5Hole']['pAlpha1'] = pData['5Hole']['pTip'].copy()
-pData['5Hole']['pAlpha2'] = pData['5Hole']['pAlpha1'].copy()
-pData['5Hole']['pBeta1'] = pData['5Hole']['pAlpha1'].copy()
-pData['5Hole']['pBeta2'] = pData['5Hole']['pBeta1'].copy()
+pData['5Hole']['alt'] = pData['5Hole']['v'].copy()
+pData['5Hole']['alpha'] = pData['5Hole']['v'].copy()
+pData['5Hole']['beta'] = pData['5Hole']['v'].copy()
 
-pData['5Hole']['alphaCal'] = 4.8071159
-pData['5Hole']['betaCal'] = 4.8071159
+pData['5Hole']['v']['K'] = 0.9482317385719398
+pData['5Hole']['v']['bias'] = -0.8973802167726942
 
 #
-pData['5Hole']['pTip']['K'] = 0.85
-
-#%% Optimize
-from Core import AirData
-from Core import AirDataCalibration
-
-oDataList = oDataWindList
-
-# Compute the optimal parameters
-#opt = {'Method': 'BFGS', 'Options': {'maxiter': 10, 'disp': True}}
-opt = {'Method': 'L-BFGS-B', 'Options': {'maxfun': 400, 'disp': True}}
-
-opt['wind'] = []
-for seg in oDataList:
-    seg['vMean_AE_L_mps'] = np.asarray([-5, 0, 0])
-    opt['wind'].append({'val': seg['vMean_AE_L_mps'], 'lb': np.asarray([-10, -10, -3]), 'ub': np.asarray([10, 10, 3])})
-
-opt['param'] = []
-opt['param'].append({'val': pData['5Hole']['pTip']['K'], 'lb': 0.5, 'ub': 2})
-opt['param'].append({'val': pData['5Hole']['pTip']['bias'], 'lb': -20, 'ub': 20})
-
-
-#AirDataCalibration.CostFunc(xOpt, optInfo, oDataList, param)
-opt['Result'] = AirDataCalibration.EstCalib(opt, oDataList, pData['5Hole'])
-
-nSegs = len(oDataWindList)
-nWinds = nSegs * 3
-vWind = opt['Result']['x'][0:nWinds].reshape((nSegs, 3))
-
-
-#%% Plot the Solution
-# Apply the calibration to the whole flight
+import AirData
 calib = AirData.ApplyCalibration(oData, pData['5Hole'])
 oData.update(calib)
 
-# Re-segment the Wind-circle after applying calibration
-oDataWindList = OpenData.Segment(oData, windSegList)
+v_BA_B_mps, v_BA_L_mps = AirData.Airspeed2NED(oData['v_PA_P_mps'], oData['sB_L_rad'], pData['5Hole'])
+
+# Wind
+v_AE_L_mps = oData['vB_L_mps'] - v_BA_L_mps
+oData['v_AE_L_mps'] = v_AE_L_mps
 
 
-for iSeg, oDataWind in enumerate(oDataWindList):
-    v_BA_B_mps, v_BA_L_mps = AirData.Airspeed2NED(oDataWind['v_PA_P_mps'], oDataWind['sB_L_rad'], pData['5Hole'])
+if True:
+    
+    oDataFlt = OpenData.Segment(oData, ('time_s', [725, 1205]))
+    
+    freqRate_rps = 50 * hz2rps
+    freqExc_rps = np.linspace(0.1, 5, 151) * hz2rps
+    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqExc_rps, freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 1), detrendType = 'Linear')
+    
+    
+    t = oDataFlt['time_s']
+    y = oDataFlt['v_AE_L_mps'][2]
+    
+    # Number of time segments and length of overlap, units of samples
+    #lenSeg = 2**6 - 1
+    lenSeg = int(10 * optSpec.freqRate * rps2hz)
+    lenOverlap = 1 * 50
+        
+    # Compute Spectrum over time
+    tSpec_s, freqSpec_rps, P_mag = FreqTrans.SpectTime(t, y, lenSeg, lenOverlap, optSpec)
+    freqSpec_hz = freqSpec_rps * rps2hz
+    P_dB = 20 * np.log10(P_mag)
+        
+    # Plot the Spectrogram
+    FreqTrans.Spectogram(freqSpec_hz, tSpec_s, P_dB)
 
-    oDataWind['vMean_AE_L_mps'] = vWind[iSeg]
 
-    plt.figure()
-    plt.subplot(3,1,1)
-    plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][0], label = 'Inertial')
-    plt.plot(oDataWind['time_s'], v_BA_L_mps[0] + oDataWind['vMean_AE_L_mps'][0], label = 'AirData + Wind')
-    plt.grid()
-    plt.legend()
-    plt.subplot(3,1,2)
-    plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][1])
-    plt.plot(oDataWind['time_s'], v_BA_L_mps[1] + oDataWind['vMean_AE_L_mps'][1])
-    plt.grid()
-    plt.subplot(3,1,3)
-    plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][2])
-    plt.plot(oDataWind['time_s'], v_BA_L_mps[2] + oDataWind['vMean_AE_L_mps'][2])
-    plt.grid()
-    
-    v_AE_L_mps = np.repeat([oDataWind['vMean_AE_L_mps']], oDataWind['vB_L_mps'].shape[-1], axis=0).T
-    vError_mps = (v_BA_L_mps + v_AE_L_mps) - oDataWind['vB_L_mps']
-    
-    vErrorMag_mps = np.linalg.norm(vError_mps, axis=0)
-    vBMag_mps = np.linalg.norm(oDataWind['vB_L_mps'], axis=0)
-    
-    plt.figure(11)
-    plt.plot(vBMag_mps, vErrorMag_mps, '.')
-    
-    
-    print('Wind (m/s): ', oDataWind['vMean_AE_L_mps'])
-    
-print('Tip Gain: ', pData['5Hole']['pTip']['K'])
-print('Tip Bias: ', pData['5Hole']['pTip']['bias'])
 
+if True:
+
+    for iDir in range(0, 3):
+        freqRate_rps = 50 * hz2rps
+        freqExc_rps = np.linspace(0.1, 10, 51) * hz2rps
+        optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqExc_rps, freqRate = freqRate_rps, winType = ('tukey', 0.0), smooth = ('box', 1), detrendType = 'Linear')
+        
+        y = oDataFlt['v_AE_L_mps'][iDir]
+        
+        _, _, Pyy_mag = FreqTrans.Spectrum(y, optSpec)
+        Pyy_dB = 20 * np.log10(Pyy_mag)
+        plt.semilogx(freqExc_rps * rps2hz, Pyy_dB[0])
+    
 
 
 #%% Analyze Glide
-if False:
+if True:
     rad2deg = 180.0 / np.pi
-    glideSeg = ('time_s', [950, 975])
+    glideSeg = ('time_s', [1190, 1197.02])
     oDataGlide = OpenData.Segment(oData, glideSeg)
 
     plt.figure()
     plt.subplot(3,1,1)
     plt.plot(oDataGlide['time_s'], oDataGlide['altBaro_m'])
     plt.subplot(3,1,2)
-    plt.plot(oDataGlide['time_s'], oDataGlide['vIas_mps'])
-    plt.plot(oDataGlide['time_s'], oDataGlide['Effectors']['cmdMotor_nd'])
+#    plt.plot(oDataGlide['time_s'], oDataGlide['vIas_mps'])
+    plt.plot(oDataGlide['time_s'], oDataGlide['vCal_mps'])
+#    plt.plot(oDataGlide['time_s'], oDataGlide['aB_I_mps2'][2])
+#    plt.plot(oDataGlide['time_s'], oDataGlide['Effectors']['cmdMotor_nd'])
+    plt.plot(oData['time_s'], v_AE_L_mps[1])
     plt.subplot(3,1,3)
-    plt.plot(oDataGlide['time_s'], oDataGlide['refTheta_rad'] * rad2deg)
-    plt.plot(oDataGlide['time_s'], oDataGlide['sB_L_rad'][1] * rad2deg)
-    plt.plot(oDataGlide['time_s'], oDataGlide['alpha_rad'] * rad2deg)
+    plt.plot(oDataGlide['time_s'], oDataGlide['refTheta_rad'] * rad2deg, label='refTheta')
+    plt.plot(oDataGlide['time_s'], oDataGlide['Control']['cmdPitch_rps'] * rad2deg, label='cmdPitch')
+    plt.plot(oDataGlide['time_s'], oDataGlide['sB_L_rad'][1] * rad2deg, label='theta')
+    plt.plot(oDataGlide['time_s'], oDataGlide['wB_I_rps'][1] * rad2deg, label='q')
+    plt.plot(oDataGlide['time_s'], oDataGlide['alpha_rad'] * rad2deg, label='alpha')
+    plt.legend()
 
 
 if False:
-    glideSeg = ('time_s', [1005, 1032])
+    glideSeg = ('time_s', [1180, 1190])
     oDataGlide = OpenData.Segment(oData, glideSeg)
     
     from scipy import signal
@@ -257,7 +210,6 @@ x = oDataRtsm['Excitation']['cmdBend_nd']
 #y = oDataRtsm['wLeftAftIMU_IMU_rps'][1] - oDataRtsm['wB_I_rps'][1]
 y = oDataRtsm['aLeftFwdIMU_IMU_mps2'][2] + oDataRtsm['aLeftAftIMU_IMU_mps2'][2] + oDataRtsm['aRightFwdIMU_IMU_mps2'][2] + oDataRtsm['aRightAftIMU_IMU_mps2'][2] - 2 * (oDataRtsm['aCenterFwdIMU_IMU_mps2'][2] + oDataRtsm['aCenterAftIMU_IMU_mps2'][2])
 
-
 # Number of time segments and length of overlap, units of samples
 #lenSeg = 2**6 - 1
 lenSeg = int(1 * optSpec.freqRate * rps2hz)
@@ -270,6 +222,7 @@ P_dB = 20 * np.log10(P_mag)
     
 # Plot the Spectrogram
 FreqTrans.Spectogram(freqSpec_hz, tSpec_s, P_dB)
+
 
 #%%
 optSpec.freq = freqExc_rps[2::3]
@@ -308,3 +261,12 @@ else:
     import json
     json.dumps(json_init, indent = 4, ensure_ascii=False)
     print('\nInit file NOT updated\n\n')
+
+
+#%%
+#t = h5Data['Sensors']['Fmu']['Time_us'] * 1e-6
+#
+#surf = 'TE1R'
+#
+#plt.plot(t, (h5Data['Sensors']['Surf']['pos'+surf]['CalibratedValue'] - h5Data['Sensors']['Surf']['pos'+surf]['CalibratedValue'][2200]) * rad2deg)
+#plt.plot(t, h5Data['Control']['cmd' + surf + '_rad'] * rad2deg)

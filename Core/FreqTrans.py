@@ -293,12 +293,13 @@ def SpectTime(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
 
 def Spectogram(freq, t, P):
     import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
     
     freqArray, tArray = np.meshgrid(freq, t)
     
     fig = plt.figure()
     fig.tight_layout()
-    ax = fig.gca(projection = '3d')
+    ax = fig.gca(projection='3d', proj_type = 'ortho')
     ax.view_init(elev = 90.0, azim = 0.0)
     
     ax.plot_surface(freqArray, tArray, P, rstride=1, cstride=1, cmap='nipy_spectral')
@@ -306,9 +307,8 @@ def Spectogram(freq, t, P):
     ax.set_xlabel('Frequency ( )')
     ax.set_ylabel('Time (s)')
     ax.set_zlabel('Power ( )')
-    ax.set_title('Spectrogram')
 
-    return 
+    return fig
 
 
 #%%
@@ -389,12 +389,101 @@ def PowerScale(scaleType, fs, win):
 
 
 #%%
-def GainPhase(Txy):
+#
+def Gain(T, TUnc = None, magUnit = 'dB'):
+    
+    gain = np.abs(T)
+    
+    if magUnit is 'dB':
+        gain = 20.0 * np.log10(gain)
+    
+    return gain
+    
 
-    gain_dB = 20.0 * np.log10(np.abs(Txy))
-    phase_deg = np.angle(Txy) * rad2deg
+#
+def Phase(T, TUnc = None, phaseUnit = 'rad', unwrap = False):
+    
+    phase = np.angle(T)
+    
+    if unwrap:
+        phase = np.unwrap(phase)
+        
+    if phaseUnit is 'deg':
+        phase = phase * rad2deg
+        
+    return phase
 
-    return gain_dB, phase_deg
+#
+def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
+
+    gain = Gain(T, TUnc, magUnit)
+    phase = Phase(T, TUnc, phaseUnit, unwrap)
+
+    return gain, phase
+
+#
+def DistCritCirc(T, TUnc = None, magUnit = 'mag'):
+    
+    rCritNom = Gain(T - (-1 + 0j), magUnit = magUnit)
+    
+    if TUnc is not None:
+        rCritUnc = Gain(TUnc, magUnit = magUnit)
+        
+        if magUnit is 'mag':
+            rCrit = rCritNom - rCritUnc
+        else: # magUnit = 'dB'
+            rCrit = rCritNom / rCritUnc
+                
+    else:
+        rCritUnc = None
+        rCrit = rCritNom
+    
+    return rCritNom, rCritUnc, rCrit
+
+# Distance and Contact point between an elipse and point 
+def DistCrit(T, TUnc, magUnit = 'mag'):
+    
+    p = [0, 0]
+    
+    px = abs(p[0])
+    py = abs(p[1])
+
+    t = np.pi / 4
+
+    a2 = a**2
+    b2 = b**2
+
+    for x in range(0, 3):
+        x = a * np.cos(t)
+        y = b * np.sin(t)
+
+        ex = (a2 - b2) * np.cos(t)**3 / a
+        ey = (b2 - a2) * np.sin(t)**3 / b
+
+        rx = x - ex
+        ry = y - ey
+
+        qx = px - ex
+        qy = py - ey
+
+        r = np.hypot(ry, rx)
+        q = np.hypot(qy, qx)
+
+        delta_c = r * np.asin((rx*qy - ry*qx)/(r*q))
+        delta_t = delta_c / np.sqrt(a*a + b*b - x*x - y*y)
+
+        t += delta_t
+        t = min(np.pi/2, max(0, t))
+
+        p = (np.copysign(x, p[0]), np.copysign(y, p[1]))
+        d = np.hypot(y-p[1], x-p[0])
+
+    return d
+    
+#            p = solve(semi_major, semi_minor, (x, y))
+#            dist[ix, iy] = d
+    
+    return rCrit, rCritNom, rCritUnc
 
 
 #%%
@@ -511,3 +600,132 @@ def Smooth(x, kern = ('box', 1), padMode = 'edge', convMode = 'valid'):
         x[iX] = np.convolve(xPad, v, mode = convMode)
 
     return x
+
+#%% Plotting
+import matplotlib.pyplot as plt
+import matplotlib.ticker as plticker
+import matplotlib.figure
+import matplotlib.gridspec as gridspec
+import matplotlib.patches as patch
+
+# SISO Bode Plot
+def PlotBode(freq_hz, gain_dB, phase_deg, coher_nd = None, fig = None, fmt = '', label=''):
+    
+    if isinstance(fig, matplotlib.figure.Figure):
+        ax = fig.get_axes()
+        
+    elif isinstance(fig, int) and plt.fignum_exists(fig):
+        fig = plt.figure(fig) # Get the figure handle by label
+        ax = fig.get_axes()
+    else:
+        fig = plt.figure(constrained_layout = True, num = fig)
+        spec = fig.add_gridspec(ncols=1, nrows=3, height_ratios=[1,1,1])
+        ax = []
+        ax.append(fig.add_subplot(spec[0,0]))
+        ax.append(fig.add_subplot(spec[1,0], sharex=ax[0]))
+        ax.append(fig.add_subplot(spec[2,0], sharex=ax[0]))
+        plt.setp(ax[0].get_xticklabels(), visible=False)
+        plt.setp(ax[1].get_xticklabels(), visible=False)
+        
+    # Coherence
+    if coher_nd is None:
+        coher_nd = np.ones_like(freq_hz)
+        
+    # Make the plots
+    ax[0].semilogx(freq_hz, gain_dB, fmt, label = label)
+    ax[0].grid(True)
+    ax[0].set_ylabel('Gain (dB)')
+    
+    ax[1].semilogx(freq_hz, phase_deg, fmt, label = label)
+    ax[1].yaxis.set_major_locator(plticker.MultipleLocator(180))
+    ax[1].grid(True)
+    ax[1].set_ylabel('Phase (deg)')
+    
+    ax[2].semilogx(freq_hz, coher_nd, fmt, label = label)
+    ax[2].grid(True)
+    ax[2].set_xlabel('Freq (Hz)')
+    ax[2].set_ylabel('Coherence (nd)')
+    ax[2].set_ylim(0, 1)
+    
+    ax[2].legend()
+    
+    return fig
+
+
+# SISO Critical Distance Plot
+def PlotNyquist(T, TUnc = None, fig = None, fmt = '', label=''):
+    
+    if isinstance(fig, matplotlib.figure.Figure):
+        ax = fig.get_axes()
+        
+    elif isinstance(fig, int) and plt.fignum_exists(fig):
+        fig = plt.figure(fig) # Get the figure handle by label
+        ax = fig.get_axes()
+    else:
+        fig = plt.figure(constrained_layout = True, num = fig)
+        spec = fig.add_gridspec(ncols=1, nrows=1, height_ratios=[1])
+        ax = []
+        ax.append(fig.add_subplot(spec[0,0]))
+    
+    # Make the plots
+    p = ax[0].plot(T.real, T.imag, fmt, label = label)
+    
+    if TUnc is not None:
+        for iNom, nom in enumerate(T):
+            unc = TUnc[iNom]
+            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc.real, 2*unc.imag, color=p[-1].get_color(), alpha=0.25)
+            ax[0].add_artist(uncPatch)
+            #ax[0].set_label(label)
+    
+    ax[0].grid(True)
+    ax[0].set_xlabel('Real (nd)')
+    ax[0].set_ylabel('Imag (nd)')
+    ax[0].legend()
+    
+    
+    return fig
+
+
+# SISO Critical Distance Plot
+def PlotDistCrit(freq_hz, rCrit, unc = None, coher_nd = None, fig = None, fmt = '', label=''):
+    
+    if isinstance(fig, matplotlib.figure.Figure):
+        ax = fig.get_axes()
+        
+    elif isinstance(fig, int) and plt.fignum_exists(fig):
+        fig = plt.figure(fig) # Get the figure handle by label
+        ax = fig.get_axes()
+    else:
+        fig = plt.figure(constrained_layout = True, num = fig)
+        spec = fig.add_gridspec(ncols=1, nrows=2, height_ratios=[2,1])
+        ax = []
+        ax.append(fig.add_subplot(spec[0,0]))
+        ax.append(fig.add_subplot(spec[1,0], sharex=ax[0]))
+        plt.setp(ax[0].get_xticklabels(), visible=False)
+
+    # Coherence
+    if coher_nd is None:
+        coher_nd = np.ones_like(freq_hz)
+        
+    # Make the plots
+    if unc is None:
+        ax[0].plot(freq_hz, rCrit, fmt, label = label)
+    else:
+        ax[0].errorbar(freq_hz, rCrit, yerr = unc, fmt = fmt, elinewidth = 0, capsize = 2, label = label)
+    
+    ax[0].grid(True)
+    ax[0].set_xlim(left = 0.0)
+    ax[0].set_ylim(bottom = 0.0)
+    ax[0].set_ylabel('Dist Crit (nd)')
+    ax[0].legend()
+    
+    ax[1].plot(freq_hz, coher_nd, fmt, label = label)
+    ax[1].grid(True)
+    ax[1].set_xlabel('Freq (Hz)')
+    ax[1].set_ylabel('Coherence (nd)')
+    ax[1].set_ylim(0, 1)
+    
+    
+    return fig
+
+

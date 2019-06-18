@@ -89,7 +89,7 @@ for iOut, outEntry in enumerate(outList):
 #sysSimOL_gain_nd[sysSimOL_gain_nd == 0] = 1e-6
 sysSimOL_gain_dB = 20*np.log10(sysSimOL_gain_nd)
 sysSimOL_phase_deg = sysSimOL_phase_rad * rad2deg
-sysSimOL_sigma_mag = np.abs(sysSimOL - (0 - 1j))
+sysSimOL_rCrit_mag = np.abs(sysSimOL - (-1 + 0j))
 
 
 #%% Excitation
@@ -98,7 +98,7 @@ numCycles = 1
 ampInit = 4 * deg2rad
 ampFinal = ampInit
 freqMinDes_rps = 0.1 * hz2rps * np.ones(numExc)
-freqMaxDes_rps = 15 * hz2rps *  np.ones(numExc)
+freqMaxDes_rps = 10 * hz2rps *  np.ones(numExc)
 freqStepDes_rps = (10 / freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
@@ -157,8 +157,8 @@ sens = out[-7:]
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.1))
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.0))
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.1), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = []
@@ -185,79 +185,46 @@ TUnc = TebUnc / (Tev + TevUnc)
 T_InputNames = exc_names
 T_OutputNames = fb_names
 
-gain_dB, phase_deg = FreqTrans.GainPhase(T)
-phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg
-sigma_mag = np.abs(T - (0 - 1j)) # Distance from (0,-1j)
+gain_dB, phase_deg = FreqTrans.GainPhase(T, magUnit='dB', phaseUnit='deg', unwrap=True)
+rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCritCirc(T, TUnc, magUnit='mag') # Distance from (-1,0j)
 
 
 #%% Disk Margin Plots
 inPlot = exc_names # Elements of exc_names
 outPlot = fb_names # Elements of fb_names
 
-fig, ax = plt.subplots(len(outPlot), len(inPlot), sharex=True, sharey=True, num = 1)
-for iIn, inName in enumerate(inPlot):
-    inElem = exc_names.index(inName)
-
-    for iOut, outName in enumerate(outPlot):
-        outElem = fb_names.index(outName)
-        
-        uncDisk = np.abs(TUnc[iOut, iIn])
-        
-        ax[iOut, iIn].plot(freqSys_hz, sysSimOL_sigma_mag[iOut, iIn], 'k')
-        ax[iOut, iIn].errorbar(freq_hz[iOut, 0], sigma_mag[iOut, iIn], yerr = uncDisk, fmt = '.b', elinewidth = 0, capsize = 2)
-        ax[iOut, iIn].grid()
-        ax[iOut, iIn].set_xlim(left = 0.05, right = freqRate_hz/2)
-        ax[iOut, iIn].set_ylim(bottom = 0.0, top = 2.0)
-        
-        ax[iOut, iIn].plot(freqSys_hz, 0.4 * np.ones_like(freqSys_hz), 'r--')
-        
+if True:
+    for iIn, inName in enumerate(inPlot):
+        for iOut, outName in enumerate(outPlot):
+    
+            fig = 60 + 3*iIn + iOut
+            fig = FreqTrans.PlotDistCrit(freqSys_hz, sysSimOL_rCrit_mag[iOut, iIn], fig = fig, fmt = 'k', label='Linear')
+            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCritNom_mag[iOut, iIn], unc = rCritUnc_mag[iOut, iIn], coher_nd = Cev[iOut, iIn], fmt = '.b', fig = fig, label = 'Excitation')
+            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], 0.4 * np.ones_like(freq_hz[iOut, 0]), fmt = '--r', fig = fig, label = 'Critical Limit')
+            fig.suptitle(inName + ' to ' + outName, size=20)
 
 #%% Nyquist Plots
-inPlot = exc_names # Elements of exc_names
-outPlot = fb_names # Elements of fb_names
+if False:
+    for iIn, inName in enumerate(inPlot):
+        for iOut, outName in enumerate(outPlot):
+            fig = 80 + 3*iIn + iOut
 
-fig, ax = plt.subplots(len(outPlot), len(inPlot), num = 2)
-for iIn, inName in enumerate(inPlot):
-    inElem = exc_names.index(inName)
-
-    for iOut, outName in enumerate(outPlot):
-        outElem = fb_names.index(outName)
-    
-        ax[iOut, iIn].plot(sysSimOL[iOut, iIn].imag, sysSimOL[iOut, iIn].real, 'k')
-        ax[iOut, iIn].plot(T[iOut, iIn].imag, T[iOut, iIn].real, 'b.')
-        ax[iOut, iIn].grid()
-        critPatch = patch.Ellipse((-1, 0), 2*0.4, 2*0.4, color='r', alpha=0.25)
-        ax[iOut, iIn].add_artist(critPatch)
-        
-        for iNom, nom in enumerate(T[iOut, iIn]):
-            unc = TUnc[iOut, iIn][iNom]
-            uncPatch = patch.Ellipse((nom.imag, nom.real), 2*unc.imag, 2*unc.real, color='b', alpha=0.25)
-            ax[iOut, iIn].add_artist(uncPatch)
-
-        ax[iOut,iIn].set_xlim(-3, 1)
-        ax[iOut,iIn].set_ylim(-2, 2)
-        
+            fig = FreqTrans.PlotNyquist(sysSimOL[iOut, iIn], fig = fig, fmt = 'k', label='Linear')
+            fig = FreqTrans.PlotNyquist(T[iOut, iIn], TUnc[iOut, iIn], fig = fig, fmt = 'b', label='Excitation')
+            fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, fmt = '*r', label='Critical Region')
+            fig.suptitle(inName + ' to ' + outName, size=20)
+            
+            ax = fig.get_axes()
+            ax[0].set_xlim(-3, 1)
+            ax[0].set_ylim(-2, 2)
+            
 
 #%% Bode Plots
-for iIn in range(0, 3):
-    for iOut in range(0, 3):
-        
-        plt.figure()
-        
-        ax1 = plt.subplot(3, 1, 1)
-        ax1.semilogx(freqSys_hz, sysSimOL_gain_dB[iOut, iIn], 'k')
-        ax1.semilogx(freq_hz[iOut, 0], gain_dB[iOut, iIn], '.')
-        ax1.grid(); ax1.set_ylabel('Gain (dB)')
-        
-        ax2 = plt.subplot(3, 1, 2, sharex = ax1)
-        ax2.semilogx(freqSys_hz, sysSimOL_phase_deg[iOut, iIn], 'k')
-        ax2.semilogx(freq_hz[iOut, 0], phase_deg[iOut, iIn], '.')
-        ax2.grid(); ax2.set_ylabel('Phase (deg)')
-        
-        ax3 = plt.subplot(3, 1, 3, sharex = ax1)
-        ax3.semilogx(freqSys_hz, np.ones_like(freqSys_hz), 'k')
-        ax3.semilogx(freq_hz[iOut, 0], Ceb[iOut, iIn], '.')
-        ax3.semilogx(freq_hz[iOut, 0], Cev[iOut, iIn], '.')
-        ax3.grid(); ax3.set_xlabel('Freq (Hz)'); ax3.set_ylabel('Coherence (nd)')
-        ax3.set_ylim(0, 1)
+if False:
+    for iIn, inName in enumerate(inPlot):
+        for iOut, outName in enumerate(outPlot):
+            fig = 100 + 3*iIn + iOut
+            fig = FreqTrans.PlotBode(freqSys_hz, sysSimOL_gain_dB[iOut, iIn], sysSimOL_phase_deg[iOut, iIn], fig = fig, fmt = 'k', label = 'Linear')
+            fig = FreqTrans.PlotBode(freq_hz[iOut, 0], gain_dB[iOut, iIn], phase_deg[iOut, iIn], Cev[iOut, iIn], fig = fig, fmt = 'b.', label = 'Excitation')
+            fig.suptitle(inName + ' to ' + outName, size=20)
 

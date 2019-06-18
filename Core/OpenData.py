@@ -74,7 +74,7 @@ def PlotOverview(oData):
     
     # 3D Position
     fig4 = plt.figure()
-    ax4 = fig4.gca(projection='3d')
+    ax4 = fig4.gca(projection='3d', proj_type = 'ortho')
     ax4.plot(lonGps_deg, latGps_deg, altGps_m, '.', label='GPS')
     ax4.plot(lonB_deg, latB_deg, altB_m, label='Ekf')
     ax4.axis('equal')
@@ -157,7 +157,7 @@ def Segment(oData, cond):
     if type(cond) is list:
         oDataSeg = []
         for c in cond:
-            seg = copy.deepcopy(Segment(oData, c))
+            seg = Segment(oData, c)
             oDataSeg.append(seg)
         return oDataSeg
     
@@ -177,3 +177,23 @@ def Segment(oData, cond):
     oDataSeg['Desc'] = condDesc
     
     return oDataSeg
+
+#
+def Decimate(oData, skip):
+    # Recursive call if cond is a list of conditions
+    if type(skip) is list:
+        oDataSeg = []
+        for s in skip:
+            seg = Segment(oData, s)
+            oDataSeg.append(seg)
+        return oDataSeg
+    
+    # Bool that matches the condition
+    iCond = range(0, len(oData['time_s']), skip)
+    
+    # Slice, with full copy, into segmented oData. SliceDict will handle recursive calls
+    oDataSeg = copy.deepcopy(SliceDict(oData, iCond))
+#    oDataSeg['Desc'] = condDesc
+    
+    return oDataSeg
+    

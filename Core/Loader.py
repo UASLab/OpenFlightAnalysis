@@ -45,7 +45,6 @@ def JsonWrite(filename, data):
         json.dump(data, f, indent = 4, ensure_ascii=False)
         f.close()
     return 1
-    
 
 
 #%% HDF5 Read
@@ -125,6 +124,12 @@ def OpenData_RAPTRS(h5Data, sysConfig, oData = {}):
     oData['vIas_mps'] = h5Data['Sensor-Processing']['vIAS_ms']
     oData['altBaro_m'] = h5Data['Sensor-Processing']['hBaro_m']
     
+    if 'alpha_rad' in h5Data['Sensor-Processing']:
+        oData['alpha_rad'] = h5Data['Sensor-Processing']['alpha_rad']
+    
+    if 'beta_rad' in h5Data['Sensor-Processing']:
+        oData['beta_rad'] = h5Data['Sensor-Processing']['beta_rad']
+    
     # Controllers
     oData['refPhi_rad'] = h5Data['Control']['refPhi_rad']
     oData['refTheta_rad'] = h5Data['Control']['refTheta_rad']
@@ -189,10 +194,10 @@ def OpenData_RAPTRS(h5Data, sysConfig, oData = {}):
                 oData['Excitation'][sigName] = sigVal
 
     # Make sure the base values are available from the excitation
-    sigExc = oData['Excitation'].keys()
-    for sigName in sigExc:
-        if sigName not in oData:
-            oData[sigName] = h5Data['Control'][sigName]
+    oData['Control'] = {}
+    for sigName in oData['Excitation'].keys():
+        if sigName not in oData['Control']:
+            oData['Control'][sigName] = h5Data['Control'][sigName]
     
     return oData
 

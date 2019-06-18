@@ -119,7 +119,7 @@ def Airspeed2NED(v_PA_P_mps, s_BL_rad, param):
 
 
 #%% Airdata
-def ApplyCalibration(meas, param):
+def ApplyPressureCalibration(meas, param):
     ''' Compute the Airdata Parameters with a given sensor error/calibration model.
     
     Inputs:
@@ -191,7 +191,7 @@ def ApplyCalibration(meas, param):
         calib['vIas_mps'] = IAS(calib['pTip_Pa'])
         calib['vEas_mps'] = EAS(calib['pTip_Pa'], calib['pStatic_Pa'])
         calib['vTas_mps'] = TAS(calib['pTip_Pa'], calib['pStatic_Pa'], calib['tempProbe_C'])
-        
+
         # Pressure Altitude
         calib['altPress_m'] = PressAltitude(calib['pStatic_Pa'])
         
@@ -203,7 +203,7 @@ def ApplyCalibration(meas, param):
         calib['vIas_mps'] = IAS(calib['pTip_Pa'])
         calib['vEas_mps'] = EAS(calib['pTip_Pa'], calib['pStatic_Pa'])
         calib['vTas_mps'] = TAS(calib['pTip_Pa'], calib['pStatic_Pa'], calib['tempProbe_C'])
-        
+
         # Pressure Altitude
         calib['altPress_m'] = PressAltitude(calib['pStatic_Pa'])
         
@@ -225,7 +225,7 @@ def ApplyCalibration(meas, param):
         calib['vIas_mps'] = IAS(calib['pTip_Pa'])
         calib['vEas_mps'] = EAS(calib['pTip_Pa'], calib['pStatic_Pa'])
         calib['vTas_mps'] = TAS(calib['pTip_Pa'], calib['pStatic_Pa'], calib['tempProbe_C'])
-        
+
         # Pressure Altitude
         calib['altPress_m'] = PressAltitude(calib['pStatic_Pa'])
         
@@ -242,5 +242,72 @@ def ApplyCalibration(meas, param):
         calib['v_PA_P_mps'][1] = calib['vIas_mps'] * np.sin(calib['beta_rad'])
         calib['v_PA_P_mps'][2] = calib['v_PA_P_mps'][0] * np.tan(calib['alpha_rad'])
         
+        
+    return calib
+
+#%% Airdata
+def ApplyCalibration(meas, param):
+    ''' Compute the Airdata Parameters with a given sensor error/calibration model.
+    
+    Inputs:
+      meas           - Dictionary of measured airdata sensor values
+        (vIas_mps)   - 
+        (altPress_m) - 
+        (alpha_rad)  - 
+        (beta_rad)   - 
+        
+      param          - Dictionary of airdata calibration parameters
+        (v)     - 
+                
+    Outputs:
+      calib          - Dictionary of airdata parameters and calibrated sensor values
+          (vCal_mps)
+          (altCal_m)
+          (alphaCal_rad)
+          (betaCal_rad)
+          (v_PA_P_mps) - Velocity of the Probe wrt Atm in Probe Coordinates (aka: u,v,w) [P/A]P (m/s2)
+    
+    '''
+    
+    # Constants
+    r2d = 180.0 / np.pi
+    
+    ## Apply Error Models
+    calib = {}
+
+    # Airspeeds
+    calib['vCal_mps'] = SensorErrorModel(meas['vIas_mps'], param['v'])
+    
+    # Pressure Altitude
+    if ('altBaro_m' in meas) and ('alt' in param):
+        calib['altCal_m'] = SensorErrorModel(meas['altBaro_m'], param['alt'])
+    else:
+        calib['altCal_m'] = np.zeros_like(meas['vIas_mps'])
+    
+    # Inflow Angle: Angle of Attack
+    if ('alpha_rad' in meas) and ('alpha' in param):
+        calib['alphaCal_rad'] = SensorErrorModel(meas['alpha_rad'], param['alpha'])
+    else:
+        calib['alphaCal_rad'] = np.zeros_like(meas['vIas_mps'])
+        
+    calib['alphaCal_deg'] = calib['alphaCal_rad'] * r2d
+    
+    # Inflow Angle: Angle of Sideslip
+    if ('beta_rad' in meas) and ('beta' in param):
+        calib['betaCal_rad'] = SensorErrorModel(meas['beta_rad'], param['beta'])
+    else:
+        calib['betaCal_rad'] = np.zeros_like(meas['vIas_mps'])
+        
+    calib['betaCal_deg'] = calib['betaCal_rad'] * r2d
+    
+    
+    # Airspeed Vector ['u', 'v', 'w']
+    calib['v_PA_P_mps'] = np.zeros((3, calib['vCal_mps'].shape[-1]))
+    
+    calib['v_PA_P_mps'][0] = calib['vCal_mps']
+#    calib['v_PA_P_mps'][0] = calib['vCal_mps'] / (np.cos(calib['alphaCal_rad']) * np.cos(calib['betaCal_rad']))
+    calib['v_PA_P_mps'][1] = calib['vCal_mps'] * np.sin(calib['betaCal_rad'])
+    calib['v_PA_P_mps'][2] = calib['v_PA_P_mps'][0] * np.tan(calib['alphaCal_rad'])
+ 
         
     return calib

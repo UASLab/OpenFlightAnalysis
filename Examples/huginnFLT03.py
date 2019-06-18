@@ -59,140 +59,35 @@ oDataExc = OpenData.Segment(oData, segList)
 #OpenData.PlotOverview(oDataExc[0])
 
 
-#%% Wind/Air Cal
-windSegList = [
-        ('time_us', [410000000, 515000000]),
-        ('time_us', [610000000, excList[0][1][0]]),
-        ('time_us', [excList[0][1][1], excList[1][1][0]]),
-        ('time_us', [excList[2][1][1], excList[3][1][0]]),
-        ('time_us', [excList[3][1][1], excList[4][1][0]]),
-        ('time_us', [excList[5][1][1], excList[6][1][0]]),
-        ('time_us', [excList[6][1][1], excList[7][1][0]]),
-        ('time_us', [excList[8][1][1], excList[9][1][0]]),
-        ('time_us', [999000000, 1032000000])
-        ]
-
-
-oDataWindList = OpenData.Segment(oData, windSegList)
-
-
-fig, ax = plt.subplots(nrows=2)
-for oDataWind in oDataWindList:
-#    OpenData.PlotOverview(oDataWind)
-    latGps_deg = oDataWind['rGps_D_ddm'][0]
-    lonGps_deg = oDataWind['rGps_D_ddm'][1]
-    latB_deg = oDataWind['rB_D_ddm'][0]
-    lonB_deg = oDataWind['rB_D_ddm'][1]
-    ax[0].plot(lonGps_deg, latGps_deg, '.', label='GPS')
-#    ax[0].plot(lonB_deg, latB_deg, label='Ekf')
-    ax[0].grid()
-    ax[1].plot(oDataWind['time_s'], oDataWind['vIas_mps'])
-    ax[1].grid()
-
-#%%
-## Pre-Optimization, Initial Guess for the Wind
-# Over-ride Default Error Model, Optional
+#%% Analyze Glide
 pData = {}
 pData['5Hole'] = {}
 pData['5Hole']['r_B_m'] = np.array([1.0, 0.0, 0.0])
 pData['5Hole']['s_B_rad'] = np.array([0.0, 0.0, 0.0]) * 180.0/np.pi
 
-pData['5Hole']['pTip'] = {}
-pData['5Hole']['pTip']['errorType'] = 'ScaleBias+'
-pData['5Hole']['pTip']['K'] = 1.0
-pData['5Hole']['pTip']['bias'] = 0.0
+pData['5Hole']['v'] = {}
+pData['5Hole']['v']['errorType'] = 'ScaleBias+'
+pData['5Hole']['v']['K'] = 1.0
+pData['5Hole']['v']['bias'] = 0.0
 
-pData['5Hole']['pStatic'] = pData['5Hole']['pTip'].copy()
-pData['5Hole']['pAlpha1'] = pData['5Hole']['pTip'].copy()
-pData['5Hole']['pAlpha2'] = pData['5Hole']['pAlpha1'].copy()
-pData['5Hole']['pBeta1'] = pData['5Hole']['pAlpha1'].copy()
-pData['5Hole']['pBeta2'] = pData['5Hole']['pBeta1'].copy()
+pData['5Hole']['alt'] = pData['5Hole']['v'].copy()
+pData['5Hole']['alpha'] = pData['5Hole']['v'].copy()
+pData['5Hole']['beta'] = pData['5Hole']['v'].copy()
 
-pData['5Hole']['alphaCal'] = 4.8071159
-pData['5Hole']['betaCal'] = 4.8071159
+pData['5Hole']['v']['K'] = 0.9482317385719398
+pData['5Hole']['v']['bias'] = -0.8973802167726942
 
 #
-pData['5Hole']['pTip']['K'] = 0.85
+import AirData
+calib = AirData.ApplyCalibration(oData, pData['5Hole'])
+oData.update(calib)
 
-#%% Optimize
-from Core import AirData
-from Core import AirDataCalibration
+v_BA_B_mps, v_BA_L_mps = AirData.Airspeed2NED(oData['v_PA_P_mps'], oData['sB_L_rad'], pData['5Hole'])
 
-oDataList = oDataWindList
+# Wind
+v_AE_L_mps = oData['vB_L_mps'] - v_BA_L_mps
 
-
-if False:
-    # Compute the optimal parameters
-    opt = {'Method': 'BFGS', 'Options': {'maxiter': 100, 'disp': True}}
-    #opt = {'Method': 'L-BFGS-B', 'Options': {'maxiter': 400, 'disp': True}}
-    
-    opt['wind'] = []
-    for seg in oDataList:
-        seg['vMean_AE_L_mps'] = np.asarray([-4.0, 0.0, 0.0])
-        opt['wind'].append({'val': seg['vMean_AE_L_mps'], 'lb': np.asarray([-10, -10, -3]), 'ub': np.asarray([10, 10, 3])})
-    
-    opt['param'] = []
-    opt['param'].append({'val': pData['5Hole']['pTip']['K'], 'lb': 0.5, 'ub': 2})
-    opt['param'].append({'val': pData['5Hole']['pTip']['bias'], 'lb': -20, 'ub': 20})
-    
-    
-    #AirDataCalibration.CostFunc(xOpt, optInfo, oDataList, param)
-    opt['Result'] = AirDataCalibration.EstCalib(opt, oDataList, pData['5Hole'])
-    
-    nSegs = len(oDataWindList)
-    nWinds = nSegs * 3
-    vWind = opt['Result']['x'][0:nWinds].reshape((nSegs, 3))
-    
-
-#%% Plot the Solution
-if False:
-    # Apply the calibration to the whole flight
-    calib = AirData.ApplyCalibration(oData, pData['5Hole'])
-    oData.update(calib)
-    
-    # Re-segment the Wind-circle after applying calibration
-    oDataWindList = OpenData.Segment(oData, windSegList)
-    
-    
-    for iSeg, oDataWind in enumerate(oDataWindList):
-        v_BA_B_mps, v_BA_L_mps = AirData.Airspeed2NED(oDataWind['v_PA_P_mps'], oDataWind['sB_L_rad'], pData['5Hole'])
-    
-        oDataWind['vMean_AE_L_mps'] = vWind[iSeg]
-    
-        plt.figure()
-        plt.subplot(3,1,1)
-        plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][0], label = 'Inertial')
-        plt.plot(oDataWind['time_s'], v_BA_L_mps[0] + oDataWind['vMean_AE_L_mps'][0], label = 'AirData + Wind')
-        plt.grid()
-        plt.legend()
-        plt.subplot(3,1,2)
-        plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][1])
-        plt.plot(oDataWind['time_s'], v_BA_L_mps[1] + oDataWind['vMean_AE_L_mps'][1])
-        plt.grid()
-        plt.subplot(3,1,3)
-        plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][2])
-        plt.plot(oDataWind['time_s'], v_BA_L_mps[2] + oDataWind['vMean_AE_L_mps'][2])
-        plt.grid()
-        
-        v_AE_L_mps = np.repeat([oDataWind['vMean_AE_L_mps']], oDataWind['vB_L_mps'].shape[-1], axis=0).T
-        vError_mps = (v_BA_L_mps + v_AE_L_mps) - oDataWind['vB_L_mps']
-        
-        vErrorMag_mps = np.linalg.norm(vError_mps, axis=0)
-        vBMag_mps = np.linalg.norm(oDataWind['vB_L_mps'], axis=0)
-        vSpeedMag_mps = np.linalg.norm(v_BA_L_mps + v_AE_L_mps, axis=0)
-        
-        plt.figure(11)
-        plt.plot(vBMag_mps, vSpeedMag_mps, '.')
-        
-        print('Wind (m/s): ', oDataWind['vMean_AE_L_mps'])
-        
-    print('Tip Gain: ', pData['5Hole']['pTip']['K'])
-    print('Tip Bias: ', pData['5Hole']['pTip']['bias'])
-
-
-
-#%% Analyze Glide
-if False:
+if True:
     rad2deg = 180.0 / np.pi
     glideSeg = ('time_s', [950, 975])
     oDataGlide = OpenData.Segment(oData, glideSeg)
@@ -202,15 +97,17 @@ if False:
     plt.plot(oDataGlide['time_s'], oDataGlide['altBaro_m'])
     plt.subplot(3,1,2)
     plt.plot(oDataGlide['time_s'], oDataGlide['vIas_mps'])
+    plt.plot(oDataGlide['time_s'], oDataGlide['vCal_mps'])
     plt.plot(oDataGlide['time_s'], oDataGlide['Effectors']['cmdMotor_nd'])
     plt.subplot(3,1,3)
-    plt.plot(oDataGlide['time_s'], oDataGlide['refTheta_rad'] * rad2deg)
+#    plt.plot(oDataGlide['time_s'], oDataGlide['refTheta_rad'] * rad2deg)
+    plt.plot(oDataGlide['time_s'], oDataGlide['wB_I_rps'][0] * rad2deg)
     plt.plot(oDataGlide['time_s'], oDataGlide['sB_L_rad'][1] * rad2deg)
     plt.plot(oDataGlide['time_s'], oDataGlide['alpha_rad'] * rad2deg)
 
 
-if False:
-    glideSeg = ('time_s', [1005, 1032])
+if True:
+    glideSeg = ('time_s', [1005, 1035])
     oDataGlide = OpenData.Segment(oData, glideSeg)
     
     from scipy import signal
@@ -225,6 +122,7 @@ if False:
     plt.figure()
     plt.plot(oDataGlide['time_s'], oDataGlide['altBaro_m'], time_s, altBaro_m)
     plt.plot(oDataGlide['time_s'], oDataGlide['vIas_mps'], time_s, vIas_mps)
+    plt.plot(oDataGlide['time_s'], oDataGlide['vCal_mps'])
     
     dIas_m = np.trapz(vIas_mps, time_s)
     
@@ -313,3 +211,5 @@ else:
     import json
     json.dumps(json_init, indent = 4, ensure_ascii=False)
     print('\nInit file NOT updated\n\n')
+
+
