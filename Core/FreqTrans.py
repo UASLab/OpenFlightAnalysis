@@ -260,56 +260,6 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
         
     return freq, Txy, Cxy, Pxx, Pyy, Pxy
 
-#%% Spectrogram
-def SpectTime(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
-    '''
-    x is real
-    returns the onesided DFT
-    fs in rps (required for correct power scale)
-    freq in rps (required for correct power scale)
-    '''
-        
-    lenX = len(x)
-    
-    #freqMin_rps = (lenSeg / freqRate_hz) * hz2rps
-    #opt.freq = opt.freq[...,freqMin_rps < freqExc_rps]
-    
-    lenFreq = opt.freq.shape[-1]
-    
-    numSeg = int((lenX - lenSeg) / lenOverlap)
-    P_mag = np.zeros((numSeg, lenFreq))
-    tSpec_s = np.zeros((numSeg))
-    for iSeg in range(0, numSeg):
-        
-        iSel = iSeg * lenOverlap + np.arange(0, lenSeg)
-        iCent = iSeg * lenOverlap + lenSeg//2
-    
-        tSpec_s[iSeg] = t[iCent]
-        
-        freq, _, P_mag[iSeg, ] = Spectrum(x[iSel], opt)
-        
-    return tSpec_s, freq, P_mag
-
-
-def Spectogram(freq, t, P):
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-    
-    freqArray, tArray = np.meshgrid(freq, t)
-    
-    fig = plt.figure()
-    fig.tight_layout()
-    ax = fig.gca(projection='3d', proj_type = 'ortho')
-    ax.view_init(elev = 90.0, azim = 0.0)
-    
-    ax.plot_surface(freqArray, tArray, P, rstride=1, cstride=1, cmap='nipy_spectral')
-    
-    ax.set_xlabel('Frequency ( )')
-    ax.set_ylabel('Time (s)')
-    ax.set_zlabel('Power ( )')
-
-    return fig
-
 
 #%%
 def Spectrum(x, opt = OptSpect()):
@@ -372,6 +322,64 @@ def Spectrum(x, opt = OptSpect()):
 
     return freq, xDft, P
 
+
+#%% Spectrogram
+def SpectTime(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
+    '''
+    x is real
+    returns the onesided DFT
+    fs in rps (required for correct power scale)
+    freq in rps (required for correct power scale)
+    '''
+        
+    lenX = len(x)
+    
+    #freqMin_rps = (lenSeg / freqRate_hz) * hz2rps
+    #opt.freq = opt.freq[...,freqMin_rps < freqExc_rps]
+    
+    lenFreq = opt.freq.shape[-1]
+    
+    numSeg = int((lenX - lenSeg) / lenOverlap)
+    P_mag = np.zeros((numSeg, lenFreq))
+    tSpec_s = np.zeros((numSeg))
+    for iSeg in range(0, numSeg):
+        
+        iSel = iSeg * lenOverlap + np.arange(0, lenSeg)
+        iCent = iSeg * lenOverlap + lenSeg//2
+    
+        tSpec_s[iSeg] = t[iCent]
+        
+        freq, _, P_mag[iSeg, ] = Spectrum(x[iSel], opt)
+        
+    return tSpec_s, freq, P_mag.T
+
+
+def Spectogram(t, freq, P, dim='2D'):
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    
+    tArray, freqArray = np.meshgrid(t, freq)
+    
+    fig = plt.figure()
+    fig.tight_layout()
+    
+    if dim is '3D':
+        ax = fig.gca(projection='3d', proj_type = 'ortho')
+        ax.view_init(elev = 90.0, azim = -90.0)
+    
+        ax.plot_surface(tArray, freqArray, P, rstride=1, cstride=1, cmap='nipy_spectral')
+    
+        ax.set_zlabel('Power ( )')
+    else:
+        ax = fig.gca()
+        
+        pcm = ax.pcolormesh(tArray, freqArray, P, cmap='nipy_spectral')
+        fig.colorbar(pcm, ax=ax, label = 'Power ( )')
+    
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Frequency ( )')
+
+    return fig
 
 #%%
 def PowerScale(scaleType, fs, win):
@@ -484,18 +492,6 @@ def DistCrit(T, TUnc, magUnit = 'mag'):
 #            dist[ix, iy] = d
     
     return rCrit, rCritNom, rCritUnc
-
-
-#%%
-def Welchize(x, nperseg = 1, noverlap = 0):
-    # Reference: scipy.signal._fft_helper
-    
-    step = nperseg - noverlap
-    shape = x.shape[:-1]+((x.shape[-1] - noverlap) // step, nperseg)
-    strides = x.strides[:-1]+(step*x.strides[-1], x.strides[-1])
-    result = np.lib.stride_tricks.as_strided(x, shape = shape, strides = strides)
-    
-    return result
 
 
 #%% Compute the Fast Fourrier Transform

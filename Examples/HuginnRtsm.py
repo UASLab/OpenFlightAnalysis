@@ -227,9 +227,9 @@ if True:
         
         # Compute Spectrum over time
         tSpec_s, freqSpec_rps, P_mag = FreqTrans.SpectTime(t, y, lenSeg, lenOverlap, optSpec)
-            
+        
         # Plot the Spectrogram
-        fig = FreqTrans.Spectogram(freqSpec_rps * rps2hz, tSpec_s, 20 * np.log10(P_mag))
+        fig = FreqTrans.Spectogram(tSpec_s, freqSpec_rps * rps2hz, 20 * np.log10(P_mag))
         fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram - ' + sigFbList[iSgnl])
 
 
@@ -237,18 +237,19 @@ if True:
 inPlot = sigExcList # Elements of sigExcList
 outPlot = sigFbList # Elements of sigFbList
 
-for iIn, inName in enumerate(inPlot):
-    for iOut, outName in enumerate(outPlot):
-
-        fig = None
-        for iSeg in range(0, len(oDataSegs)):
-            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCrit_mag[iSeg][iOut, iIn], unc = rCritUnc_mag[iSeg][iOut, iIn], coher_nd = C[iSeg][iOut, iIn], fig = fig, fmt = '*:', label = oDataSegs[iSeg]['Desc'])
-        
-        fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], 0.4 * np.ones_like(freq_hz[iOut, 0]), fig = fig, fmt = 'r--', label = 'Critical Limit')
-        fig.suptitle(inName + ' to ' + outName, size=20)
-        
-        ax = fig.get_axes()
-        ax[0].set_ylim(0, 2)
+if False:
+    for iIn, inName in enumerate(inPlot):
+        for iOut, outName in enumerate(outPlot):
+    
+            fig = None
+            for iSeg in range(0, len(oDataSegs)):
+                fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCrit_mag[iSeg][iOut, iIn], unc = rCritUnc_mag[iSeg][iOut, iIn], coher_nd = C[iSeg][iOut, iIn], fig = fig, fmt = '*:', label = oDataSegs[iSeg]['Desc'])
+            
+            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], 0.4 * np.ones_like(freq_hz[iOut, 0]), fig = fig, fmt = 'r--', label = 'Critical Limit')
+            fig.suptitle(inName + ' to ' + outName, size=20)
+            
+            ax = fig.get_axes()
+            ax[0].set_ylim(0, 2)
 
 
 #%% Nyquist Plots
