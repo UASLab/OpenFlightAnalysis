@@ -353,10 +353,9 @@ def SpectTime(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
         
     return tSpec_s, freq, P_mag.T
 
-
+# Plot the Spectrogram
 def Spectogram(t, freq, P, dim='2D'):
     import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
     
     tArray, freqArray = np.meshgrid(t, freq)
     
@@ -364,6 +363,7 @@ def Spectogram(t, freq, P, dim='2D'):
     fig.tight_layout()
     
     if dim is '3D':
+        from mpl_toolkits.mplot3d import Axes3D
         ax = fig.gca(projection='3d', proj_type = 'ortho')
         ax.view_init(elev = 90.0, azim = -90.0)
     
@@ -430,43 +430,111 @@ def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False)
     return gain, phase
 
 #
-def DistCritCirc(T, TUnc = None, magUnit = 'mag'):
+def DistCrit(T, TUnc = None, pCrit = -1+0j, type = 'ellipse', magUnit = 'mag'):
     
-    rCritNom = Gain(T - (-1 + 0j), magUnit = magUnit)
+    if TUnc is None: # There is no Uncertainty estimate, just return the distance between T and pCrit
+        rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit, magUnit = magUnit)
+    else:
+        if type is 'circle':
+            rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit, magUnit = magUnit)
+        elif type is 'ellipse':
+            rCritNom, rCritUnc, rCrit, pCont = DistCritEllipse(T, TUnc, pCrit, magUnit = magUnit)
+    
+    return rCritNom, rCritUnc, rCrit
+    
+
+#
+def DistCritCirc(T, TUnc = None, pCrit = -1+0j, magUnit = 'mag', type = 'RMS'):
+    
+    rCritNom = np.abs(pCrit - T)
+    rCrit = None
     
     if TUnc is not None:
-        rCritUnc = Gain(TUnc, magUnit = magUnit)
+        if type.lower() is 'rms':
+            rCrit = np.sqrt(0.5) * np.abs(TUnc) # RMS
+        elif type.lower() is 'max':
+            rCrit = np.max([TUnc.real, TUnc.imag]) # Max
+        elif type.lower() is 'mean':
+            rCrit = np.mean([TUnc.real, TUnc.imag]) # Mean
+        elif type.lower() is 'rss':
+            rCrit = np.abs(TUnc) # RSS
         
-        if magUnit is 'mag':
-            rCrit = rCritNom - rCritUnc
-        else: # magUnit = 'dB'
-            rCrit = rCritNom / rCritUnc
+        # Uncertain Distance is the difference between Nominal and rCrit Distance
+        rCritUnc = rCritNom - rCrit
                 
     else:
-        rCritUnc = None
-        rCrit = rCritNom
+        rCritUnc = rCritNom
+    
+    # mag to dB
+    if magUnit is 'dB':
+        rCritNom = 20*np.log10(rCritNom)
+        rCritUnc = 20*np.log10(rCritUnc)
+        rCrit = 20*np.log10(rCrit)
     
     return rCritNom, rCritUnc, rCrit
 
-# Distance and Contact point between an elipse and point 
-def DistCrit(T, TUnc, magUnit = 'mag'):
+#
+def DistCritEllipse(T, TUnc, pCrit = -1+0j, magUnit = 'mag'):
     
-    p = [0, 0]
+    # Transform coordinates so that T is shifted to [0,0]
+    pCrit_new = pCrit - T
     
+    # Nominal Distance
+    rCritNom = np.abs(pCrit_new)
+    
+    # Compute the Contact location in new coordinates
+    pCont_new = np.zeros_like(pCrit_new, dtype='complex')
+    inside = np.zeros_like(pCrit_new, dtype='bool')
+    
+    for indx in np.ndindex(pCrit_new.shape):
+        a = abs(TUnc[indx].real)
+        b = abs(TUnc[indx].imag)
+        p = [pCrit_new[indx].real, pCrit_new[indx].imag]
+        pC, i = EllipsePoint(a, b, p)
+    
+        pCont_new[indx] = pC[0] + 1j*pC[1]
+        inside[indx] = i
+    
+    # Transform back to original coordinates
+    pCont = pCont_new + T
+    
+    # Compute the distance to the contact point
+    rCritUnc = np.abs(pCont - pCrit)
+    
+    # If the point is inside the ellipse return the distance as negative
+    rCritUnc[inside] = -rCritUnc[inside]
+    
+    # rCrit is the difference between Nominal and Uncertain Distance
+    rCrit = rCritNom - rCritUnc
+    
+    if magUnit is 'dB':
+        rCritNom = 20*np.log10(rCritNom)
+        rCritUnc = 20*np.log10(rCritUnc)
+        rCrit = 20*np.log10(rCrit)
+        
+    return rCritNom, rCritUnc, rCrit, pCont
+
+
+# Find the closes point between a give location to edge of ellipse
+# If the solution is non-unique this will only return one solution
+# https://github.com/0xfaded/ellipse_demo/issues/1
+def EllipsePoint(a, b, p):
+
     px = abs(p[0])
     py = abs(p[1])
 
-    t = np.pi / 4
+    # Check if point lies inside or on the ellipse
+    inside = ((px**2) // (a**2)) + ((py**2) // (b**2)) <= 1.0
 
-    a2 = a**2
-    b2 = b**2
+    tx = 0.707
+    ty = 0.707
 
-    for x in range(0, 3):
-        x = a * np.cos(t)
-        y = b * np.sin(t)
+    for indx in range(0, 3):
+        x = a * tx
+        y = b * ty
 
-        ex = (a2 - b2) * np.cos(t)**3 / a
-        ey = (b2 - a2) * np.sin(t)**3 / b
+        ex = (a*a - b*b) * tx**3 / a
+        ey = (b*b - a*a) * ty**3 / b
 
         rx = x - ex
         ry = y - ey
@@ -474,24 +542,50 @@ def DistCrit(T, TUnc, magUnit = 'mag'):
         qx = px - ex
         qy = py - ey
 
-        r = np.hypot(ry, rx)
-        q = np.hypot(qy, qx)
+        r = np.hypot(rx, ry)
+        q = np.hypot(qx, qy)
 
-        delta_c = r * np.asin((rx*qy - ry*qx)/(r*q))
-        delta_t = delta_c / np.sqrt(a*a + b*b - x*x - y*y)
-
-        t += delta_t
-        t = min(np.pi/2, max(0, t))
-
-        p = (np.copysign(x, p[0]), np.copysign(y, p[1]))
-        d = np.hypot(y-p[1], x-p[0])
-
-    return d
+        tx = min(1, max(0, (qx * r / q + ex) / a))
+        ty = min(1, max(0, (qy * r / q + ey) / b))
+        
+        t = max(np.finfo(np.float32).eps, np.hypot(tx, ty))
+        
+        tx /= t 
+        ty /= t
+        
+    pCont = (np.copysign(a*tx, p[0]), np.copysign(b*ty, p[1]))
     
-#            p = solve(semi_major, semi_minor, (x, y))
-#            dist[ix, iy] = d
+    return pCont, inside
+
+
+# Distance to Ellipse, with rotation
+def DistEllipseRot(pEllipse, a, b, a_deg, pCrit):
     
-    return rCrit, rCritNom, rCritUnc
+    # Transform coordinates so that pEllipse is at [0,0] and angle=0
+    a_rad = a_deg * (np.pi / 180)
+    aCos = np.cos(a_rad)
+    aSin = np.sin(a_rad)
+    
+    R = np.array([[aCos, -aSin],[aSin, aCos]])
+    
+    pCrit_new = R.T @ (pCrit - pEllipse)
+    
+    # Compute the Contact location in new coordinates
+    pCont_new, inside = EllipsePoint(a, b, pCrit_new)
+    
+    # Transform back to original coordinates
+    pCont = R @ pCont_new + pEllipse
+    
+    # Compute the distance to the contact point
+    dist = np.linalg.norm(pCont - pCrit, 2)
+    
+    # If the point is inside the ellipse return the distance as negative
+    if inside:
+        dist = -abs(dist)
+
+    return pCont, dist
+
+
 
 
 #%% Compute the Fast Fourrier Transform

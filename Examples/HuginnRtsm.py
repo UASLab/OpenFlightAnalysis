@@ -193,17 +193,19 @@ T_OutputNames = sigFbList
 # Compute Gain, Phase, Crit Distance
 gain_dB = []
 phase_deg = []
-rCrit_mag = []
+rCritNom_mag = []
 rCritUnc_mag = []
+rCrit_mag = []
 for iSeg in range(0, len(oDataSegs)):
     
     gain_dB.append(FreqTrans.Gain(T[iSeg], magUnit = 'dB'))
     phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = True))
     
-    nom_mag, unc_mag, _ = FreqTrans.DistCritCirc(T[iSeg], TUnc[iSeg], magUnit='mag') # Distance from (-1,0j)
-    
-    rCrit_mag.append(nom_mag)
+    nom_mag, unc_mag, diff_mag = FreqTrans.DistCrit(T[iSeg], TUnc[iSeg], pCrit = -1+0j, type = 'ellipse', magUnit = 'mag')
+
+    rCritNom_mag.append(nom_mag)
     rCritUnc_mag.append(unc_mag)
+    rCrit_mag.append(diff_mag)
 
 
 #%% Spectrograms
@@ -237,13 +239,13 @@ if True:
 inPlot = sigExcList # Elements of sigExcList
 outPlot = sigFbList # Elements of sigFbList
 
-if False:
+if True:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
     
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCrit_mag[iSeg][iOut, iIn], unc = rCritUnc_mag[iSeg][iOut, iIn], coher_nd = C[iSeg][iOut, iIn], fig = fig, fmt = '*:', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCritNom_mag[iSeg][iOut, iIn], unc = rCrit_mag[iSeg][iOut, iIn], coher_nd = C[iSeg][iOut, iIn], fig = fig, fmt = '*:', label = oDataSegs[iSeg]['Desc'])
             
             fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], 0.4 * np.ones_like(freq_hz[iOut, 0]), fig = fig, fmt = 'r--', label = 'Critical Limit')
             fig.suptitle(inName + ' to ' + outName, size=20)

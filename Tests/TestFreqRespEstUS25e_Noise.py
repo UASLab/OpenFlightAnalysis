@@ -186,32 +186,35 @@ T_InputNames = exc_names
 T_OutputNames = fb_names
 
 gain_dB, phase_deg = FreqTrans.GainPhase(T, magUnit='dB', phaseUnit='deg', unwrap=True)
-rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCritCirc(T, TUnc, magUnit='mag') # Distance from (-1,0j)
+#rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCritCirc(T, TUnc, magUnit='mag') # Distance from (-1,0j)
+#rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, type = 'ellipse', magUnit = 'mag')
+rCritNom_mag, rCritUnc_mag, rCrit_mag, pCont_mag = FreqTrans.DistCritEllipse(T, TUnc, pCrit = -1+0j, magUnit = 'mag')
 
 
 #%% Disk Margin Plots
 inPlot = exc_names # Elements of exc_names
 outPlot = fb_names # Elements of fb_names
 
-if True:
+if False:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
-    
             fig = 60 + 3*iIn + iOut
             fig = FreqTrans.PlotDistCrit(freqSys_hz, sysSimOL_rCrit_mag[iOut, iIn], fig = fig, fmt = 'k', label='Linear')
-            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCritNom_mag[iOut, iIn], unc = rCritUnc_mag[iOut, iIn], coher_nd = Cev[iOut, iIn], fmt = '.b', fig = fig, label = 'Excitation')
+            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCritNom_mag[iOut, iIn], unc = rCrit_mag[iOut, iIn], coher_nd = Cev[iOut, iIn], fmt = '.b', fig = fig, label = 'Excitation')
             fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], 0.4 * np.ones_like(freq_hz[iOut, 0]), fmt = '--r', fig = fig, label = 'Critical Limit')
             fig.suptitle(inName + ' to ' + outName, size=20)
 
 #%% Nyquist Plots
-if False:
+if True:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
             fig = 80 + 3*iIn + iOut
 
             fig = FreqTrans.PlotNyquist(sysSimOL[iOut, iIn], fig = fig, fmt = 'k', label='Linear')
-            fig = FreqTrans.PlotNyquist(T[iOut, iIn], TUnc[iOut, iIn], fig = fig, fmt = 'b', label='Excitation')
-            fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, fmt = '*r', label='Critical Region')
+            fig = FreqTrans.PlotNyquist(T[iOut, iIn], TUnc[iOut, iIn], fig = fig, fmt = 'b*:', label='Excitation')
+            fig = FreqTrans.PlotNyquist(pCont_mag[iOut, iIn],  fig = fig, fmt = 'b.', label='Min Critical Dist')
+            
+            fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, fmt = 'r*', label='Critical Region')
             fig.suptitle(inName + ' to ' + outName, size=20)
             
             ax = fig.get_axes()
