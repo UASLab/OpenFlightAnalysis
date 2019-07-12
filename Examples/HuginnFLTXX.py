@@ -6,7 +6,7 @@ See: LICENSE.md for complete license details
 
 Author: Chris Regan
 
-Analysis for Huginn (mAEWing2) FLT XX
+Overview FLT XX
 """
 
 #%%
@@ -22,7 +22,7 @@ if __name__ == "__main__" and __package__ is None:
 
     path.insert(0, abspath(join(dirname(argv[0]), "..")))
     path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
-    
+
     del path, argv, dirname, abspath, join
 
 from Core import Loader
@@ -34,8 +34,9 @@ hz2rps = 2 * np.pi
 rps2hz = 1 / hz2rps
 
 pathBase = os.path.join('/home', 'rega0051', 'FlightArchive')
-ac = 'Huginn'
-flt = 'FLT06'
+pathBase = os.path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data')
+ac = 'Thor'
+flt = 'FLT128'
 
 fileLog = os.path.join(pathBase, ac, ac + flt, ac + flt + '.h5')
 fileTestDef = os.path.join(pathBase, ac, ac + flt, ac.lower() + '_def.json')
@@ -47,7 +48,7 @@ fileSysConfig = os.path.join(pathBase, ac, ac + flt, ac.lower() + '.json')
 oData, h5Data = Loader.Log_RAPTRS(fileLog, fileSysConfig)
 
 # Plot Overview of flight
-#oData = OpenData.Segment(oData, ('time_s', [380, 1050]))
+#oData = OpenData.Segment(oData, ('time_s', [500, 1200]))
 OpenData.PlotOverview(oData)
 
 
