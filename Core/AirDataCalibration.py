@@ -93,14 +93,20 @@ def EstCalib(opt, oDataList, param):
     
     # Initial Guess, based on assuming perfect calibration, constant wind.
     for iSeg, oData in enumerate(oDataList):
-        calib = AirData.ApplyCalibration(oData, param)
-        v_BA_B_mps, v_BA_L_mps = AirData.Airspeed2NED(calib['v_PA_P_mps'], oData['sB_L_rad'], param)
-        
-        # Compute the Mean of the Wind Estimate, in NED
-        # Subtract the Estimated Body Airspeed from the Inertial Velocity
-        #v_AE_L = v_BE_L - v_BA_L
-        oData['vMean_AE_L_mps'] = np.mean(oData['vB_L_mps'] - v_BA_L_mps, axis=1)
-        
+        if all(opt['wind'][iSeg]['val'] == 0.0) or all(opt['wind'][iSeg]['val'] == None):
+            # Compute the Wind and take the mean
+            calib = AirData.ApplyCalibration(oData, param)
+            v_BA_B_mps, v_BA_L_mps = AirData.Airspeed2NED(calib['v_PA_P_mps'], oData['sB_L_rad'], param)
+            
+            # Compute the Mean of the Wind Estimate, in NED
+            # Subtract the Estimated Body Airspeed from the Inertial Velocity
+            #v_AE_L = v_BE_L - v_BA_L
+            oData['vMean_AE_L_mps'] = np.mean(oData['vB_L_mps'] - v_BA_L_mps, axis=1)
+            
+        else:
+            # Apply provided initial guess
+            oData['vMean_AE_L_mps'] = opt['wind'][iSeg]['val']
+
     
     # Optimization Info dict, pass to function
     optInfo = {}

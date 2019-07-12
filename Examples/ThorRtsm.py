@@ -36,31 +36,38 @@ rps2hz = 1 / hz2rps
 #%% File Lists
 import os.path as path
 
-pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Huginn')
+pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Thor')
 
 fileList = {}
-flt = 'FLT03'
+flt = 'FLT126'
 fileList[flt] = {}
-fileList[flt]['log'] = path.join(pathBase, 'Huginn' + flt, 'Huginn' + flt + '.h5')
-fileList[flt]['config'] = path.join(pathBase, 'Huginn' + flt, 'huginn.json')
-fileList[flt]['def'] = path.join(pathBase, 'Huginn' + flt, 'huginn_def.json')
+fileList[flt]['log'] = path.join(pathBase, 'Thor' + flt, 'Thor' + flt + '.h5')
+fileList[flt]['config'] = path.join(pathBase, 'Thor' + flt, 'thor.json')
+fileList[flt]['def'] = path.join(pathBase, 'Thor' + flt, 'thor_def.json')
 
-flt = 'FLT04'
+flt = 'FLT127'
 fileList[flt] = {}
-fileList[flt]['log'] = path.join(pathBase, 'Huginn' + flt, 'Huginn' + flt + '.h5')
-fileList[flt]['config'] = path.join(pathBase, 'Huginn' + flt, 'huginn.json')
-fileList[flt]['def'] = path.join(pathBase, 'Huginn' + flt, 'huginn_def.json')
+fileList[flt]['log'] = path.join(pathBase, 'Thor' + flt, 'Thor' + flt + '.h5')
+fileList[flt]['config'] = path.join(pathBase, 'Thor' + flt, 'thor.json')
+fileList[flt]['def'] = path.join(pathBase, 'Thor' + flt, 'thor_def.json')
 
 
 #%%
 from Core import FreqTrans
 
 rtsmSegList = [
-        {'flt': 'FLT03', 'seg': ('time_us', [693458513 , 705458513], 'FLT03 - 23 m/s')}, # 23 m/s
-        {'flt': 'FLT03', 'seg': ('time_us', [865877709 , 877877709], 'FLT03 - 20 m/s')}, # 20 m/s
+        {'flt': 'FLT126', 'seg': ('time_us', [875171956 , 887171956], 'FLT126 - RTSM - Nominal Gain, 4 deg amp')},
+        {'flt': 'FLT126', 'seg': ('time_us', [902952886 , 924952886], 'FLT126 - RTSM Long - Nominal Gain, 4 deg amp')},
+        {'flt': 'FLT126', 'seg': ('time_us', [928833763 , 940833763], 'FLT126 - RTSM - Nominal Gain, 8 deg amp')},
+#        {'flt': 'FLT126', 'seg': ('time_us', [981115495 , 993115495], 'FLT126 - RTSM - High Gain, 4 deg amp')},
+#        {'flt': 'FLT126', 'seg': ('time_us', [689907125 , 711907125], 'FLT126 - RTSM Long - High Gain, 4 deg amp')},
+#        {'flt': 'FLT126', 'seg': ('time_us', [728048050 , 740048050], 'FLT126 - RTSM - High Gain, 8 deg amp')},
+        {'flt': 'FLT126', 'seg': ('time_us', [829130591 , 841130591], 'FLT126 - RTSM Route - Nominal Gain, 4 deg amp')},
         
-        {'flt': 'FLT04', 'seg': ('time_us', [884683583, 896683583], 'FLT04 - 26 m/s')}, # 26 m/s
-        {'flt': 'FLT04', 'seg': ('time_us', [998733748, 1010733748], 'FLT04 - 20 m/s')} # 20 m/s
+        {'flt': 'FLT127', 'seg': ('time_us', [641655909 , 653655909], 'FLT127 - RTSM Route - Nominal Gain, 4 deg amp')},
+        {'flt': 'FLT127', 'seg': ('time_us', [657015836 , 689015836], 'FLT127 - RTSM Long Route - Nominal Gain, 4 deg amp')},
+#        {'flt': 'FLT127', 'seg': ('time_us', [698755386 , 707255278], 'FLT127 - RTSM Route - Nominal Gain, 8 deg amp')},
+#        {'flt': 'FLT127', 'seg': ('time_us', [1209355236 , 1221535868], 'FLT127 - RTSM Long Route - Nominal Gain, 8 deg amp')},
         ]
 
 
@@ -76,46 +83,21 @@ for rtsmSeg in rtsmSegList:
     sysConfig = Loader.JsonRead(fileConfig)
     oData = Loader.OpenData_RAPTRS(h5Data, sysConfig)
     
-    # Create Signal for Bending Measurement
-    aZ = np.array([
-            oData['aCenterFwdIMU_IMU_mps2'][2] - oData['aCenterFwdIMU_IMU_mps2'][2][0], 
-            oData['aCenterAftIMU_IMU_mps2'][2] - oData['aCenterAftIMU_IMU_mps2'][2][0], 
-            oData['aLeftMidIMU_IMU_mps2'][2] - oData['aLeftMidIMU_IMU_mps2'][2][0], 
-            oData['aLeftFwdIMU_IMU_mps2'][2] - oData['aLeftFwdIMU_IMU_mps2'][2][0], 
-            oData['aLeftAftIMU_IMU_mps2'][2] - oData['aLeftAftIMU_IMU_mps2'][2][0], 
-            oData['aRightMidIMU_IMU_mps2'][2] - oData['aRightMidIMU_IMU_mps2'][2][0], 
-            oData['aRightFwdIMU_IMU_mps2'][2] - oData['aRightFwdIMU_IMU_mps2'][2][0], 
-            oData['aRightAftIMU_IMU_mps2'][2] - oData['aRightAftIMU_IMU_mps2'][2][0]
-            ])
-    
-    aCoefEta1 = np.array([456.1, -565.1, -289.9, 605.4, 472.4, -292, 605.6, 472.2]) * 0.3048
-    measEta1 = aCoefEta1 @ (aZ - np.mean(aZ, axis = 0)) * 1/50 * 1e-3
-    
-    
-    aCoefEta1dt = np.array([2.956, -2.998, -1.141, 5.974, 5.349, -1.149, 5.974, 5.348]) * 0.3048
-    measEta1dt = aCoefEta1dt @ (aZ - np.mean(aZ, axis = 0)) * 1e-3
-    
-    # Added signals
-    oData['cmdRoll_FF'] = h5Data['Control']['cmdRoll_PID_rpsFF']
-    oData['cmdRoll_FB'] = h5Data['Control']['cmdRoll_PID_rpsFB']
-    oData['cmdPitch_FF'] = h5Data['Control']['cmdPitch_PID_rpsFF']
-    oData['cmdPitch_FB'] = h5Data['Control']['cmdPitch_PID_rpsFB']
-    oData['cmdBend_FF'] = h5Data['Control']['refBend_nd'] # h5Data['Excitation']['Bend']['cmdBend_nd']
-    oData['cmdBendDt_FB'] = measEta1dt
-    
-    oData['cmdBend_FB'] = measEta1
+    oData['cmdRoll_FF'] = h5Data['Control']['cmdRoll_pidFF']
+    oData['cmdRoll_FB'] = h5Data['Control']['cmdRoll_pidFB']
+    oData['cmdPitch_FF'] = h5Data['Control']['cmdPitch_pidFF']
+    oData['cmdPitch_FB'] = h5Data['Control']['cmdPitch_pidFB']
+    oData['cmdYaw_FF'] = h5Data['Control']['refPsi_rad']
+    oData['cmdYaw_FB'] = h5Data['Control']['cmdYaw_damp_rps']
+
     # Segments
-    seg = OpenData.Segment(oData, rtsmSeg['seg'])
-    oDataSegs.append(seg)
-    
-#    plt.plot(seg['time_s'], seg['Control']['cmdBend_nd'], seg['time_s'], seg['cmdBendDt_FB'], seg['time_s'], seg['cmdBend_FB'])
+    oDataSegs.append(OpenData.Segment(oData, rtsmSeg['seg']))
 
 
 #%%
 
-
-sigExcList = ['cmdRoll_rps', 'cmdPitch_rps', 'cmdBend_nd']
-sigFbList = ['cmdRoll_FB', 'cmdPitch_FB', 'cmdBend_FB']
+sigExcList = ['cmdRoll_rps', 'cmdPitch_rps', 'cmdYaw_rps']
+sigFbList = ['cmdRoll_FB', 'cmdPitch_FB', 'cmdYaw_FB']
 
 freqExc_rps = []
 freqExc_rps.append( np.array(sysConfig['Excitation']['OMS_RTSM_1']['Frequency']))
@@ -147,12 +129,12 @@ for iSeg, seg in enumerate(oDataSegs):
     
     plt.plot(oDataSegs[iSeg]['time_s'], oDataSegs[iSeg]['vIas_mps'])
 
-#    plt.plot(oDataSegs[iSeg]['time_s'], vExcList[iSeg][0])
-#    plt.plot(oDataSegs[iSeg]['time_s'], vExcList[iSeg][1])
-#    plt.plot(oDataSegs[iSeg]['time_s'], vExcList[iSeg][2])
-#    plt.plot(oDataSegs[iSeg]['time_s'], vFbList[iSeg][0])
-#    plt.plot(oDataSegs[iSeg]['time_s'], vFbList[iSeg][1])
-#    plt.plot(oDataSegs[iSeg]['time_s'], vFbList[iSeg][2])
+    plt.plot(oDataSegs[iSeg]['time_s'], vExcList[iSeg][0])
+    plt.plot(oDataSegs[iSeg]['time_s'], vExcList[iSeg][1])
+    plt.plot(oDataSegs[iSeg]['time_s'], vExcList[iSeg][2])
+    plt.plot(oDataSegs[iSeg]['time_s'], vFbList[iSeg][0])
+    plt.plot(oDataSegs[iSeg]['time_s'], vFbList[iSeg][1])
+    plt.plot(oDataSegs[iSeg]['time_s'], vFbList[iSeg][2])
 
 
 #%% Estimate the frequency response function
@@ -210,14 +192,13 @@ for iSeg in range(0, len(oDataSegs)):
 
 
 #%% Spectrograms
-if True:
+if False:
     
     iSgnl = 2
     
     freqRate_rps = 50 * hz2rps
     freqExc_rps = np.linspace(0.1, 50/2, 151) * hz2rps
-
-    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqExc_rps, freqRate = freqRate_rps, winType = ('tukey', 0.0), smooth = ('box', 1), detrendType = 'Linear')
+    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqExc_rps, freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 1), detrendType = 'Linear')
     
     
     for iSeg in range(0, len(oDataSegs)):

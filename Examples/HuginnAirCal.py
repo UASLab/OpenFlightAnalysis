@@ -6,7 +6,7 @@ See: LICENSE.md for complete license details
 
 Author: Chris Regan
 
-Analysis for Huginn (mAEWing2) FLT 03
+Analysis for Huginn (mAEWing2) FLT03 and FLT04
 """
 
 #%%
@@ -55,9 +55,9 @@ fileList[flt]['def'] = path.join(pathBase, 'Huginn' + flt, 'huginn_def.json')
 windSegList = [
         {'flt': 'FLT03', 'seg': ('time_us', [610000000, 645277887])},
         {'flt': 'FLT03', 'seg': ('time_us', [722078703, 741298701])},
-        {'flt': 'FLT03', 'seg': ('time_us', [893797477, 914157292])},
-        
-        {'flt': 'FLT04', 'seg': ('time_us', [940469572, 957651007])},
+#        {'flt': 'FLT03', 'seg': ('time_us', [893797477, 914157292])},
+#        
+#        {'flt': 'FLT04', 'seg': ('time_us', [940469572, 957651007])},
 #        {'flt': 'FLT04', 'seg': ('time_us', [1075000000, 1112000000])},
 #        {'flt': 'FLT04', 'seg': ('time_us', [1112000000, 1170000000])},
         ]
@@ -104,25 +104,9 @@ pData['5Hole'] = {}
 pData['5Hole']['r_B_m'] = np.array([1.0, 0.0, 0.0])
 pData['5Hole']['s_B_rad'] = np.array([0.0, 0.0, 0.0]) * 180.0/np.pi
 
-#pData['5Hole']['pTip'] = {}
-#pData['5Hole']['pTip']['errorType'] = 'ScaleBias+'
-#pData['5Hole']['pTip']['K'] = 1.0
-#pData['5Hole']['pTip']['bias'] = 0.0
-#
-#pData['5Hole']['pStatic'] = pData['5Hole']['pTip'].copy()
-#pData['5Hole']['pAlpha1'] = pData['5Hole']['pTip'].copy()
-#pData['5Hole']['pAlpha2'] = pData['5Hole']['pAlpha1'].copy()
-#pData['5Hole']['pBeta1'] = pData['5Hole']['pAlpha1'].copy()
-#pData['5Hole']['pBeta2'] = pData['5Hole']['pBeta1'].copy()
-#
-#pData['5Hole']['alphaCal'] = 4.8071159
-#pData['5Hole']['betaCal'] = 4.8071159
-
-#
-
 pData['5Hole']['v'] = {}
 pData['5Hole']['v']['errorType'] = 'ScaleBias+'
-pData['5Hole']['v']['K'] = 0.95
+pData['5Hole']['v']['K'] = 1.0
 pData['5Hole']['v']['bias'] = 0.0
 
 pData['5Hole']['alt'] = pData['5Hole']['v'].copy()
@@ -141,19 +125,17 @@ oDataList = oDataWindList
 
 # Compute the optimal parameters
 #opt = {'Method': 'BFGS', 'Options': {'disp': True}}
-opt = {'Method': 'L-BFGS-B', 'Options': {'disp': True}}
+opt = {'Method': 'L-BFGS-B', 'Options': {'maxiter': 400, 'disp': True}}
 #opt = {'Method': 'CG', 'Options': {'disp': True}}
 
-
+#%% First Phase - Airspeed and Wind only
 opt['wind'] = []
 for seg in oDataList:
     seg['vMean_AE_L_mps'] = np.asarray([0.0, 0.0, 0.0])
     opt['wind'].append({'val': seg['vMean_AE_L_mps'], 'lb': np.asarray([-10, -10, -3]), 'ub': np.asarray([10, 10, 3])})
 
 opt['param'] = []
-#opt['param'].append({'val': pData['5Hole']['pTip']['K'], 'lb': 0.5, 'ub': 2})
-#opt['param'].append({'val': pData['5Hole']['pTip']['bias'], 'lb': -20, 'ub': 20})
-opt['param'].append({'val': pData['5Hole']['v']['K'], 'lb': 0.75, 'ub': 1.25})
+opt['param'].append({'val': pData['5Hole']['v']['K'], 'lb': 0.80, 'ub': 1.20})
 opt['param'].append({'val': pData['5Hole']['v']['bias'], 'lb': -2.0, 'ub': 2.0})
 opt['param'].append({'val': pData['5Hole']['alpha']['K'], 'lb': 1.00, 'ub': 1.00})
 opt['param'].append({'val': pData['5Hole']['alpha']['bias'], 'lb': -0.0 * deg2rad, 'ub': 0.0 * deg2rad})
@@ -167,6 +149,29 @@ opt['Result'] = AirDataCalibration.EstCalib(opt, oDataList, pData['5Hole'])
 nSegs = len(oDataWindList)
 nWinds = nSegs * 3
 vWind = opt['Result']['x'][0:nWinds].reshape((nSegs, 3))
+
+#%% Second Phase - add alpha and beta
+if False:
+    for iSeg, seg in enumerate(oDataList):
+        seg['vMean_AE_L_mps'] = vWind[iSeg]
+        opt['wind'][iSeg]['val'] = seg['vMean_AE_L_mps']
+        opt['wind'][iSeg]['lb'] = seg['vMean_AE_L_mps'] - np.asarray([0.0, 0.0, 0.0])
+        opt['wind'][iSeg]['ub'] = seg['vMean_AE_L_mps'] + np.asarray([0.0, 0.0, 0.0])
+    
+    opt['param'][0] = {'val': pData['5Hole']['v']['K'], 'lb': pData['5Hole']['v']['K'], 'ub': pData['5Hole']['v']['K']}
+    opt['param'][1] = {'val': pData['5Hole']['v']['bias'], 'lb': pData['5Hole']['v']['bias'], 'ub': pData['5Hole']['v']['bias']}
+    opt['param'][2] = {'val': pData['5Hole']['alpha']['K'], 'lb': 0.75, 'ub': 1.25}
+    opt['param'][3] = {'val': pData['5Hole']['alpha']['bias'], 'lb': -2.0 * deg2rad, 'ub': 2.0 * deg2rad}
+    opt['param'][4] = {'val': pData['5Hole']['beta']['K'], 'lb': 0.75, 'ub': 1.25}
+    opt['param'][5] = {'val': pData['5Hole']['beta']['bias'], 'lb': -4.0 * deg2rad, 'ub': 4.0 * deg2rad}
+    
+    
+    #AirDataCalibration.CostFunc(xOpt, optInfo, oDataList, param)
+    opt['Result'] = AirDataCalibration.EstCalib(opt, oDataList, pData['5Hole'])
+    
+    nSegs = len(oDataWindList)
+    nWinds = nSegs * 3
+    vWind = opt['Result']['x'][0:nWinds].reshape((nSegs, 3))
 
 
 #%% Plot the Solution

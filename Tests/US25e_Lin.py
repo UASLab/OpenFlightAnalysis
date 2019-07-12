@@ -147,7 +147,7 @@ sysTheta_InputNames = ['refTheta', 'sensTheta', 'excQ']
 sysTheta_OutputNames = ['cmdQ', 'ffQ', 'fbQ', 'excQ']
 
 tauYaw = 5.72
-sysYaw = control.append(control.tf2ss(control.tf([0.5],[1.0])), control.tf2ss(control.tf([-0.03, 0.0],[1.0, tauYaw])), control.tf2ss(control.tf(1,1)))
+sysYaw = control.append(control.tf2ss(control.tf([0.5],[1.0])), control.tf2ss(control.tf([0.03, 0.0],[1.0, tauYaw])), control.tf2ss(control.tf(1,1)))
 
 sysYaw.C = np.concatenate((sysYaw.C[0,:] - sysYaw.C[1,:] + sysYaw.C[2,:], sysYaw.C))
 sysYaw.D = np.concatenate((sysYaw.D[0,:] - sysYaw.D[1,:] + sysYaw.D[2,:], sysYaw.D))
