@@ -34,12 +34,12 @@ rps2hz = 1/hz2rps
 numChan = 3
 freqRate_hz = 50;
 timeDur_s = 10.0
-numCycles = 1
+numCycles = 5
 
 freqMinDes_rps = (numCycles/timeDur_s) * hz2rps * np.ones(numChan)
 #freqMaxDes_rps = (freqRate_hz/2) * hz2rps *  np.ones(numChan)
-freqMaxDes_rps = 20 * hz2rps *  np.ones(numChan)
-freqStepDes_rps = (10 / freqRate_hz) * hz2rps
+freqMaxDes_rps = 10 * hz2rps *  np.ones(numChan)
+freqStepDes_rps = (5 / freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 ## Generate MultiSine Frequencies
@@ -60,13 +60,23 @@ print(peakFactorRel)
 sigPowerRel = (ampElem_nd / max(ampElem_nd))**2 / len(ampElem_nd)
 
 
-plt.figure()
-for iChan in range(0, numChan):
-    plt.plot(time_s, sigList[iChan])
-plt.xlabel('Time (s)');
-plt.ylabel('Amplitude (nd)');
-plt.grid()
-plt.show()
+
+if True:
+    fig, ax = plt.subplots(ncols=1, nrows=numChan, sharex=True)
+    for iChan in range(0, numChan):
+        ax[iChan].plot(time_s, sigList[iChan])
+        ax[iChan].set_ylabel('Amplitude (nd)')
+        ax[iChan].grid(True)
+    ax[iChan].set_xlabel('Time (s)')
+
+if True:
+    fig, ax = plt.subplots(ncols=1, nrows=numChan, sharex=True)
+    for iChan in range(0, numChan):
+        for iElem in sigIndx[iChan]:
+            ax[iChan].plot(time_s, sigElem[iElem])
+        ax[iChan].set_ylabel('Amplitude (nd)')
+        ax[iChan].grid(True)
+    ax[iChan].set_xlabel('Time (s)')
 
 
 #%% Plot the Excitation Spectrum

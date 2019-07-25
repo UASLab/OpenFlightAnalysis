@@ -34,12 +34,12 @@ rps2hz = 1/hz2rps
 numChan = 3
 freqRate_hz = 50;
 timeDur_s = 10.0
-numCycles = 1
+numCycles = 5
 
 freqMinDes_rps = (numCycles/timeDur_s) * hz2rps * np.ones(numChan)
 #freqMaxDes_rps = (freqRate_hz/2) * hz2rps *  np.ones(numChan)
-freqMaxDes_rps = 20 * hz2rps *  np.ones(numChan)
-freqStepDes_rps = (10 / freqRate_hz) * hz2rps
+freqMaxDes_rps = 10 * hz2rps *  np.ones(numChan)
+freqStepDes_rps = (1 / freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 ## Generate MultiSine Frequencies
@@ -59,20 +59,30 @@ print(peakFactorRel)
 # Signal Power
 sigPowerRel = (ampElem_nd / max(ampElem_nd))**2 / len(ampElem_nd)
 
-plt.figure()
-for iChan in range(0, numChan):
-    plt.plot(time_s, sigList[iChan])
-plt.xlabel('Time (s)');
-plt.ylabel('Amplitude (nd)');
-plt.grid()
-plt.show()
+
+if True:
+    fig, ax = plt.subplots(ncols=1, nrows=numChan, sharex=True)
+    for iChan in range(0, numChan):
+        ax[iChan].plot(time_s, sigList[iChan])
+        ax[iChan].set_ylabel('Amplitude (nd)')
+        ax[iChan].grid(True)
+    ax[iChan].set_xlabel('Time (s)')
+
+if True:
+    fig, ax = plt.subplots(ncols=1, nrows=numChan, sharex=True)
+    for iChan in range(0, numChan):
+        for iElem in sigIndx[iChan]:
+            ax[iChan].plot(time_s, sigElem[iElem])
+        ax[iChan].set_ylabel('Amplitude (nd)')
+        ax[iChan].grid(True)
+    ax[iChan].set_xlabel('Time (s)')
 
 
 #%% Plot the Excitation Spectrum
 
 ## Compute Spectrum of each channel
-optFFT = FreqTrans.OptSpect(freqRate = freqRate_hz * hz2rps)
-optCZT = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps)
+optFFT = FreqTrans.OptSpect(freqRate = freqRate_hz * hz2rps, winType = ('tukey', 0.2), smooth = ('box', 3))
+optCZT = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, winType = ('tukey', 0.0), smooth = ('box', 1))
 
 freq_fft = []
 P_dB_fft = []
@@ -94,10 +104,11 @@ nChan = len(P_dB_fft)
 plt.figure()
 for iChan in range(0, nChan):
     plt.subplot(nChan, 1, iChan+1)
-    plt.plot(freq_fft[iChan], P_dB_fft[iChan], '-k', label='FFT Pxx')
-    plt.plot(freq_czt[iChan], P_dB_czt[iChan], '.r-', label='CZT Pxx')
+    plt.plot(freq_fft[iChan].T, P_dB_fft[iChan].T, '-k', label='FFT Pxx')
+    plt.plot(freq_czt[iChan].T, P_dB_czt[iChan].T, '.r-', label='CZT Pxx')
     plt.grid()
     plt.ylabel('Spectrum (dB)');
+    plt.xlim([0, 12]);
 
 plt.xlabel('frequency (Hz)');
 plt.legend()
@@ -125,5 +136,5 @@ for iChan in range(0, numChan):
     jsonMulti[nameChan] = dictChan
 
 import json
-print(json.dumps(jsonMulti, separators=(', ', ': ')))
+#print(json.dumps(jsonMulti, separators=(', ', ': ')))
 

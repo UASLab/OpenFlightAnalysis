@@ -36,8 +36,8 @@ rps2hz = 1 / hz2rps
 #%% File Lists
 import os.path as path
 
-#pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Thor')
-pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Thor')
+pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Thor')
+#pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Thor')
 
 fileList = {}
 flt = 'FLT126'
@@ -68,17 +68,17 @@ rtsmSegList = [
         {'flt': 'FLT127', 'seg': ('time_us', [641655909 , 653655909], 'FLT127 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
         {'flt': 'FLT128', 'seg': ('time_us', [700263746 , 712263746 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
         {'flt': 'FLT128', 'seg': ('time_us', [831753831 , 843753831 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
-#        {'flt': 'FLT128', 'seg': ('time_us', [ 959859721 , 971859721 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
+#        {'flt': 'FLT128', 'seg': ('time_us', [ 959859721 , 971859721 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Not good
 
-        {'flt': 'FLT126', 'seg': ('time_us', [928833763 , 940833763], 'FLT126 - RTSM Large - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
-        {'flt': 'FLT127', 'seg': ('time_us', [698755386 , 707255278], 'FLT127 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
-        {'flt': 'FLT128', 'seg': ('time_us', [779830919 , 791830919 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
-        {'flt': 'FLT128', 'seg': ('time_us', [900237086 , 912237086 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
+#        {'flt': 'FLT126', 'seg': ('time_us', [928833763 , 940833763], 'FLT126 - RTSM Large - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
+#        {'flt': 'FLT127', 'seg': ('time_us', [698755386 , 707255278], 'FLT127 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
+#        {'flt': 'FLT128', 'seg': ('time_us', [779830919 , 791830919 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
+#        {'flt': 'FLT128', 'seg': ('time_us', [900237086 , 912237086 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
 
-#        {'flt': 'FLT126', 'seg': ('time_us', [902952886 , 924952886], 'FLT126 - RTSM Long - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
-        {'flt': 'FLT127', 'seg': ('time_us', [657015836 , 689015836], 'FLT127 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
-        {'flt': 'FLT128', 'seg': ('time_us', [714385469 , 746385469 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Not good
-        {'flt': 'FLT128', 'seg': ('time_us', [847254621 , 879254621 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
+        {'flt': 'FLT126', 'seg': ('time_us', [902952886 , 924952886], 'FLT126 - RTSM Long - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
+#        {'flt': 'FLT127', 'seg': ('time_us', [657015836 , 689015836], 'FLT127 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Not good
+        {'flt': 'FLT128', 'seg': ('time_us', [714385469 , 746385469 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, 
+        {'flt': 'FLT128', 'seg': ('time_us', [847254621 , 879254621 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Best
 
 #        {'flt': 'FLT127', 'seg': ('time_us', [1209355236 , 1221535868], 'FLT127 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'fmt': 'm'},
 #        {'flt': 'FLT128', 'seg': ('time_us', [794251787 , 826251787 ], 'FLT128 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'fmt': 'm'},
@@ -111,6 +111,9 @@ for rtsmSeg in rtsmSegList:
     oData['cmdYaw_FB'] = h5Data['Control']['cmdYaw_damp_rps']
 
     # Segments
+    rtsmSeg['seg'][1][0] += 1e6
+    rtsmSeg['seg'][1][1] += -1e6 + 50e3
+    
     oDataSegs.append(OpenData.Segment(oData, rtsmSeg['seg']))
 
 
@@ -118,6 +121,7 @@ for rtsmSeg in rtsmSegList:
 
 sigExcList = ['cmdRoll_rps', 'cmdPitch_rps', 'cmdYaw_rps']
 sigFbList = ['cmdRoll_FB', 'cmdPitch_FB', 'cmdYaw_FB']
+sigFfList = ['cmdRoll_FF', 'cmdPitch_FF', 'cmdYaw_FF']
 
 freqExc_rps = []
 freqExc_rps.append( np.array(sysConfig['Excitation']['OMS_RTSM_1']['Frequency']))
@@ -136,11 +140,14 @@ for iSeg, seg in enumerate(oDataSegs):
 
     for iSig, sigExc in enumerate(sigExcList):
         sigFb = sigFbList[iSig]
+        sigFf = sigFfList[iSig]
 
         vCmd[iSig] = seg['Control'][sigExc]
         vExc[iSig] = seg['Excitation'][sigExc]
-        vFb[iSig] = seg[sigFb]
-        vFf[iSig] = vCmd[iSig] - vExc[iSig] - vFb[iSig]
+#        vFb[iSig] = seg[sigFb]
+        vFb[iSig][1:-1] = seg[sigFb][0:-2] # Shift the time of the output into next frame
+        vFf[iSig] = seg[sigFf]
+        
 
     vCmdList.append(vCmd)
     vExcList.append(vExc)
@@ -161,8 +168,8 @@ for iSeg, seg in enumerate(oDataSegs):
 # Define the excitation frequencies
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.1), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 1.0), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 5), winType = ('tukey', 1.0), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = np.asarray(freqExc_rps)
@@ -183,11 +190,19 @@ for iSeg, seg in enumerate(oDataSegs):
     freq_hz = freq_rps * rps2hz
 
     # Form the Frequency Response
-    T.append( Teb / (Tev + TevUnc) )
-    TUnc.append( TebUnc / (Tev + TevUnc) )
+    T_seg = np.empty_like(Tev)
+    TUnc_seg = np.empty_like(Tev)
 
-#    C.append(Ceb)
-    C.append(Cev)
+    for i in range(T_seg.shape[-1]):  
+        T_seg[...,i] = Teb[...,i] @ np.linalg.inv(Tev[...,i])
+        TUnc_seg[...,i] = TebUnc[...,i] @ np.linalg.inv(Tev[...,i])
+
+
+    T.append( T_seg )
+    TUnc.append( TUnc_seg )
+
+#    C.append(Cev)
+    C.append(Ceb)
 
 
 T_InputNames = sigExcList
@@ -204,7 +219,7 @@ for iSeg in range(0, len(oDataSegs)):
     gain_dB.append(FreqTrans.Gain(T[iSeg], magUnit = 'dB'))
     phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = True))
 
-    nom_mag, unc_mag, diff_mag = FreqTrans.DistCrit(T[iSeg], TUnc[iSeg], pCrit = -1+0j, type = 'ellipse', magUnit = 'mag')
+    nom_mag, unc_mag, diff_mag = FreqTrans.DistCrit(T[iSeg], TUnc[iSeg], pCrit = -1+0j, typeUnc = 'ellipse', magUnit = 'mag')
 
     rCritNom_mag.append(nom_mag)
     rCritUnc_mag.append(unc_mag)
@@ -213,12 +228,13 @@ for iSeg in range(0, len(oDataSegs)):
 
 #%% Spectrograms
 if False:
-
-    iSgnl = 1
+#%%
+    iSgnl = 0
 
     freqRate_rps = 50 * hz2rps
-    freqExc_rps = np.linspace(0.1, 50/2, 151) * hz2rps
-    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqExc_rps, freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 1), detrendType = 'Linear')
+#    freqExc_rps = np.linspace(0.1, 50/2, 151) * hz2rps
+    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqExc_rps[iSgnl], freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 1), detrendType = 'Linear')
+    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqGap_rps, freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 3), detrendType = 'Linear')
 
 
     for iSeg in range(0, len(oDataSegs)):
@@ -248,7 +264,7 @@ if True:
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotDistCrit(freq_hz[iIn, 0], rCritNom_mag[iSeg][iIn, iOut], unc = rCrit_mag[iSeg][iIn, iOut], coher_nd = C[iSeg][iIn, iOut], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotDistCrit(freq_hz[iIn, 0], rCritNom_mag[iSeg][iIn, iOut], unc = rCritUnc_mag[iSeg][iIn, iOut], coher_nd = C[iSeg][iIn, iOut], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'], plotUnc = False)
 
             fig = FreqTrans.PlotDistCrit(freq_hz[iIn, 0], 0.4 * np.ones_like(freq_hz[iIn, 0]), fig = fig, fmt = 'r--', label = 'Critical Limit')
             fig.suptitle(inName + ' to ' + outName, size=20)

@@ -35,9 +35,9 @@ rps2hz = 1 / hz2rps
 #%% File Lists
 import os.path as path
 
-#pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Huginn')
+pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Huginn')
 #pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
-pathBase = path.join('D:/', 'Huginn')
+#pathBase = path.join('D:/', 'Huginn')
 
 fileList = {}
 flt = 'FLT05'
@@ -55,27 +55,29 @@ fileList[flt]['def'] = path.join(pathBase, 'Huginn' + flt, 'huginn_def.json')
 
 #%% Wind/Air Cal
 windSegList = [
-#        {'flt': 'FLT05', 'seg': ('time_us', [566483686, 582408497])}, # Bad heading??
-#        {'flt': 'FLT05', 'seg': ('time_us', [602534178, 622279236])}, # Bad heading??
-#        {'flt': 'FLT05', 'seg': ('time_us', [637362791, 654286351])}, # Bad heading??
-#        {'flt': 'FLT05', 'seg': ('time_us', [666668777, 687832534])}, # Bad heading??
+        {'flt': 'FLT05', 'seg': ('time_us', [566483686, 582408497])},
+        {'flt': 'FLT05', 'seg': ('time_us', [602534178, 622279236])},
+        {'flt': 'FLT05', 'seg': ('time_us', [637362791, 654286351])},
+        {'flt': 'FLT05', 'seg': ('time_us', [666668777, 687832534])},
+        {'flt': 'FLT05', 'seg': ('time_us', [703115100, 766364351])}, # Long!!
         {'flt': 'FLT05', 'seg': ('time_us', [788467105, 799488311])},
         {'flt': 'FLT05', 'seg': ('time_us', [811669552, 831211361])},
         {'flt': 'FLT05', 'seg': ('time_us', [844412511, 861513899])},
         {'flt': 'FLT05', 'seg': ('time_us', [873694795, 887575754])},
         {'flt': 'FLT05', 'seg': ('time_us', [899096534, 909897237])},
-        {'flt': 'FLT05', 'seg': ('time_us', [910000000, 970000000])}, # Landing Approach
+        {'flt': 'FLT05', 'seg': ('time_us', [927000000, 950000000])}, # Landing Approach
+        {'flt': 'FLT06', 'seg': ('time_us', [940358346, 955822061])},
+        {'flt': 'FLT06', 'seg': ('time_us', [982747328, 1000069848])},
+        {'flt': 'FLT06', 'seg': ('time_us', [1010491142, 1026492809])},
+        {'flt': 'FLT06', 'seg': ('time_us', [1036733749, 1054855133])},
+        {'flt': 'FLT06', 'seg': ('time_us', [1065295790, 1087597269])}, # Slowing Turn
+        {'flt': 'FLT06', 'seg': ('time_us', [1103958408, 1122539650])},
+        {'flt': 'FLT06', 'seg': ('time_us', [1140000000, 1165401057])},
+        {'flt': 'FLT06', 'seg': ('time_us', [1165401057, 1189143263])},
+        {'flt': 'FLT06', 'seg': ('time_us', [1189143263, 1225000000])}, # Landing Approach
+        {'flt': 'FLT06', 'seg': ('time_us', [1225000000, 1260000000])}, # Landing Approach
 
-#        {'flt': 'FLT05', 'seg': ('time_us', [703115100, 766364351])}, # Long!!
-
-#        {'flt': 'FLT06', 'seg': ('time_us', [940358346, 955822061])}, # Bad heading??
-#        {'flt': 'FLT06', 'seg': ('time_us', [982747328, 1000069848])}, # Bad heading??
-#        {'flt': 'FLT06', 'seg': ('time_us', [1010491142, 1026492809])}, # Bad heading??
-#        {'flt': 'FLT06', 'seg': ('time_us', [1036733749, 1054855133])}, # Bad heading??
-#        {'flt': 'FLT06', 'seg': ('time_us', [1103958408, 1122539650])}, # Bad heading??
-        {'flt': 'FLT06', 'seg': ('time_us', [1145401057, 1184143263])},
-        {'flt': 'FLT06', 'seg': ('time_us', [1184143263, 1260000000])}, # Landing Approach
-#        {'flt': 'FLT06', 'seg': ('time_us', [1065295790, 1087597269])}, # Slowing Turn
+        
         ]
 
 
@@ -87,6 +89,10 @@ for windSeg in windSegList:
     fileConfig = fileList[fltNum]['config']
 
     oData, h5Data = Loader.Log_RAPTRS(fileLog, fileConfig)
+    
+    for key in h5Data['Sensor-Processing']['PostProcess']['INS'].keys():
+        oData[key] = h5Data['Sensor-Processing']['PostProcess']['INS'][key]
+    
     oData = OpenData.Decimate(oData, 10)
     oDataWindList.append(OpenData.Segment(oData, windSeg['seg']))
 
@@ -123,6 +129,7 @@ pData['5Hole']['alt'] = pData['5Hole']['v'].copy()
 pData['5Hole']['alpha'] = pData['5Hole']['v'].copy()
 pData['5Hole']['beta'] = pData['5Hole']['v'].copy()
 
+pData['5Hole']['v']['K'] = 0.95
 
 #%% Optimize
 from Core import AirData
@@ -135,18 +142,19 @@ oDataList = oDataWindList
 
 # Compute the optimal parameters
 #opt = {'Method': 'BFGS', 'Options': {'disp': True}}
-opt = {'Method': 'L-BFGS-B', 'Options': {'maxiter': 100, 'disp': True}}
+opt = {'Method': 'L-BFGS-B', 'Options': {'disp': True}}
+#opt = {'Method': 'L-BFGS-B', 'Options': {'maxiter': 10, 'disp': True}}
 #opt = {'Method': 'CG', 'Options': {'disp': True}}
 
 #%% First Phase - Airspeed and Wind only
 opt['wind'] = []
 for seg in oDataList:
-    seg['vMean_AE_L_mps'] = np.asarray([0.0, 0.0, 0.0])
+    seg['vMean_AE_L_mps'] = np.asarray([-2.0, 0.0, 0.0])
     opt['wind'].append({'val': seg['vMean_AE_L_mps'], 'lb': np.asarray([-10, -10, -3]), 'ub': np.asarray([10, 10, 3])})
 
 opt['param'] = []
 opt['param'].append({'val': pData['5Hole']['v']['K'], 'lb': 0.80, 'ub': 1.20})
-opt['param'].append({'val': pData['5Hole']['v']['bias'], 'lb': -2.0, 'ub': 2.0})
+opt['param'].append({'val': pData['5Hole']['v']['bias'], 'lb': -3.0, 'ub': 3.0})
 opt['param'].append({'val': pData['5Hole']['alpha']['K'], 'lb': 1.00, 'ub': 1.00})
 opt['param'].append({'val': pData['5Hole']['alpha']['bias'], 'lb': -0.0 * deg2rad, 'ub': 0.0 * deg2rad})
 opt['param'].append({'val': pData['5Hole']['beta']['K'], 'lb': 1.00, 'ub': 1.00})
@@ -168,11 +176,11 @@ if False:
         opt['wind'][iSeg]['lb'] = seg['vMean_AE_L_mps'] - np.asarray([0.0, 0.0, 0.0])
         opt['wind'][iSeg]['ub'] = seg['vMean_AE_L_mps'] + np.asarray([0.0, 0.0, 0.0])
 
-    opt['param'][0] = {'val': pData['5Hole']['v']['K'], 'lb': pData['5Hole']['v']['K'], 'ub': pData['5Hole']['v']['K']}
-    opt['param'][1] = {'val': pData['5Hole']['v']['bias'], 'lb': pData['5Hole']['v']['bias'], 'ub': pData['5Hole']['v']['bias']}
-    opt['param'][2] = {'val': pData['5Hole']['alpha']['K'], 'lb': 0.75, 'ub': 1.25}
-    opt['param'][3] = {'val': pData['5Hole']['alpha']['bias'], 'lb': -2.0 * deg2rad, 'ub': 2.0 * deg2rad}
-    opt['param'][4] = {'val': pData['5Hole']['beta']['K'], 'lb': 0.75, 'ub': 1.25}
+    opt['param'][0] = {'val': pData['5Hole']['v']['K'], 'lb': 1.0 * pData['5Hole']['v']['K'], 'ub': 1.0 * pData['5Hole']['v']['K']}
+    opt['param'][1] = {'val': pData['5Hole']['v']['bias'], 'lb': pData['5Hole']['v']['bias']-0.0, 'ub': pData['5Hole']['v']['bias']+0.0}
+    opt['param'][2] = {'val': pData['5Hole']['alpha']['K'], 'lb': 0.8, 'ub': 1.2}
+    opt['param'][3] = {'val': pData['5Hole']['alpha']['bias'], 'lb': -4.0 * deg2rad, 'ub': 4.0 * deg2rad}
+    opt['param'][4] = {'val': pData['5Hole']['beta']['K'], 'lb': 0.8, 'ub': 1.2}
     opt['param'][5] = {'val': pData['5Hole']['beta']['bias'], 'lb': -4.0 * deg2rad, 'ub': 4.0 * deg2rad}
 
 
@@ -185,6 +193,7 @@ if False:
 
 
 #%% Plot the Solution
+from SensorModel import SensorErrorModel
 
 for iSeg, oDataWind in enumerate(oDataWindList):
 
@@ -196,35 +205,43 @@ for iSeg, oDataWind in enumerate(oDataWindList):
 
     oDataWind['vMean_AE_L_mps'] = vWind[iSeg]
 
-    plt.figure()
-    plt.subplot(3,1,1)
-    plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][0], label = 'Inertial')
-    plt.plot(oDataWind['time_s'], v_BA_L_mps[0] + oDataWind['vMean_AE_L_mps'][0], label = 'AirData + Wind')
-    plt.grid()
-    plt.legend()
-    plt.subplot(3,1,2)
-    plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][1])
-    plt.plot(oDataWind['time_s'], v_BA_L_mps[1] + oDataWind['vMean_AE_L_mps'][1])
-    plt.grid()
-    plt.subplot(3,1,3)
-    plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][2])
-    plt.plot(oDataWind['time_s'], v_BA_L_mps[2] + oDataWind['vMean_AE_L_mps'][2])
-    plt.grid()
+    if True:
+        plt.figure()
+        plt.subplot(3,1,1)
+        plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][0], label = 'Inertial')
+        plt.plot(oDataWind['time_s'], v_BA_L_mps[0] + oDataWind['vMean_AE_L_mps'][0], label = 'AirData + Wind')
+        plt.grid()
+        plt.legend()
+        plt.subplot(3,1,2)
+        plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][1])
+        plt.plot(oDataWind['time_s'], v_BA_L_mps[1] + oDataWind['vMean_AE_L_mps'][1])
+        plt.grid()
+        plt.subplot(3,1,3)
+        plt.plot(oDataWind['time_s'], oDataWind['vB_L_mps'][2])
+        plt.plot(oDataWind['time_s'], v_BA_L_mps[2] + oDataWind['vMean_AE_L_mps'][2])
+        plt.grid()
 
     v_AE_L_mps = np.repeat([oDataWind['vMean_AE_L_mps']], oDataWind['vB_L_mps'].shape[-1], axis=0).T
     vError_mps = (v_BA_L_mps + v_AE_L_mps) - oDataWind['vB_L_mps']
 
     vErrorMag_mps = np.linalg.norm(vError_mps, axis=0)
+    vAirUncalMag_mps = oDataWind['vIas_mps']
     vAirMag_mps = np.linalg.norm((v_BA_L_mps + v_AE_L_mps), axis=0)
     vInertMag_mps = np.linalg.norm(oDataWind['vB_L_mps'], axis=0)
 
     plt.figure(0)
+#    plt.plot(vAirMag_mps, vInertMag_mps - vAirMag_mps, '.')
     plt.plot(vAirMag_mps, vInertMag_mps, '.')
-#    plt.plot(vAirMag_mps, vErrorMag_mps, '.')
     plt.grid()
 
-
     print('Wind (m/s): ', oDataWind['vMean_AE_L_mps'])
+
+
+plt.figure(0)
+vA_mps = np.linspace(15, 35, 5)
+vAcal_mps = SensorErrorModel(vA_mps, pData['5Hole']['v'])
+plt.plot(vA_mps, vA_mps, 'k:')
+#plt.plot(vA_mps, vA_mps - vG_mps, 'k:')
 
 print('Velocity Gain: ', pData['5Hole']['v']['K'])
 print('Velocity Bias: ', pData['5Hole']['v']['bias'])

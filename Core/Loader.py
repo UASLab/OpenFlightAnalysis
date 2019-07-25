@@ -50,7 +50,12 @@ def JsonWrite(filename, data):
 #%% HDF5 Read
 def Log_RAPTRS(filename, fileConfig):
     
-    h5Data = Load_h5(filename) # RAPTRS log data as hdf5     
+    h5Data = Load_h5(filename) # RAPTRS log data as hdf5
+    
+    if 'PostProcess' in h5Data['Sensor-Processing']:
+        for key in h5Data['Sensor-Processing']['PostProcess']['INS'].keys():
+            h5Data['Sensor-Processing'][key] = h5Data['Sensor-Processing']['PostProcess']['INS'][key]
+    
     sysConfig = JsonRead(fileConfig)
     oData = OpenData_RAPTRS(h5Data, sysConfig)
     

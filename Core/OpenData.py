@@ -106,8 +106,8 @@ def FindExcite(oData):
     for iExc in range(0,len(iStartList)):
         iStart = iStartList[iExc]
         iEnd = iEndList[iExc]
-        timeRange_us = [oData['time_us'][iStart], oData['time_us'][iEnd]]
-                
+        timeRange_us = [int(oData['time_us'][iStart]), int(oData['time_us'][iEnd])]
+        
         testID = oData['testID'][iStart]
         
         exc = (testID, timeRange_us)
@@ -122,7 +122,7 @@ def TestPointOut(excList, testPointList):
     for iExc, exc in enumerate(excList):
         iTestID = exc[0]
         testPoint = testPointList[iTestID]
-        testPoint['time_us'] = str(excList[iExc][1])
+        testPoint['time_us'] = excList[iExc][1]
         testList.append(testPoint)
 
     return testList

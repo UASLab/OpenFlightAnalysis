@@ -190,6 +190,7 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
     fs and freq must have same units. (Pxx and Pyy will only have correct power scale if units are rad/sec)
 
     '''
+    from copy import copy
 
     x = np.atleast_2d(x)
     y = np.atleast_2d(y)
@@ -210,7 +211,7 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
         Pyy = []
         Pxy = []
 
-        optIn = opt
+        optIn = copy(opt)
 
         for iInput in range(0, numIn):
             if numFreq == 1:
@@ -218,7 +219,7 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
             else: # Multi-Input, Multi-Freqvector
                 freqOptIn = freqOpt[iInput]
 
-            optIn.freq = np.atleast_2d(freqOptIn)
+            optIn.freq = np.atleast_2d(freqOptIn.copy())
             freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn = FreqRespFuncEst(np.atleast_2d(x[iInput]), y, optIn)
 
             freq.append(freqIn)
@@ -430,40 +431,44 @@ def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False)
     return gain, phase
 
 #
-def DistCrit(T, TUnc = None, pCrit = -1+0j, type = 'ellipse', magUnit = 'mag'):
+def DistCrit(T, TUnc = None, pCrit = -1+0j, typeUnc = 'ellipse', magUnit = 'mag'):
 
     if TUnc is None: # There is no Uncertainty estimate, just return the distance between T and pCrit
         rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit, magUnit = magUnit)
     else:
-        if type is 'circle':
+        if typeUnc is 'circle':
             rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit, magUnit = magUnit)
-        elif type is 'ellipse':
+        elif typeUnc is 'ellipse':
             rCritNom, rCritUnc, rCrit, pCont = DistCritEllipse(T, TUnc, pCrit, magUnit = magUnit)
 
     return rCritNom, rCritUnc, rCrit
 
 
 #
-def DistCritCirc(T, TUnc = None, pCrit = -1+0j, magUnit = 'mag', type = 'RMS'):
+def DistCritCirc(T, TUnc = None, pCrit = -1+0j, magUnit = 'mag', typeNorm = 'RMS'):
 
     rCritNom = np.abs(pCrit - T)
     rCrit = None
 
     if TUnc is not None:
-        if type.lower() is 'rms':
-            rCrit = np.sqrt(0.5) * np.abs(TUnc) # RMS
-        elif type.lower() is 'max':
-            rCrit = np.max([TUnc.real, TUnc.imag]) # Max
-        elif type.lower() is 'mean':
-            rCrit = np.mean([TUnc.real, TUnc.imag]) # Mean
-        elif type.lower() is 'rss':
-            rCrit = np.abs(TUnc) # RSS
-
-        # Uncertain Distance is the difference between Nominal and rCrit Distance
-        rCritUnc = rCritNom - rCrit
+        if typeNorm.lower() == 'rms':
+            rCritUnc = np.sqrt(0.5) * np.abs(TUnc) # RMS
+        elif typeNorm.lower() == 'max':
+            rCritUnc = np.max([TUnc.real, TUnc.imag]) # Max
+        elif typeNorm.lower() == 'mean':
+            rCritUnc = np.mean([TUnc.real, TUnc.imag]) # Mean
+        elif typeNorm.lower() == 'rss':
+            rCritUnc = np.abs(TUnc) # RSS
 
     else:
-        rCritUnc = rCritNom
+        rCritUnc = 0.0
+    
+     # If the point is inside the ellipse return the distance as negative
+    inside = rCritUnc > rCritNom
+    rCritUnc[inside] = -rCritUnc[inside]
+
+    # Uncertain Distance is the difference between Nominal and rCritUnc Distance
+    rCrit = rCritNom - rCritUnc
 
     # mag to dB
     if magUnit is 'dB':
@@ -499,14 +504,12 @@ def DistCritEllipse(T, TUnc, pCrit = -1+0j, magUnit = 'mag'):
     pCont = pCont_new + T
 
     # Compute the distance to the contact point
-    rCritUnc = np.abs(pCont - pCrit)
-
-    # If the point is inside the ellipse return the distance as negative
-    rCritUnc[inside] = -rCritUnc[inside]
+    rCrit = np.abs(pCont - pCrit)
+    rCrit[inside] = -rCrit[inside] # If the point is inside the ellipse return the distance as negative
 
     # rCrit is the difference between Nominal and Uncertain Distance
-    rCrit = rCritNom - rCritUnc
-
+    rCritUnc = np.abs(pCont - T)
+    
     if magUnit is 'dB':
         rCritNom = 20*np.log10(rCritNom)
         rCritUnc = 20*np.log10(rCritUnc)
@@ -742,7 +745,7 @@ def PlotBode(freq_hz, gain_dB, phase_deg, coher_nd = None, fig = None, fmt = '',
     return fig
 
 
-# SISO Critical Distance Plot
+# SISO Nyquist Plot
 def PlotNyquist(T, TUnc = None, fig = None, fmt = '', label=''):
 
     if isinstance(fig, matplotlib.figure.Figure):

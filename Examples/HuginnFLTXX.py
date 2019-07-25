@@ -6,7 +6,7 @@ See: LICENSE.md for complete license details
 
 Author: Chris Regan
 
-Overview FLT XX
+Analysis for Huginn (mAEWing2) FLT XX
 """
 
 #%%
@@ -22,7 +22,7 @@ if __name__ == "__main__" and __package__ is None:
 
     path.insert(0, abspath(join(dirname(argv[0]), "..")))
     path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
-
+    
     del path, argv, dirname, abspath, join
 
 from Core import Loader
@@ -34,9 +34,8 @@ hz2rps = 2 * np.pi
 rps2hz = 1 / hz2rps
 
 pathBase = os.path.join('/home', 'rega0051', 'FlightArchive')
-pathBase = os.path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data')
-ac = 'Thor'
-flt = 'FLT128'
+ac = 'Huginn'
+flt = 'FLT03'
 
 fileLog = os.path.join(pathBase, ac, ac + flt, ac + flt + '.h5')
 fileTestDef = os.path.join(pathBase, ac, ac + flt, ac.lower() + '_def.json')
@@ -48,18 +47,18 @@ fileSysConfig = os.path.join(pathBase, ac, ac + flt, ac.lower() + '.json')
 oData, h5Data = Loader.Log_RAPTRS(fileLog, fileSysConfig)
 
 # Plot Overview of flight
-#oData = OpenData.Segment(oData, ('time_s', [500, 1200]))
+#oData = OpenData.Segment(oData, ('time_s', [950, 970]))
 OpenData.PlotOverview(oData)
 
 
 #%% Find Excitation Times
 excList = OpenData.FindExcite(oData)
-
+segList = []
 print('\n\nFlight Excitation Times:\n')
 for iExc in range(0, len(excList)):
     print('Excitiation: ', excList[iExc][0], ', Time: [', excList[iExc][1][0], ',', excList[iExc][1][1], ']')
 
-segList = [('time_us', excList[0][1])]
+    segList.append( ('time_us', excList[iExc][1]))
 
 oDataExc = OpenData.Segment(oData, segList)
 #OpenData.PlotOverview(oDataExc[0])
@@ -67,20 +66,20 @@ oDataExc = OpenData.Segment(oData, segList)
 
 #%% Save _init.json file
 # Open init json file
-json_init = {}
-#json_init = JsonRead(fileTestDef)
+fltDef = {}
+#fltDef = JsonRead(fileTestDef)
 
 # Open flight json file
-flightjson = Loader.JsonRead(fileSysConfig)
-testPointList = flightjson['Mission-Manager']['Test-Points']
+fltConfig = Loader.JsonRead(fileSysConfig)
+testPointList = fltConfig['Mission-Manager']['Test-Points']
 
-json_init['Test-Points'] = OpenData.TestPointOut(excList, testPointList)
+fltDef['Test-Points'] = OpenData.TestPointOut(excList, testPointList)
 
 if True:
-    Loader.JsonWrite(fileTestDef, json_init)
+    Loader.JsonWrite(fileTestDef, fltDef)
     print('Init File Updated:\n', fileTestDef)
 else:
     import json
-    json.dumps(json_init, indent = 4, ensure_ascii=False)
+    json.dumps(fltDef, indent = 4, ensure_ascii=False)
     print('\nInit file NOT updated\n\n')
 

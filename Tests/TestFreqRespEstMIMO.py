@@ -6,7 +6,7 @@ See: LICENSE.md for complete license details
 
 Author: Chris Regan
 
-Example script for testing Frequency Response Estimation - MIMO.
+Example script for testing Frequency Response Estimation - MIMO with Noise.
 """
 
 import numpy as np
@@ -31,138 +31,172 @@ from Core import FreqTrans
 hz2rps = 2*np.pi
 rps2hz = 1/hz2rps
 
+rad2deg = 180/np.pi
+deg2rad = 1/rad2deg
+
 
 #%% Define a linear systems
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 
-freqSys_rps = np.fft.rfftfreq(500, 1/freqRate_rps)
+freqSys_rps = np.fft.rfftfreq(1500, 1/freqRate_rps)
 freqSys_hz = freqSys_rps * rps2hz
 
-wn = 2 * hz2rps
-d = 0.2
-sys11 = signal.TransferFunction([1.0 * wn**2], [1, 2.0*d*wn, wn**2])
-_, gainSys11_dB, phaseSys11_deg = signal.bode(sys11, w=freqSys_rps)
-_, TSys11 = signal.freqresp(sys11, w=freqSys_rps)
+sys = [[0] * 2 for i in range(2)]
 
+K = 1.0
+wn = 2 * hz2rps
+d = 0.1
+sys[0][0] = signal.TransferFunction([K * wn**2], [1, 2.0*d*wn, wn**2])
+
+K = 1.0
 wn = 4 * hz2rps
 d = 0.4
-sys21 = signal.TransferFunction([1.0 * wn**2], [1,  2.0*d*wn, wn**2])
-_, gainSys21_dB, phaseSys21_deg = signal.bode(sys21, w=freqSys_rps)
-_, TSys21 = signal.freqresp(sys21, w=freqSys_rps)
+sys[1][0] = signal.TransferFunction([K * wn**2], [1,  2.0*d*wn, wn**2])
 
+K = 0.25
 wn = 6 * hz2rps
 d = 0.6
-sys12 = signal.TransferFunction([1.0 * wn**2], [1,  2.0*d*wn, wn**2])
-_, gainSys12_dB, phaseSys12_deg = signal.bode(sys12, w=freqSys_rps)
-_, TSys12 = signal.freqresp(sys12, w=freqSys_rps)
+sys[0][1] = signal.TransferFunction([K * wn**2], [1,  2.0*d*wn, wn**2])
 
+K = 1.0
 wn = 8 * hz2rps
 d = 0.8
-sys22 = signal.TransferFunction([1.0 * wn**2], [1,  2.0*d*wn, wn**2])
-_, gainSys22_dB, phaseSys22_deg = signal.bode(sys22, w=freqSys_rps)
-_, TSys22 = signal.freqresp(sys22, w=freqSys_rps)
+sys[1][1] = signal.TransferFunction([K * wn**2], [1,  2.0*d*wn, wn**2])
 
 
+gainSys_dB = [[0] * 2 for i in range(2)]
+phaseSys_deg = [[0] * 2 for i in range(2)]
+TSys = [[0] * 2 for i in range(2)]
+for iOut in range(2):
+    for iIn in range(2):
+        _, gainSys_dB[iIn][iOut], phaseSys_deg[iIn][iOut] = signal.bode(sys[iIn][iOut], w=freqSys_rps)
+        _, TSys[iIn][iOut] = signal.freqresp(sys[iIn][iOut], w=freqSys_rps)
 
-##
-numChan = 2
+
+#%%
+numExc = 2
 numCycles = 1
 ampInit = 1
 ampFinal = 1
-freqMinDes_rps = 0.1 * hz2rps * np.ones(numChan)
-freqMaxDes_rps = 10 * hz2rps *  np.ones(numChan)
+freqMinDes_rps = 0.1 * hz2rps * np.ones(numExc)
+freqMaxDes_rps = 10 * hz2rps *  np.ones(numExc)
 freqStepDes_rps = (5/freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 # Generate MultiSine Frequencies
-freqExcit_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles, freqStepDes_rps, methodSW)
+freqExc_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles, freqStepDes_rps, methodSW)
+freqGap_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 # Generate Schroeder MultiSine Signal
-ampElem_nd = np.linspace(ampInit, ampFinal, len(freqExcit_rps)) / np.sqrt(len(freqExcit_rps))
-exc, _, sigElem = GenExcite.MultiSine(freqExcit_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
-
+ampExcit_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(freqExc_rps))
+exc, _, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
 
 # Simulate the excitation through the system
-_, out11, _ = signal.lsim2(sys11, exc[0], time_s)
-_, out21, _ = signal.lsim2(sys21, exc[0], time_s)
-_, out12, _ = signal.lsim2(sys12, exc[1], time_s)
-_, out22, _ = signal.lsim2(sys22, exc[1], time_s)
+out = [[0] * 2 for i in range(2)]
+_, out[0][0], _ = signal.lsim2(sys[0][0], exc[0], time_s)
+_, out[0][1], _ = signal.lsim2(sys[0][1], exc[0], time_s)
+_, out[1][0], _ = signal.lsim2(sys[1][0], exc[1], time_s)
+_, out[1][1], _ = signal.lsim2(sys[1][1], exc[1], time_s)
 
-y = np.zeros_like(exc)
-y[0] = out11 + out12
-y[1] = out21 + out22
+y = [0] * 2
+iOut = 0
+y[iOut] = out[0][iOut] + out[1][iOut]
+iOut = 1
+y[iOut] = out[0][iOut] + out[1][iOut]
 
 
-#%% Estimate the transfer function
+#%% Estimate the frequency response function
 optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
 
+# Excited Frequencies per input channel
 optSpec.freq = []
-for iChan in range(0, numChan):
-    optSpec.freq.append(freqExcit_rps[sigIndx[iChan]])
+for iChan in range(0, numExc):
+    optSpec.freq.append(freqExc_rps[sigIndx[iChan]])
 optSpec.freq = np.asarray(optSpec.freq)
 
+# FRF Estimate
 freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(exc, y, optSpec)
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
-    
-freq_hz = freq_rps * rps2hz
 
+
+freq_hz = freq_rps * rps2hz
+phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg
 
 #%% Plot
 plt.figure(1)
 
-freqChan_hz = freqExcit_rps[sigIndx[0]] * rps2hz
-
+iIn = 0; iOut = 0
 ax1 = plt.subplot(4,2,1); ax1.grid()
-ax1.semilogx(freqSys_hz, gainSys11_dB)
-ax1.semilogx(freqChan_hz, gain_dB[0][0], '.')
+ax1.semilogx(freqSys_hz, gainSys_dB[iIn][iOut], label='Sys')
+ax1.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.', label='Sys Estimate')
+ax1.set_title('K = 1, wn = 2 hz, d = 0.1')
+ax1.legend()
 ax3 = plt.subplot(4,2,3, sharex = ax1); ax3.grid()
-ax3.semilogx(freqSys_hz, phaseSys11_deg)
-ax3.semilogx(freqChan_hz, phase_deg[0][0], '.')
-ax3.set_ylim(-180, 180); ax3.set_yticks([-180,-90,0,90,180])
+ax3.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
+ax3.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
+ax3.set_ylim(-270, 90); ax3.set_yticks([-270,-180,-90,0,90])
 
-
+iIn = 0; iOut = 1
 ax2 = plt.subplot(4,2,2); ax2.grid()
-ax2.semilogx(freqSys_hz, gainSys21_dB)
-ax2.semilogx(freqChan_hz, gain_dB[0][1], '.')
+ax2.semilogx(freqSys_hz, gainSys_dB[iIn][iOut])
+ax2.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.')
+ax2.set_title('K = 0.25, wn = 6 hz, d = 0.6')
 ax4 = plt.subplot(4,2,4, sharex = ax2); ax4.grid()
-ax4.semilogx(freqSys_hz, phaseSys21_deg)
-ax4.semilogx(freqChan_hz, phase_deg[0][1], '.')
-ax4.set_ylim(-180, 180); ax4.set_yticks([-180,-90,0,90,180])
+ax4.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
+ax4.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
+ax4.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
 
-freqChan_hz = freqExcit_rps[sigIndx[1]] * rps2hz
-
+iIn = 1; iOut = 0
 ax5 = plt.subplot(4,2,5); ax5.grid()
-ax5.semilogx(freqSys_hz, gainSys12_dB)
-ax5.semilogx(freqChan_hz, gain_dB[1][0], '.')
+ax5.semilogx(freqSys_hz, gainSys_dB[iIn][iOut])
+ax5.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.')
+ax5.set_title('K = 1, wn = 4 hz, d = 0.4')
 ax7 = plt.subplot(4,2,7, sharex = ax5); ax7.grid()
-ax7.semilogx(freqSys_hz, phaseSys12_deg)
-ax7.semilogx(freqChan_hz, phase_deg[1][0], '.')
-ax7.set_ylim(-180, 180); ax4.set_yticks([-180,-90,0,90,180])
+ax7.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
+ax7.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
+ax7.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
 
+iIn = 1; iOut = 1
 ax6 = plt.subplot(4,2,6); ax6.grid()
-ax6.semilogx(freqSys_hz, gainSys22_dB)
-ax6.semilogx(freqChan_hz, gain_dB[1][1], '.')
+ax6.semilogx(freqSys_hz, gainSys_dB[iIn][iOut])
+ax6.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.')
+ax6.set_title('K = 1, wn = 8 hz, d = 0.8')
 ax8 = plt.subplot(4,2,8, sharex = ax6); ax8.grid()
-ax8.semilogx(freqSys_hz, phaseSys22_deg)
-ax8.semilogx(freqChan_hz, phase_deg[1][1], '.')
-ax8.set_ylim(-180, 180); ax4.set_yticks([-180,-90,0,90,180])
+ax8.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
+ax8.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
+ax8.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
 
 
+    
 #%%
 plt.figure(2)
+
+iIn = 0; iOut = 0
 ax1 = plt.subplot(2,2,1); ax1.grid()
-ax1.plot(TSys11.imag, TSys11.real)
-ax1.plot(Txy[0][0].imag, Txy[0][0].real, '.')
+ax1.plot(TSys[0][0].imag, TSys[0][0].real)
+ax1.set_title('K = 1, wn = 2 hz, d = 0.1')
+ax1.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax1.set_ylabel('Imag')
 
+iIn = 0; iOut = 1
 ax2 = plt.subplot(2,2,2, sharex = ax1, sharey = ax1); ax2.grid()
-ax2.plot(TSys21.imag, TSys21.real)
-ax2.plot(Txy[0][1].imag, Txy[0][1].real, '.')
+ax2.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax2.set_title('K = 0.25, wn = 6 hz, d = 0.6')
+ax2.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
 
+iIn = 1; iOut = 0
 ax3 = plt.subplot(2,2,3, sharex = ax1, sharey = ax1); ax3.grid()
-ax3.plot(TSys12.imag, TSys12.real)
-ax3.plot(Txy[1][0].imag, Txy[1][0].real, '.')
+ax3.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax3.set_title('K = 1, wn = 4 hz, d = 0.4')
+ax3.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax3.set_xlabel('Real')
+ax3.set_ylabel('Imag')
 
-ax4 = plt.subplot(2,2,4, sharex = ax1, sharey = ax1); ax4.grid()
-ax4.plot(TSys22.imag, TSys22.real)
-ax4.plot(Txy[1][1].imag, Txy[1][1].real, '.')
+iIn = 1; iOut = 1
+ax4 = plt.subplot(2,2,4, sharex = ax1, sharey = ax1); ax4.grid(True)
+ax4.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax4.set_title('K = 1, wn = 8 hz, d = 0.8')
+ax4.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+
+ax4.set_xlabel('Real')

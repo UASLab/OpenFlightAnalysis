@@ -17,14 +17,14 @@ import FreqTrans
 #%%
 pCrit = -1+0j
 T = np.array([-0.5 - 0.5j])
-TUnc = np.array([0.1 + 0.4j])
+TUnc = np.array([0.75 + 1.4j])
 
 rCritNom, rCritUnc, rCrit, pCont = FreqTrans.DistCritEllipse(T, TUnc, pCrit = pCrit, magUnit = 'mag')
 
-#rCritNomCirc, rCritUncCirc, rCritCirc = FreqTrans.DistCritCirc(T, TUnc, pCrit = pCrit, magUnit = 'mag')
-#rCirc = np.sqrt(0.5) * np.abs(TUnc) # RMS
+#rCritNomCirc, rCritUncCirc, rCritCirc = FreqTrans.DistCritCirc(T, TUnc, pCrit = pCrit, magUnit = 'mag', typeNorm = 'RMS')
+rCirc = np.sqrt(0.5) * np.abs(TUnc) # RMS
 #rCirc = np.max([TUnc.real, TUnc.imag]) # Max
-rCirc = np.mean([TUnc.real, TUnc.imag]) # Mean
+#rCirc = np.mean([TUnc.real, TUnc.imag]) # Mean
 #rCirc = np.abs(TUnc) # RSS
 
 TUncCirc = np.array([rCirc+1j*rCirc])
@@ -49,6 +49,6 @@ ax.plot([pCrit.real, pContCirc.real], [pCrit.imag, pContCirc.imag], 'g*--')
 
 
 ax.axis('equal')
-fig.suptitle(['Nom: ' + str(rCritNom[0]) + ' Ellipse: ' + str(rCritUnc[0]) + ', Circle: ' + str(rCritUncCirc[0])])
+fig.suptitle(['Nom: ' + str(rCritNom[0]) + ' Ellipse: ' + str(rCrit[0]) + ', Circle: ' + str(rCritCirc[0])])
 
 
