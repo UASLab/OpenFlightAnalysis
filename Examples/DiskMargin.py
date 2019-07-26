@@ -17,7 +17,7 @@ import FreqTrans
 #%%
 pCrit = -1+0j
 T = np.array([-0.5 - 0.5j])
-TUnc = np.array([0.75 + 1.4j])
+TUnc = np.array([0.5 + 0.25j])
 
 rCritNom, rCritUnc, rCrit, pCont = FreqTrans.DistCritEllipse(T, TUnc, pCrit = pCrit, magUnit = 'mag')
 

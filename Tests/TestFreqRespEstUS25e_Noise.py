@@ -76,15 +76,15 @@ sysSimOL_OutputNames = ['fbP', 'fbQ', 'fbR']; nOut = len(sysSimOL_OutputNames)
 
 inList = [sysOL_InputNames.index(s) for s in sysSimOL_InputNames]
 outList = [sysOL_OutputNames.index(s) for s in sysSimOL_OutputNames]
-sysSimOL_gain_nd = np.zeros([nOut, nIn, nFreq])
-sysSimOL_phase_rad = np.zeros([nOut, nIn, nFreq])
-sysSimOL = np.zeros([nOut, nIn, nFreq], dtype=complex)
+sysSimOL_gain_nd = np.zeros([nIn, nOut, nFreq])
+sysSimOL_phase_rad = np.zeros([nIn, nOut, nFreq])
+sysSimOL = np.zeros([nIn, nOut, nFreq], dtype=complex)
 
 for iOut, outEntry in enumerate(outList):
     for iIn, inEntry in enumerate(inList):
         sysSimOL_gain_nd[iIn, iOut], sysSimOL_phase_rad[iIn, iOut], _ = control.bode_plot(sysOL[outEntry, inEntry], omega = freqSys_rps, Plot = False)
         Treal, Timag, _ = control.nyquist_plot(sysOL[outEntry, inEntry], omega = freqSys_rps, Plot = False)
-        sysSimOL[iOut, iIn, :] = Treal + 1j*Timag
+        sysSimOL[iIn, iOut, :] = Treal + 1j*Timag
 
 #sysSimOL_gain_nd[sysSimOL_gain_nd == 0] = 1e-6
 sysSimOL_gain_dB = 20*np.log10(sysSimOL_gain_nd)
@@ -115,17 +115,18 @@ exc_names = ['excP', 'excQ', 'excR']
 
 # Generate Noise
 dist_names = ['phiDist', 'thetaDist', 'pDist', 'qDist', 'rDist', 'VDist', 'hDist']
-angleDist = np.random.normal(0, 0.5 * ampInit, size = (2, len(time_s)))
-pqrDist = np.random.normal(0, 2.0, size = (3, len(time_s)))
-airDist = np.random.normal(0, 0.5, size = (2, len(time_s)))
-dist = 1.0 * np.concatenate((angleDist, pqrDist, airDist))
-
+angleDist = np.random.normal(0, 0.0 * ampInit, size = (2, len(time_s)))
+pqrDist = np.random.normal(0, 0.5, size = (3, len(time_s)))
+airDist = np.random.normal(0, 0.0, size = (2, len(time_s)))
+dist = np.concatenate((angleDist, pqrDist, airDist))
+dist = 1.0 * dist
 
 # Reference Inputs
 ref_names = ['refPhi', 'refTheta', 'refYaw']
 shapeRef = (len(ref_names), len(time_s))
-ref = np.random.normal(0, 4.0 * ampInit, size = (3, len(time_s)))
+ref = np.random.normal(0, 1.0 * ampInit, size = (3, len(time_s)))
 ref[1] = 2.0 * deg2rad + ref[1]
+ref = 0.0 * ref
 
 # Simulate the excitation through the system, with noise
 sysExc_InputNames = sysCL_InputNames
@@ -147,13 +148,13 @@ v = out[3:6]
 sens_names = sysExc_OutputNames[-7:]
 sens = out[-7:]
 
-#plt.plot(time_s, exc[1], time_s, v[1], time_s, fb[1])
+#plt.plot(time_s, exc[1], time_s, v[1], time_s, fb[1], time_s, pqrDist[1])
 
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 1.0), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 1.0), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.0), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = []
@@ -165,7 +166,7 @@ optSpec.freq = np.asarray(optSpec.freq)
 optSpecN.freq = freqGap_rps
 
 # FRF Estimate
-freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc = FreqTrans.FreqRespFuncEstNoise(exc, fb, optSpec, optSpecN)
+freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc, Pbb_N = FreqTrans.FreqRespFuncEstNoise(exc, fb, optSpec, optSpecN)
 _       , Tev, Cev, _  , Pvv, Pev = FreqTrans.FreqRespFuncEst(exc, v, optSpec)
 
 
@@ -183,7 +184,7 @@ for i in range(T.shape[-1]):
     T[...,i] = Teb[...,i] @ np.linalg.inv(Tev[...,i])
     TUnc[...,i] = TebUnc[...,i] @ np.linalg.inv(Tev[...,i])
 
-C = Cev
+C = Ceb
 
 T_InputNames = exc_names
 T_OutputNames = fb_names

@@ -31,7 +31,7 @@ hz2rps = 2*np.pi
 rps2hz = 1/hz2rps
 
 #%% Define the frequency selection and distribution of the frequencies into the signals
-numChan = 3
+numChan = 2
 freqRate_hz = 50;
 timeDur_s = 10.0
 numCycles = 5
@@ -39,7 +39,7 @@ numCycles = 5
 freqMinDes_rps = (numCycles/timeDur_s) * hz2rps * np.ones(numChan)
 #freqMaxDes_rps = (freqRate_hz/2) * hz2rps *  np.ones(numChan)
 freqMaxDes_rps = 10 * hz2rps *  np.ones(numChan)
-freqStepDes_rps = (5 / freqRate_hz) * hz2rps
+freqStepDes_rps = (20 / freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 ## Generate MultiSine Frequencies
@@ -48,7 +48,7 @@ timeDur_s = time_s[-1] - time_s[0]
 
 ## Generate Schroeder MultiSine Signal
 ampElem_nd = np.ones_like(freqElem_rps) ## Approximate relative signal amplitude, create flat
-sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Schroeder', phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak');
+sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, costType = 'Schroeder', phaseInit_rad = 0, boundPhase = True, initZero = True, normalize = 'peak');
 
 
 ## Results
@@ -109,6 +109,7 @@ for iChan in range(0, nChan):
     plt.plot(freq_czt[iChan].T, P_dB_czt[iChan].T, '.r-', label='CZT Pxx')
     plt.grid()
     plt.ylabel('Spectrum (dB)');
+    plt.xlim([0, 12]);
 
 plt.xlabel('frequency (Hz)');
 plt.legend()

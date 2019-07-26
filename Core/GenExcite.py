@@ -91,7 +91,7 @@ def Chirp(freqInit_rps, freqFinal_rps, time_s, ampInit = 1.0, ampFinal = 1.0, fr
 
 
 #%% Peak Minimal Optimal Multisine
-def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = None, costType = 'Schoeder'):
+def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = True, initZero = True, normalize = None, costType = 'Schoeder'):
 
     #Reference:
     # "Synthesis of Low-Peak-Factor Signals and Binary Sequences with Low
@@ -122,11 +122,13 @@ def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
     # Offset the phase components to yield near zero initial and final values
     # for each of the signals, based on Morrelli.  This is optional.
     if initZero:
-        # Phase shift required for each of the frequency components
-        phaseElem_rad += PhaseShift(sigList, time_s, freqElem_rps, sigIndx)
-
-        # Recompute the signals with the phases
-        [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
+        for i in range(10): # Do this a few times to improve the results
+            # Phase shift required for each of the frequency components
+            phaseElem_rad += PhaseShift(sigList, time_s, freqElem_rps, sigIndx)
+    
+            # Recompute the signals with the phases
+            [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
+            
 
     # Re-scale and re-assemble to achieve unity peak-to-peak amplitude on each channel
     if normalize is 'peak':

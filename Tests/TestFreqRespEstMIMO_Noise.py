@@ -106,7 +106,7 @@ iOut = 1
 y[iOut] = out[0][iOut] + out[1][iOut]
 
 # Generate Noise
-sigmaNoise = 0.25
+sigmaNoise = 0.125
 np.random.seed(seed=0)
 
 wn = 3 * hz2rps
@@ -124,8 +124,8 @@ y += yNoise
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps)
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.0), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = []
@@ -137,7 +137,7 @@ optSpec.freq = np.asarray(optSpec.freq)
 optSpecN.freq = freqGap_rps
 
 # FRF Estimate
-freq_rps, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc = FreqTrans.FreqRespFuncEstNoise(exc, y, optSpec, optSpecN)
+freq_rps, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, Pyy_N = FreqTrans.FreqRespFuncEstNoise(exc, y, optSpec, optSpecN)
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 
 

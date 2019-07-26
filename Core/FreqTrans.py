@@ -77,6 +77,7 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
         Pyy = []
         Pxy = []
         TxyUnc = []
+        Pyy_N = []
 
         optIn = copy.deepcopy(opt)
         optInN = copy.deepcopy(optN)
@@ -94,7 +95,7 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
 
             optIn.freq = np.atleast_2d(freqOptIn)
             optInN.freq = np.atleast_2d(freqOptInN)
-            freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn, TxyUncIn = FreqRespFuncEstNoise(np.atleast_2d(x[iInput]), y, optIn, optInN)
+            freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn, TxyUncIn, Pyy_NIn = FreqRespFuncEstNoise(np.atleast_2d(x[iInput]), y, optIn, optInN)
 
             freq.append(np.copy(freqIn))
             Txy.append(np.copy(TxyIn))
@@ -103,12 +104,13 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
             Pyy.append(np.copy(PyyIn))
             Pxy.append(np.copy(PxyIn))
             TxyUnc.append(np.copy(TxyUncIn))
+            Pyy_N.append(np.copy(Pyy_NIn))
 
     else: # Single-Input, Sigle-FreqVector
 
         # Compute the Power Spectrums
-        _   , xDft_E, Pxx_E = Spectrum(x, opt)
-        freq, yDft_E, Pyy_E = Spectrum(y, opt)
+        _   , xDft, Pxx = Spectrum(x, opt)
+        freq, yDft, Pyy = Spectrum(y, opt)
         freqN, yDft_N, Pyy_N = Spectrum(y, optN)
 
         # Interpolate freqN into freqE, in polar coordinates
@@ -134,17 +136,12 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
         win = signal.get_window(opt.winType, lenX)
         scale = PowerScale(opt.scaleType, opt.freqRate, win)
 
-        Pxy_E = np.conjugate(xDft_E) * yDft_E * 2*scale # Scale is doubled because one-sided DFT
-        Pxy_N = np.conjugate(xDft_E) * yDft_N * 2*scale # Scale is doubled because one-sided DFT
+        Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
+        Pxy_N = np.conjugate(xDft) * yDft_N * 2*scale # Scale is doubled because one-sided DFT
 
-        Pxx = Pxx_E
-    #    Pyy = Pyy_E - Pyy_N
-        Pyy = Pyy_E
-    #    Pxy = Pxy_E - Pxy_N
-        Pxy = Pxy_E
 
-        # Smooth -
-        Pxy_smooth = Smooth(np.copy(Pxy), opt.smooth)
+        # Smooth - Cross-Spectrum
+        Pxy_smooth = Smooth(np.abs(Pxy), opt.smooth) * np.exp(1j * Smooth(np.angle(Pxy), opt.smooth))
 
         # Coherence, use the Smoothed Cross Spectrum
         Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
@@ -161,8 +158,9 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
     Pyy = np.atleast_2d(Pyy)
     Pxy = np.atleast_2d(Pxy)
     TxyUnc = np.atleast_2d(TxyUnc)
+    Pyy_N =  np.atleast_2d(Pyy_N)
 
-    return freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc
+    return freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, Pyy_N
 
 
 
@@ -241,8 +239,7 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
 
         Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
 
-        # Smooth -
-    #    Pxy_smooth = Smooth(np.copy(Pxy), smooth)
+        # Smooth - Cross-Spectrum (polar coordinates)
         Pxy_smooth = Smooth(np.abs(Pxy), opt.smooth) * np.exp(1j * Smooth(np.angle(Pxy), opt.smooth))
 
         # Coherence, use the Smoothed Cross Spectrum
