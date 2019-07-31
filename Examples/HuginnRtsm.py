@@ -37,7 +37,7 @@ rps2hz = 1 / hz2rps
 import os.path as path
 
 pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Huginn')
-#pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
+pathBase = path.join('O:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
 #pathBase = path.join('D:/', 'Huginn')
 
 fileList = {}
@@ -197,8 +197,8 @@ TUnc = []
 C = []
 for iSeg, seg in enumerate(oDataSegs):
 
-    freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vFbList[iSeg], optSpec, optSpecN)
-    _       , Tev, Cev, _  , Pvv, Pev, TevUnc = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vCmdList[iSeg], optSpec, optSpecN)
+    freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc, Pbb_N = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vFbList[iSeg], optSpec, optSpecN)
+    _       , Tev, Cev, _  , Pvv, Pev, TevUnc, Pvv_N = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vCmdList[iSeg], optSpec, optSpecN)
 
     freq_hz = freq_rps * rps2hz
 
@@ -209,28 +209,35 @@ for iSeg, seg in enumerate(oDataSegs):
     for i in range(T_seg.shape[-1]):  
         T_seg[...,i] = Teb[...,i] @ np.linalg.inv(Tev[...,i])
         TUnc_seg[...,i] = TebUnc[...,i] @ np.linalg.inv(Tev[...,i])
+        
+        
     T.append( T_seg )
     TUnc.append( TUnc_seg )
 
-    C.append(Ceb)
 #    C.append(Cev)
+    C.append(Ceb)
 
 
 T_InputNames = sigExcList
 T_OutputNames = sigFbList
 
 # Compute Gain, Phase, Crit Distance
-gain_dB = []
+gain_mag = []
+gainUnc_mag = []
 phase_deg = []
 rCritNom_mag = []
 rCritUnc_mag = []
 rCrit_mag = []
 for iSeg in range(0, len(oDataSegs)):
 
-    gain_dB.append(FreqTrans.Gain(T[iSeg], magUnit = 'dB'))
+    gainElem_mag, gainElemUnc_mag, gainElemDiff_mag = FreqTrans.DistCritCirc(T[iSeg], TUnc[iSeg], pCrit = 0+0j, typeNorm = 'RMS')
+        
+    gain_mag.append(gainElem_mag)
+    gainUnc_mag.append(gainElemUnc_mag)
+    
     phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = True))
 
-    nom_mag, unc_mag, diff_mag = FreqTrans.DistCrit(T[iSeg], TUnc[iSeg], pCrit = -1+0j, typeUnc = 'ellipse', magUnit = 'mag')
+    nom_mag, unc_mag, diff_mag = FreqTrans.DistCrit(T[iSeg], TUnc[iSeg], pCrit = -1+0j, typeUnc = 'ellipse')
 
     rCritNom_mag.append(nom_mag)
     rCritUnc_mag.append(unc_mag)
@@ -269,13 +276,16 @@ if False:
 inPlot = sigExcList # Elements of sigExcList
 outPlot = sigFbList # Elements of sigFbList
 
+#inPlot = [sigExcList[0]] # Elements of sigExcList
+#outPlot = [sigFbList[0]] # Elements of sigFbList
+
 if True:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotDistCrit(freq_hz[iIn, 0], rCritNom_mag[iSeg][iIn, iOut], unc = rCritUnc_mag[iSeg][iIn, iOut], coher_nd = C[iSeg][iIn, iOut], fig = fig, fmt = '*:', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotDistCrit(freq_hz[iIn, 0], rCritNom_mag[iSeg][iIn, iOut], unc = rCritUnc_mag[iSeg][iIn, iOut], coher_nd = C[iSeg][iIn, iOut], fig = fig, fmt = '*-', label = oDataSegs[iSeg]['Desc'], plotUnc = False)
 
             fig = FreqTrans.PlotDistCrit(freq_hz[iIn, 0], 0.4 * np.ones_like(freq_hz[iIn, 0]), fig = fig, fmt = 'r--', label = 'Critical Limit')
             fig.suptitle(inName + ' to ' + outName, size=20)
@@ -285,7 +295,7 @@ if True:
 
 
 #%% Nyquist Plots
-if False:
+if True:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
 
@@ -302,13 +312,13 @@ if False:
 
 
 #%% Bode Plots
-if False:
+if True:
 
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotBode(freq_hz[iIn, 0], gain_dB[iSeg][iIn, iOut], phase_deg[iSeg][iIn, iOut], C[iSeg][iIn, iOut], fig = fig, fmt = '*--', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotBode(freq_hz[iIn, 0], gain_mag[iSeg][iIn, iOut], phase_deg[iSeg][iIn, iOut], C[iSeg][iIn, iOut], gainUnc_mag = gainUnc_mag[iSeg][iIn, iOut], fig = fig, fmt = '*-', label = oDataSegs[iSeg]['Desc'])
 
             fig.suptitle(inName + ' to ' + outName, size=20)

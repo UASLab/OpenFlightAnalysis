@@ -25,7 +25,7 @@ hz2rps = 2 * np.pi
 V_fps = 55
 h_ft = 300
 b_ft = 4
-level = 'Moderate'
+level = 'Light'
 
 freq_hz = np.logspace(-2, 1, 500)
 freq_rps = freq_hz * hz2rps
@@ -34,13 +34,13 @@ sigma = Environment.TurbIntensityLow(h_ft, level = level)
 L_ft = Environment.TurbLengthScaleLow(h_ft)
 
 Pv, Pw =  Environment.TurbSpectDryden(sigma, L_ft, freq_rps, V_fps, b_ft)
-
-plt.semilogx(freq_hz, Pv[0], label = "Level: " + level + ", Direction: u")
-plt.semilogx(freq_hz, Pv[1], label = "Level: " + level + ", Direction: v")
-plt.semilogx(freq_hz, Pv[2], label = "Level: " + level + ", Direction: w")
-#plt.semilogx(freq_hz, Pw[0], label = "Level: " + level + ", Direction: p")
-#plt.semilogx(freq_hz, Pw[1], label = "Level: " + level + ", Direction: q")
-#plt.semilogx(freq_hz, -Pw[2], label = "Level: " + level + ", Direction: r")
+plt.figure(1)
+#plt.semilogx(freq_hz, Pv[0], label = "Level: " + level + ", Direction: u")
+#plt.semilogx(freq_hz, Pv[1], label = "Level: " + level + ", Direction: v")
+#plt.semilogx(freq_hz, Pv[2], label = "Level: " + level + ", Direction: w")
+plt.semilogx(freq_hz, Pw[0], label = "Level: " + level + ", Direction: p")
+plt.semilogx(freq_hz, Pw[1], label = "Level: " + level + ", Direction: q")
+plt.semilogx(freq_hz, -Pw[2], label = "Level: " + level + ", Direction: r")
 
 gyroNoise_rps = 0.00175
 gyroNoise_rps = np.repeat(gyroNoise_rps, freq_hz.shape[0])

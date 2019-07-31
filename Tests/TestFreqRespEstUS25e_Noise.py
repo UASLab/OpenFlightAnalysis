@@ -189,10 +189,10 @@ C = Ceb
 T_InputNames = exc_names
 T_OutputNames = fb_names
 
-gain_dB, phase_deg = FreqTrans.GainPhase(T, magUnit='dB', phaseUnit='deg', unwrap=True)
-#rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, typeUnc = 'circle', magUnit = 'mag')
-#rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, typeUnc = 'ellipse', magUnit = 'mag')
-rCritNom_mag, rCritUnc_mag, rCrit_mag, pCont_mag = FreqTrans.DistCritEllipse(T, TUnc, pCrit = -1+0j, magUnit = 'mag') # Returns closest approach points
+gain_mag, phase_deg = FreqTrans.GainPhase(T, magUnit='mag', phaseUnit='deg', unwrap=True)
+#rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, typeUnc = 'circle')
+#rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, typeUnc = 'ellipse')
+rCritNom_mag, rCritUnc_mag, rCrit_mag, pCont_mag = FreqTrans.DistCritEllipse(T, TUnc, pCrit = -1+0j) # Returns closest approach points
 
 
 #%% Disk Margin Plots
@@ -234,7 +234,7 @@ if False:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
             fig = 100 + 3*iIn + iOut
-            fig = FreqTrans.PlotBode(freqSys_hz, sysSimOL_gain_dB[iIn, iOut], sysSimOL_phase_deg[iIn, iOut], fig = fig, fmt = 'k', label = 'Linear')
-            fig = FreqTrans.PlotBode(freq_hz[iOut, 0], gain_dB[iIn, iOut], phase_deg[iIn, iOut], C[iIn, iOut], fig = fig, fmt = 'b.', label = 'Excitation')
+            fig = FreqTrans.PlotBode(freqSys_hz, sysSimOL_gain_nd[iIn, iOut], sysSimOL_phase_deg[iIn, iOut], fig = fig, fmt = 'k', label = 'Linear')
+            fig = FreqTrans.PlotBode(freq_hz[iOut, 0], gain_mag[iIn, iOut], phase_deg[iIn, iOut], C[iIn, iOut], fig = fig, fmt = 'b.', label = 'Excitation')
             fig.suptitle(inName + ' to ' + outName, size=20)
 

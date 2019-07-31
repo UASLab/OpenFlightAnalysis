@@ -37,6 +37,7 @@ rps2hz = 1 / hz2rps
 import os.path as path
 
 pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Huginn')
+pathBase = path.join('O:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
 
 fileList = {}
 flt = 'FLT03'
@@ -69,12 +70,12 @@ from Core import FreqTrans
 
 rtsmSegList = [
 #        {'flt': 'FLT03', 'seg': ('time_us', [880217573, 893797477], 'FLT03 - Sym1 - 20 m/s')}, # 20 m/s
-#        {'flt': 'FLT03', 'seg': ('time_us', [710658638, 722078703], 'FLT03 - Sym1 - 23 m/s')}, # 23 m/s
+        {'flt': 'FLT03', 'seg': ('time_us', [710658638, 722078703], 'FLT03 - Sym1 - 23 m/s')}, # 23 m/s
         {'flt': 'FLT06', 'seg': ('time_us', [1136880543, 1146680543], 'FLT06 - Sym1 - 23 m/s')}, # 23 m/s
 #        {'flt': 'FLT04', 'seg': ('time_us', [914627038, 926728286], 'FLT04 - Sym1 - 26 m/s')}, # 26 m/s
-        {'flt': 'FLT05', 'seg': ('time_us', [622279236, 634279236], 'FLT05 - Sym1 - 26 m/s')}, # 26 m/s
-        {'flt': 'FLT05', 'seg': ('time_us', [831211361, 843211361], 'FLT05 - Sym1 - 29 m/s')}, # 29 m/s
-        {'flt': 'FLT06', 'seg': ('time_us', [972425515, 984425515], 'FLT06 - Sym1 - 32 m/s')}, # 32 m/s
+#        {'flt': 'FLT05', 'seg': ('time_us', [622279236, 634279236], 'FLT05 - Sym1 - 26 m/s')}, # 26 m/s
+#        {'flt': 'FLT05', 'seg': ('time_us', [831211361, 843211361], 'FLT05 - Sym1 - 29 m/s')}, # 29 m/s
+#        {'flt': 'FLT06', 'seg': ('time_us', [972425515, 984425515], 'FLT06 - Sym1 - 32 m/s')}, # 32 m/s
         
 #        {'flt': 'FLT04', 'seg': ('time_us', [1054856968, 1067537708], 'FLT04 - Sym2 - 20 m/s')}, # 20 m/s
 #        {'flt': 'FLT03', 'seg': ('time_us', [775518514, 788718440], 'FLT03 - Sym2 - 23 m/s')}, # 23 m/s
@@ -237,7 +238,7 @@ TUnc = []
 C = []
 for iSeg, seg in enumerate(oDataSegs):
     
-    freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc = FreqTrans.FreqRespFuncEstNoise(inList[iSeg], outList[iSeg], optSpec, optSpecN)
+    freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, Pyy_N = FreqTrans.FreqRespFuncEstNoise(inList[iSeg], outList[iSeg], optSpec, optSpecN)
     
     # Form the Frequency Response
     freq_rps.append( freq )
@@ -251,10 +252,12 @@ T_InputNames = sigInList
 T_OutputNames = sigOutList
 
 # Compute Gain, Phase, Crit Distance
-gain_dB = []
+gain_mag = []
+gainUnc_mag = []
 phase_deg = []
 for iSeg in range(0, len(oDataSegs)):
-    gain_dB.append(FreqTrans.Gain(T[iSeg], magUnit = 'dB'))
+    gain_mag.append(FreqTrans.Gain(T[iSeg], magUnit = 'mag'))
+    gainUnc_mag.append(FreqTrans.Gain(TUnc[iSeg], magUnit = 'mag'))
     phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = False))
 
 
@@ -313,6 +316,6 @@ if True:
             
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotBode(freq_hz[iSeg][iIn, 0], gain_dB[iSeg][iIn, iOut], phase_deg[iSeg][iIn, iOut], C[iSeg][iIn, iOut], fig = fig, fmt = '*--', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotBode(freq_hz[iSeg][iIn, 0], gain_mag[iSeg][iIn, iOut], phase_deg[iSeg][iIn, iOut], C[iSeg][iIn, iOut], gainUnc_mag = gainUnc_mag[iSeg][iIn, iOut], dB = False, fig = fig, fmt = '*--', label = oDataSegs[iSeg]['Desc'])
 
             fig.suptitle(inName + ' to ' + outName, size = 20)

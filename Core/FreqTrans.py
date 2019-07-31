@@ -428,21 +428,21 @@ def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False)
     return gain, phase
 
 #
-def DistCrit(T, TUnc = None, pCrit = -1+0j, typeUnc = 'ellipse', magUnit = 'mag'):
+def DistCrit(T, TUnc = None, pCrit = -1+0j, typeUnc = 'ellipse'):
 
     if TUnc is None: # There is no Uncertainty estimate, just return the distance between T and pCrit
-        rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit, magUnit = magUnit)
+        rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit)
     else:
         if typeUnc is 'circle':
-            rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit, magUnit = magUnit)
+            rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit)
         elif typeUnc is 'ellipse':
-            rCritNom, rCritUnc, rCrit, pCont = DistCritEllipse(T, TUnc, pCrit, magUnit = magUnit)
+            rCritNom, rCritUnc, rCrit, pCont = DistCritEllipse(T, TUnc, pCrit)
 
     return rCritNom, rCritUnc, rCrit
 
 
 #
-def DistCritCirc(T, TUnc = None, pCrit = -1+0j, magUnit = 'mag', typeNorm = 'RMS'):
+def DistCritCirc(T, TUnc = None, pCrit = -1+0j, typeNorm = 'RMS'):
 
     rCritNom = np.abs(pCrit - T)
     rCrit = None
@@ -467,16 +467,10 @@ def DistCritCirc(T, TUnc = None, pCrit = -1+0j, magUnit = 'mag', typeNorm = 'RMS
     # Uncertain Distance is the difference between Nominal and rCritUnc Distance
     rCrit = rCritNom - rCritUnc
 
-    # mag to dB
-    if magUnit is 'dB':
-        rCritNom = 20*np.log10(rCritNom)
-        rCritUnc = 20*np.log10(rCritUnc)
-        rCrit = 20*np.log10(rCrit)
-
     return rCritNom, rCritUnc, rCrit
 
 #
-def DistCritEllipse(T, TUnc, pCrit = -1+0j, magUnit = 'mag'):
+def DistCritEllipse(T, TUnc, pCrit = -1+0j):
 
     # Transform coordinates so that T is shifted to [0,0]
     pCrit_new = pCrit - T
@@ -506,11 +500,6 @@ def DistCritEllipse(T, TUnc, pCrit = -1+0j, magUnit = 'mag'):
 
     # rCrit is the difference between Nominal and Uncertain Distance
     rCritUnc = np.abs(pCont - T)
-    
-    if magUnit is 'dB':
-        rCritNom = 20*np.log10(rCritNom)
-        rCritUnc = 20*np.log10(rCritUnc)
-        rCrit = 20*np.log10(rCrit)
 
     return rCritNom, rCritUnc, rCrit, pCont
 
@@ -584,8 +573,6 @@ def DistEllipseRot(pEllipse, a, b, a_deg, pCrit):
         dist = -abs(dist)
 
     return pCont, dist
-
-
 
 
 #%% Compute the Fast Fourrier Transform
@@ -699,7 +686,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.patches as patch
 
 # SISO Bode Plot
-def PlotBode(freq_hz, gain_dB, phase_deg, coher_nd = None, fig = None, fmt = '', label=''):
+def PlotBode(freq_hz, gain_mag, phase_deg, coher_nd = None, gainUnc_mag = None, fig = None, fmt = '', label='', dB = True):
 
     if isinstance(fig, matplotlib.figure.Figure):
         ax = fig.get_axes()
@@ -718,13 +705,30 @@ def PlotBode(freq_hz, gain_dB, phase_deg, coher_nd = None, fig = None, fmt = '',
         plt.setp(ax[1].get_xticklabels(), visible=False)
 
     # Coherence
-    if coher_nd is None:
+    if coher_nd.any() is None:
         coher_nd = np.ones_like(freq_hz)
 
     # Make the plots
-    ax[0].semilogx(freq_hz, gain_dB, fmt, label = label)
+    if gainUnc_mag is None:
+        if dB:
+            ax[0].semilogx(freq_hz, 20*np.log10(gain_mag), fmt, label = label)
+            ax[0].set_ylabel('Gain (dB)')
+        else:
+            ax[0].semilogx(freq_hz, gain_mag, fmt, label = label)
+            ax[0].set_ylabel('Gain (mag)')
+    else:
+        ax[0].set_xscale("log", nonposx='clip')
+        
+        if dB:
+            gainUnc_dB = [-20 * np.log10(1 - gainUnc_mag/gain_mag), 20 * np.log10(1 +  gainUnc_mag/gain_mag)]
+            
+            ax[0].errorbar(freq_hz, 20*np.log10(gain_mag),  yerr = gainUnc_dB, fmt = fmt, elinewidth = 0, capsize = 2, label = label)
+            ax[0].set_ylabel('Gain (dB)')
+        else:
+            ax[0].errorbar(freq_hz, gain_mag,  yerr = gainUnc_mag, fmt = fmt, elinewidth = 0, capsize = 2, label = label)
+            ax[0].set_ylabel('Gain (mag)')
+
     ax[0].grid(True)
-    ax[0].set_ylabel('Gain (dB)')
 
     ax[1].semilogx(freq_hz, phase_deg, fmt, label = label)
     ax[1].yaxis.set_major_locator(plticker.MultipleLocator(180))
