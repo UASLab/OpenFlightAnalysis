@@ -187,19 +187,22 @@ freqExc_rps.append( np.array(sysConfig['Excitation']['OMS_Surf_3']['Frequency'])
 
 plt.figure()
 
-inList = []
+eList = []
+uList = []
 inSigList = []
 for iSeg, seg in enumerate(oDataSegs):
-    inSig = np.zeros((len(sigInList), len(seg['time_s'])))
+    eSig = np.zeros((len(sigInList), len(seg['time_s'])))
+    uSig = np.zeros((len(sigInList), len(seg['time_s'])))
     
     for iSig, sigIn in enumerate(sigInList):
-#        inSig[iSig] = seg['Excitation'][sigIn]
-        inSig[iSig] = seg['Control'][sigIn]
+        eSig[iSig] = seg['Excitation'][sigIn]
+        uSig[iSig] = seg['Control'][sigIn]
 #        inSig[iSig] = seg['Surf'][sigIn]
         
-        plt.plot(oDataSegs[iSeg]['time_s'], inSig[iSig])
+        plt.plot(oDataSegs[iSeg]['time_s'], eSig[iSig], oDataSegs[iSeg]['time_s'], uSig[iSig])
     
-    inList.append(inSig)
+    eList.append(eSig)
+    uList.append(uSig)
     inSigList.append(inSig)
 
     
@@ -221,7 +224,7 @@ for iSeg, seg in enumerate(oDataSegs):
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.2), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = np.asarray(freqExc_rps)
@@ -238,14 +241,24 @@ TUnc = []
 C = []
 for iSeg, seg in enumerate(oDataSegs):
     
-    freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, Pyy_N = FreqTrans.FreqRespFuncEstNoise(inList[iSeg], outList[iSeg], optSpec, optSpecN)
+    freq, Tey, Cey, Pee, Pyy, Pey, TeyUnc, Pyy_N = FreqTrans.FreqRespFuncEstNoise(eList[iSeg], outList[iSeg], optSpec, optSpecN)
+    freq, Teu, Ceu, _, Puu, Peu = FreqTrans.FreqRespFuncEst(eList[iSeg], uList[iSeg], optSpec)
     
     # Form the Frequency Response
-    freq_rps.append( freq )
-    freq_hz.append( freq * rps2hz )
-    T.append( Txy )
-    TUnc.append( TxyUnc )
-    C.append( Cxy )
+    freq_hz = freq * rps2hz
+
+    # Form the Frequency Response
+    T_seg = np.zeros_like(Tey)
+    TUnc_seg = np.zeros_like(Tey)
+
+    for i in range(T_seg.shape[-1]):
+        T_seg[...,i] = (Tey[...,i].T @ np.linalg.inv(Teu[...,i].T)).T
+        TUnc_seg[...,i] = (TeyUnc[...,i].T @ np.linalg.inv(Teu[...,i].T)).T
+
+
+    T.append( T_seg )
+    TUnc.append( TUnc_seg )
+    C.append(Cey)
     
 
 T_InputNames = sigInList
@@ -316,6 +329,6 @@ if True:
             
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotBode(freq_hz[iSeg][iIn, 0], gain_mag[iSeg][iIn, iOut], phase_deg[iSeg][iIn, iOut], C[iSeg][iIn, iOut], gainUnc_mag = gainUnc_mag[iSeg][iIn, iOut], dB = False, fig = fig, fmt = '*--', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotBode(freq_hz[iIn, 0], gain_mag[iSeg][iIn, iOut], phase_deg[iSeg][iIn, iOut], C[iSeg][iIn, iOut], gainUnc_mag = gainUnc_mag[iSeg][iIn, iOut], dB = False, fig = fig, fmt = '*--', label = oDataSegs[iSeg]['Desc'])
 
             fig.suptitle(inName + ' to ' + outName, size = 20)

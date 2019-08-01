@@ -111,45 +111,36 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
         # Compute the Power Spectrums
         _   , xDft, Pxx = Spectrum(x, opt)
         freq, yDft, Pyy = Spectrum(y, opt)
-        freqN, yDft_N, Pyy_N = Spectrum(y, optN)
+        freqN, yDft_NN, Pyy_NN = Spectrum(y, optN) # Noise in freqN basis
 
-        # Interpolate freqN into freqE, in polar coordinates
-        def interpPolar(z, freqN, freqE):
-            amp = np.abs(z)
-            theta = np.angle(z)
-
-            interpAmp = interp.interp1d(np.squeeze(freqN), amp, fill_value = "extrapolate")
-            interpTheta = interp.interp1d(np.squeeze(freqN), theta, fill_value = "extrapolate")
-
-            ampE = interpAmp(np.squeeze(freqE))
-            thetaE = interpTheta(np.squeeze(freqE))
-
-            zE = ampE * np.exp( 1j * thetaE )
-
-            return zE
-
-        yDft_N = interpPolar(yDft_N, freqN, freq)
-        Pyy_N = interpPolar(Pyy_N, freqN, freq)
+        # Interpolate to transform yDft_N from freqN basis to freqE basis
+        yDft_N = InterpPolar(yDft_NN, freqN, freq)
+#        Pyy_N = InterpPolar(Pyy_NN, freqN, freq)
 
         # Compute Cross Spectrum Power with scaling
         lenX = x.shape[-1]
         win = signal.get_window(opt.winType, lenX)
         scale = PowerScale(opt.scaleType, opt.freqRate, win)
-
+        
         Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
-        Pxy_N = np.conjugate(xDft) * yDft_N * 2*scale # Scale is doubled because one-sided DFT
+        Pxy_N = np.conjugate(xDft) * yDft_N * 2*scale
+        
+        # Smooth
+        Pxy_smooth = SmoothPolar(Pxy, opt)
+        Pxy_N_smooth = SmoothPolar(Pxy_N, optN)
+        
+        # Noise Power
+        Pyy_N = np.conjugate(yDft_N) * yDft_N * 2*scale
+#        Pyy_N_smooth = SmoothPolar(Pyy_N, optN)
 
-
-        # Smooth - Cross-Spectrum
-        Pxy_smooth = Smooth(np.abs(Pxy), opt.smooth) * np.exp(1j * Smooth(np.angle(Pxy), opt.smooth))
-
+        
         # Coherence, use the Smoothed Cross Spectrum
         Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
-
+        
         # Compute complex transfer function approximation
         Txy = Pxy / Pxx
         TxyUnc = Pxy_N / Pxx
-
+        
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
     Txy = np.atleast_2d(Txy)
@@ -159,10 +150,35 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
     Pxy = np.atleast_2d(Pxy)
     TxyUnc = np.atleast_2d(TxyUnc)
     Pyy_N =  np.atleast_2d(Pyy_N)
-
+    
     return freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, Pyy_N
 
+# Interpolate freqN into freqE, in polar coordinates
+def SmoothPolar(z, opt):
+    amp = np.abs(z)
+    theta = np.angle(z)
 
+    smoothAmp = Smooth(amp, opt.smooth)
+    smoothTheta = Smooth(theta, opt.smooth)
+
+    zE = smoothAmp * np.exp( 1j * smoothTheta )
+
+    return zE
+
+# Smooth polar coordinates
+def InterpPolar(z, freqN, freqE):
+    amp = np.abs(z)
+    theta = np.angle(z)
+
+    interpAmp = interp.interp1d(np.squeeze(freqN), amp, fill_value = "extrapolate")
+    interpTheta = interp.interp1d(np.squeeze(freqN), theta, fill_value = "extrapolate")
+
+    ampE = interpAmp(np.squeeze(freqE))
+    thetaE = interpTheta(np.squeeze(freqE))
+
+    zE = ampE * np.exp( 1j * thetaE )
+
+    return zE
 
 #%% Estimate Transfer Function from Time history data
 def FreqRespFuncEst(x, y, opt = OptSpect()):
@@ -240,7 +256,7 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
         Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
 
         # Smooth - Cross-Spectrum (polar coordinates)
-        Pxy_smooth = Smooth(np.abs(Pxy), opt.smooth) * np.exp(1j * Smooth(np.angle(Pxy), opt.smooth))
+        Pxy_smooth = SmoothPolar(Pxy, opt)
 
         # Coherence, use the Smoothed Cross Spectrum
         Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
@@ -281,7 +297,7 @@ def Spectrum(x, opt = OptSpect()):
     scale = PowerScale(opt.scaleType, opt.freqRate, win)
 
     # Compute the Fourier Transforms
-    if opt.dftType == 'fft':
+    if opt.dftType.lower() == 'fft':
         if opt.freq[0][0] is not None:
             raise ValueError('FFT frequencies vector must be None')
         freq, xDft  = FFT(xWin, opt.freqRate)
@@ -301,7 +317,15 @@ def Spectrum(x, opt = OptSpect()):
             xDft = xDft[..., 1:]
             P = P[..., 1:]
 
-    if opt.dftType == 'czt':
+    if opt.dftType.lower() == 'dftmat':
+        if opt.freq is None:
+            raise ValueError('DFT frequency vector must be provided')
+        freq, xDft  = DFTMat(xWin, opt.freq, opt.freqRate)
+
+        # Compute Power, factor of 2 because CZT is one-sided
+        P = (np.conjugate(xDft) * xDft).real * 2*scale
+
+    if opt.dftType.lower() == 'czt':
         if opt.freq is None:
             raise ValueError('CZT frequency vector must be provided')
         freq, xDft  = CZT(xWin, opt.freq, opt.freqRate)
@@ -601,8 +625,8 @@ def FFT(x, fs):
     return freq, xDft
 
 
-#%% Compute the Chirp-Z Fourrier Transform
-def CZT(x, freq, fs):
+#%% Compute the DFT wia Matrix
+def DFTMat(x, freq, fs):
     '''
     x is real
     returns the onesided DFT
@@ -644,6 +668,70 @@ def CZT(x, freq, fs):
 
     return freq, xDft
 
+
+#%% Compute the Chirp-Z Fourrier Transform
+def CZT(x, freq, fs, N = None):
+    '''
+    x is real
+    '''
+
+    # Ensure x is an array
+    x = np.atleast_2d(x)
+    freq = np.atleast_2d(freq)
+
+    # Length x should be even, remove the last data to make even
+    if N is None:
+        N = x.shape[-1]
+        
+    if N % 2 is not True:
+        x = x[..., :-1]
+        N = x.shape[-1]
+
+    # This Chirp-Z algorithm is intended for fixed intervals
+    # The provided frequency vector will be pulled apart and later re-formed to ensure fixed intervals
+    freqMin = np.min(freq)
+    freqMax = np.max(freq)
+
+    M = freq.shape[-1]
+    freqStep = (freqMax - freqMin) / (M - 1)
+
+    # Ratio between points
+    W = np.exp(-1j * (2*np.pi / fs) * freqStep);
+
+    # Starting point
+    A = np.exp(1j * 2*np.pi * freqMin / fs)
+
+
+    # Indices
+    k = np.arange(M)
+    n = np.arange(N, dtype=float)
+
+    Wk2 = np.power(W, k**2 / 2.)
+    AWn2 = np.power(A,-n) * np.power(W, n**2 / 2.)
+
+    # Helper objects
+    fft = np.fft.fft
+    ifft = np.fft.ifft
+
+    nfft = int(2**np.ceil(np.log2(M+N-1)))
+
+    # Pre-compute the Chirp Filter
+    v = np.zeros(nfft, dtype=np.complex)
+    v[:M] = np.power(W, -n[:M]**2/2.)
+    v[nfft-N+1:] = np.power(W, -n[N-1:0:-1]**2/2.)
+    V = fft(v, nfft)
+    
+    # Compute the Chirp-Z
+    Y = fft(AWn2 * x, nfft)
+    
+    xCzt = Wk2 * ifft(V*Y)[...,:M]
+
+
+    # Re-form the frequency vector
+    freq = k * freqStep + freqMin
+   
+
+    return freq, xCzt
 
 #%% Smooth Data with Convolution
 def Smooth(x, kern = ('box', 1), padMode = 'edge', convMode = 'valid'):

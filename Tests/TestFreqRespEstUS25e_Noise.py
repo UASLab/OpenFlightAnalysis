@@ -153,8 +153,8 @@ sens = out[-7:]
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.0), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = []
@@ -181,8 +181,8 @@ TUnc = np.empty_like(Tev)
 C = np.empty_like(Tev)
 
 for i in range(T.shape[-1]):  
-    T[...,i] = Teb[...,i] @ np.linalg.inv(Tev[...,i])
-    TUnc[...,i] = TebUnc[...,i] @ np.linalg.inv(Tev[...,i])
+    T[...,i] = (Teb[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
+    TUnc[...,i] = (TebUnc[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
 
 C = Ceb
 

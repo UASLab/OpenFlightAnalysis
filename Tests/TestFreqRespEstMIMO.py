@@ -99,11 +99,26 @@ _, out[0][1], _ = signal.lsim2(sys[0][1], exc[0], time_s)
 _, out[1][0], _ = signal.lsim2(sys[1][0], exc[1], time_s)
 _, out[1][1], _ = signal.lsim2(sys[1][1], exc[1], time_s)
 
+
+# Generate Noise
+sigmaN = 0.125
+
+wn = 3 * hz2rps
+d = 0.2
+sysN = signal.TransferFunction([sigmaN * wn**2], [1, 2.0*d*wn, wn**2])
+
+yN = np.zeros_like(exc)
+if False:
+    for iOut in range(2):
+        inNoise = np.random.normal(0, ampInit, size = exc[iOut].shape)
+        _, yN[iOut], _ = signal.lsim2(sysN, inNoise, time_s)
+
+
 y = [0] * 2
 iOut = 0
-y[iOut] = out[0][iOut] + out[1][iOut]
+y[iOut] = out[0][iOut] + out[1][iOut] + yN[iOut]
 iOut = 1
-y[iOut] = out[0][iOut] + out[1][iOut]
+y[iOut] = out[0][iOut] + out[1][iOut] + yN[iOut]
 
 
 #%% Estimate the frequency response function
@@ -125,48 +140,62 @@ phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg
 
 #%% Plot
 plt.figure(1)
+plt.tight_layout()
+plt.figure(1)
+plt.tight_layout()
 
 iIn = 0; iOut = 0
 ax1 = plt.subplot(4,2,1); ax1.grid()
 ax1.semilogx(freqSys_hz, gainSys_dB[iIn][iOut], label='Sys')
 ax1.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.', label='Sys Estimate')
+ax1.set_ylabel('Gain (dB)')
 ax1.set_title('K = 1, wn = 2 hz, d = 0.1')
 ax1.legend()
 ax3 = plt.subplot(4,2,3, sharex = ax1); ax3.grid()
 ax3.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
 ax3.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
 ax3.set_ylim(-270, 90); ax3.set_yticks([-270,-180,-90,0,90])
+#ax3.set_xlabel('Frequency (Hz)')
+ax3.set_ylabel('Phase (deg)')
 
 iIn = 0; iOut = 1
 ax2 = plt.subplot(4,2,2); ax2.grid()
 ax2.semilogx(freqSys_hz, gainSys_dB[iIn][iOut])
 ax2.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.')
+#ax2.set_ylabel('Gain (dB)')
 ax2.set_title('K = 0.25, wn = 6 hz, d = 0.6')
 ax4 = plt.subplot(4,2,4, sharex = ax2); ax4.grid()
 ax4.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
 ax4.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
-ax4.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
+#ax4.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
+#ax4.set_xlabel('Frequency (Hz)')
+#ax4.set_ylabel('Phase (deg)')
 
 iIn = 1; iOut = 0
 ax5 = plt.subplot(4,2,5); ax5.grid()
 ax5.semilogx(freqSys_hz, gainSys_dB[iIn][iOut])
 ax5.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.')
+ax5.set_ylabel('Gain (dB)')
 ax5.set_title('K = 1, wn = 4 hz, d = 0.4')
 ax7 = plt.subplot(4,2,7, sharex = ax5); ax7.grid()
 ax7.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
 ax7.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
 ax7.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
+ax7.set_xlabel('Frequency (Hz)')
+ax7.set_ylabel('Phase (deg)')
 
 iIn = 1; iOut = 1
 ax6 = plt.subplot(4,2,6); ax6.grid()
 ax6.semilogx(freqSys_hz, gainSys_dB[iIn][iOut])
 ax6.semilogx(freq_hz[iIn,0], gain_dB[iIn,iOut], '.')
+#ax6.set_ylabel('Gain (dB)')
 ax6.set_title('K = 1, wn = 8 hz, d = 0.8')
 ax8 = plt.subplot(4,2,8, sharex = ax6); ax8.grid()
 ax8.semilogx(freqSys_hz, phaseSys_deg[iIn][iOut])
 ax8.semilogx(freq_hz[iIn,0], phase_deg[iIn,iOut], '.')
 ax8.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
-
+ax8.set_xlabel('Frequency (Hz)')
+#ax8.set_ylabel('Phase (deg)')
 
     
 #%%
@@ -177,6 +206,7 @@ ax1 = plt.subplot(2,2,1); ax1.grid()
 ax1.plot(TSys[0][0].imag, TSys[0][0].real)
 ax1.set_title('K = 1, wn = 2 hz, d = 0.1')
 ax1.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax1.set_xlabel('Real')
 ax1.set_ylabel('Imag')
 
 iIn = 0; iOut = 1
@@ -184,6 +214,8 @@ ax2 = plt.subplot(2,2,2, sharex = ax1, sharey = ax1); ax2.grid()
 ax2.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
 ax2.set_title('K = 0.25, wn = 6 hz, d = 0.6')
 ax2.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax2.set_xlabel('Real')
+ax2.set_ylabel('Imag')
 
 iIn = 1; iOut = 0
 ax3 = plt.subplot(2,2,3, sharex = ax1, sharey = ax1); ax3.grid()
@@ -198,5 +230,6 @@ ax4 = plt.subplot(2,2,4, sharex = ax1, sharey = ax1); ax4.grid(True)
 ax4.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
 ax4.set_title('K = 1, wn = 8 hz, d = 0.8')
 ax4.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
-
 ax4.set_xlabel('Real')
+ax4.set_ylabel('Imag')
+ax4.legend(['Sys', 'Sys Estimate'])

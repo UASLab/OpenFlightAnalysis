@@ -36,11 +36,11 @@ rps2hz = 1/hz2rps
 freqRate_hz = 50.0
 freqRate_rps = freqRate_hz * hz2rps
 
-wn = 2 * hz2rps
+wn = 3 * hz2rps
 d = 0.2
 
 sys = signal.TransferFunction([wn**2], [1, 2*d*wn, wn**2])
-freqSys_rps = np.fft.rfftfreq(500, 1/freqRate_rps)
+freqSys_rps = np.fft.rfftfreq(1000, 1/freqRate_rps)
 
 freqSys_rps, Txy = signal.freqresp(sys, w=freqSys_rps)
 freqSys_rps, gainSys_dB, phaseSys_deg = signal.bode(sys, w=freqSys_rps)
@@ -49,7 +49,7 @@ freqSys_hz = freqSys_rps * rps2hz
 
 #%% Chirp signal with FFT
 freqInit_rps = 0.1 * hz2rps
-freqFinal_rps = 10 * hz2rps
+freqFinal_rps = 20 * hz2rps
 timeDur_s = 10.0
 ampInit = 1.0
 ampFinal = ampInit
@@ -64,7 +64,7 @@ time_s, y, _ = signal.lsim(sys, x, time_s)
 y = np.atleast_2d(y)
 
 # Estimate the transfer function
-optSpec = FreqTrans.OptSpect(freqRate = freqRate_rps, smooth = ('box', 5))
+optSpec = FreqTrans.OptSpect(freqRate = freqRate_rps, smooth = ('box', 1), winType=('tukey', 0.0))
 freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(x, y, optSpec)
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 freq_hz = freq_rps * rps2hz
@@ -90,9 +90,9 @@ ax3.semilogx(freq_hz, Cxy, '--'); plt.ylim([0, 1.2])
 numChan = 1
 numCycles = 1
 
-freqMinDes_rps = 0.1 * hz2rps * np.ones(numChan)
-freqMaxDes_rps = 10 * hz2rps *  np.ones(numChan)
-freqStepDes_rps = (5/freqRate_hz) * hz2rps
+freqMinDes_rps = freqInit_rps * np.ones(numChan)
+freqMaxDes_rps = freqFinal_rps *  np.ones(numChan)
+freqStepDes_rps = (10/freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 # Generate MultiSine Frequencies
@@ -108,7 +108,7 @@ time_s, y, _ = signal.lsim(sys, x.squeeze(), time_s)
 y = np.atleast_2d(y)
 
 # Estimate the transfer function
-optSpectCzt = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, freq = freqElem_rps)
+optSpectCzt = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, freq = freqElem_rps, smooth = ('box', 1), winType=('tukey', 0.0))
 freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(x, y, optSpectCzt)
 gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 freq_hz = freq_rps * rps2hz

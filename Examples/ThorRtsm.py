@@ -63,22 +63,22 @@ fileList[flt]['def'] = path.join(pathBase, 'Thor' + flt, 'thor_def.json')
 from Core import FreqTrans
 
 rtsmSegList = [
-        {'flt': 'FLT126', 'seg': ('time_us', [875171956 , 887171956], 'FLT126 - RTSM - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
-        {'flt': 'FLT126', 'seg': ('time_us', [829130591 , 841130591], 'FLT126 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
+#        {'flt': 'FLT126', 'seg': ('time_us', [875171956 , 887171956], 'FLT126 - RTSM - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
+#        {'flt': 'FLT126', 'seg': ('time_us', [829130591 , 841130591], 'FLT126 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
 #        {'flt': 'FLT127', 'seg': ('time_us', [641655909 , 653655909], 'FLT127 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Yaw controller in-op??
-        {'flt': 'FLT128', 'seg': ('time_us', [700263746 , 712263746 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Interesting Roll Margin vs. Uncertainty
+#        {'flt': 'FLT128', 'seg': ('time_us', [700263746 , 712263746 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Interesting Roll Margin vs. Uncertainty
         {'flt': 'FLT128', 'seg': ('time_us', [831753831 , 843753831 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
-        {'flt': 'FLT128', 'seg': ('time_us', [ 959859721 , 971859721 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Not good
+#        {'flt': 'FLT128', 'seg': ('time_us', [ 959859721 , 971859721 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Not good
 
 #        {'flt': 'FLT126', 'seg': ('time_us', [928833763 , 940833763], 'FLT126 - RTSM Large - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
 #        {'flt': 'FLT127', 'seg': ('time_us', [698755386 , 707255278], 'FLT127 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'}, # Yaw controller in-op??
 #        {'flt': 'FLT128', 'seg': ('time_us', [779830919 , 791830919 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
 #        {'flt': 'FLT128', 'seg': ('time_us', [900237086 , 912237086 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
 #
-        {'flt': 'FLT126', 'seg': ('time_us', [902952886 , 924952886], 'FLT126 - RTSM Long - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
+#        {'flt': 'FLT126', 'seg': ('time_us', [902952886 , 924952886], 'FLT126 - RTSM Long - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
 #        {'flt': 'FLT127', 'seg': ('time_us', [657015836 , 689015836], 'FLT127 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Yaw controller in-op??
         {'flt': 'FLT128', 'seg': ('time_us', [714385469 , 746385469 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, 
-        {'flt': 'FLT128', 'seg': ('time_us', [847254621 , 879254621 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Best
+#        {'flt': 'FLT128', 'seg': ('time_us', [847254621 , 879254621 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Best
 
 #        {'flt': 'FLT127', 'seg': ('time_us', [1209355236 , 1221535868], 'FLT127 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'fmt': 'm'}, # Yaw controller in-op??
 #        {'flt': 'FLT128', 'seg': ('time_us', [794251787 , 826251787 ], 'FLT128 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'fmt': 'm'},
@@ -170,7 +170,7 @@ for iSeg, seg in enumerate(oDataSegs):
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 0.2), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = np.asarray(freqExc_rps)
@@ -194,9 +194,9 @@ for iSeg, seg in enumerate(oDataSegs):
     T_seg = np.empty_like(Tev)
     TUnc_seg = np.empty_like(Tev)
 
-    for i in range(T_seg.shape[-1]):  
-        T_seg[...,i] = Teb[...,i] @ np.linalg.inv(Tev[...,i])
-        TUnc_seg[...,i] = TebUnc[...,i] @ np.linalg.inv(Tev[...,i])
+    for i in range(T_seg.shape[-1]):
+        T_seg[...,i] = (Teb[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
+        TUnc_seg[...,i] = (TebUnc[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
 
 
     T.append( T_seg )
@@ -235,37 +235,39 @@ for iSeg in range(0, len(oDataSegs)):
 #%% Spectrograms
 if False:
 #%%
-    iSgnl = 0
+    iSgnlExc = 0
+    iSgnlOut = 0
 
     freqRate_rps = 50 * hz2rps
-#    freqExc_rps = np.linspace(0.1, 50/2, 151) * hz2rps
-    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqExc_rps[iSgnl], freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 3), detrendType = 'Linear')
-    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqGap_rps, freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 3), detrendType = 'Linear')
+    optSpec = FreqTrans.OptSpect(dftType = 'dftmat', freq = freqExc_rps[iSgnlExc], freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
+    optSpecN = FreqTrans.OptSpect(dftType = 'dftmat', freq = freqGap_rps, freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
 
 
     for iSeg in range(0, len(oDataSegs)):
         t = oDataSegs[iSeg]['time_s']
-        y = vFbList[iSeg][iSgnl]
+        x = vExcList[iSeg][iSgnlExc]
+        y = vFbList[iSeg][iSgnlOut]
 
         # Number of time segments and length of overlap, units of samples
         #lenSeg = 2**6 - 1
-        lenSeg = int(1 * optSpec.freqRate * rps2hz)
-        lenOverlap = 5
+        lenSeg = int(1.0 * optSpec.freqRate * rps2hz)
+        lenOverlap = 1
 
         # Compute Spectrum over time
-        tSpec_s, freqSpec_rps, P_mag = FreqTrans.SpectTime(t, y, lenSeg, lenOverlap, optSpec)
+        tSpecY_s, freqSpecY_rps, P_Y_mag = FreqTrans.SpectTime(t, y, lenSeg, lenOverlap, optSpec)
+        tSpecN_s, freqSpecN_rps, P_N_mag = FreqTrans.SpectTime(t, y, lenSeg, lenOverlap, optSpecN)
 
         # Plot the Spectrogram
-        fig = FreqTrans.Spectogram(tSpec_s, freqSpec_rps * rps2hz, 20 * np.log10(P_mag))
-        fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram - ' + sigFbList[iSgnl])
+        fig = FreqTrans.Spectogram(tSpecY_s, freqSpecY_rps * rps2hz, 20 * np.log10(P_Y_mag))
+        fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram - ' + sigFbList[iSgnlOut])
+        
+        fig = FreqTrans.Spectogram(tSpecN_s, freqSpecN_rps * rps2hz, 20 * np.log10(P_N_mag))
+        fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram Null - ' + sigFbList[iSgnlOut])
 
 
 #%% Disk Margin Plots
 inPlot = sigExcList # Elements of sigExcList
 outPlot = sigFbList # Elements of sigFbList
-
-#inPlot = [sigExcList[0]] # Elements of sigExcList
-#outPlot = [sigFbList[0]] # Elements of sigFbList
 
 if True:
     for iIn, inName in enumerate(inPlot):
