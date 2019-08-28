@@ -18,17 +18,129 @@ rps2hz = 1/hz2rps
 rad2deg = 180/np.pi
 
 class OptSpect:
-    def __init__(self, freqRate = 1, freq = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum'):
+    def __init__(self, freqRate = 1, freq = None, freqInterp = None, dftType = 'fft', winType = ('tukey', 0.0), detrendType = 'constant', smooth = ('box', 1), scaleType = 'spectrum', interpType = 'linear'):
         self.freqRate = freqRate
         self.freq = freq
         self.dftType = dftType
         self.winType = winType
         self.detrendType = detrendType
+        self.interpType = interpType
         self.smooth = smooth
         self.scaleType = scaleType
+        self.freqInterp = None
 
 
 #%% Estimate Transfer Function from Time history data
+def FreqRespFuncEst(x, y, opt = OptSpect()):
+    '''
+    Estimates the Transfer Function Response from input/output time histories
+    Single-Input Multi-Output at a Single-FreqVector
+
+    x and y are real and must be the same length
+    Assumes x and y have uniform spacing
+
+    x has dimension (1, p) or (p,) at input and is expanded to (1, p)
+    y has dimension (n, p) or (p,) at input and is expanded to (n, p)
+    Pxx has dimension (1, r) and is reduced to (1, r) or (r,) depending on input form of x
+    Pyy has dimension (n, r) and is reduced to (n, r) or (r,) depending on input form of x
+    Pxy, Cxy, and Txy has dimension (n, r) or (r,)
+
+        m is the number of input signals
+        n is the number of output signals
+        p is the length of the each signal
+        r is the length of the freq vector
+
+    returns the onesided DFT
+    fs and freq must have same units. (Puu and Pyy will only have correct power scale if units are rad/sec)
+
+    '''
+    import copy
+
+    x = np.atleast_2d(x)
+    y = np.atleast_2d(y)
+
+    # If the input is multidimensional, recursively call
+    numIn = x.shape[0]
+    numOut = y.shape[0]
+    if numIn > 1: # Multi-Input
+
+        freqOpt = np.atleast_2d(opt.freq)
+
+        # Get the shape of the frequency vectors
+        numChan = freqOpt.shape[0]
+
+        if not ((numChan is numIn) or (numChan is 1)):
+            raise Exception('Number of frequency vectors should either be 1 or match the number of vectors in x; value: {}'.format(numChan))
+
+        freq = np.sort(freqOpt.flatten())
+        numFreq = freq.shape[-1]
+            
+        Pxx = np.zeros((numIn, numFreq))
+        Pyy = np.zeros((numOut, numIn, numFreq))
+        Cxy = np.zeros((numOut, numIn, numFreq))
+        Pxy = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        Txy = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        
+        optIn = copy.deepcopy(opt)
+        
+        for iInput in range(0, numIn):
+            if numChan == 1:
+                freqOptIn = np.copy(freqOpt)
+            else: # Multi-Input, Multi-FreqVector
+                freqOptIn = np.copy(freqOpt[iInput])
+            
+            # Index of frequencies associated with current iInput
+            iFreq = np.where(np.isin(np.sort(freqOpt.flatten()), freqOptIn))
+
+            optIn.freq = np.atleast_2d(freqOptIn)
+            freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn = FreqRespFuncEst(np.atleast_2d(x[iInput]), y, optIn)
+
+            Pxx[iInput, :] = InterpVal(PxxIn, freqIn, freq, optIn.interpType)
+            Pyy[:, iInput, :] = InterpVal(PyyIn, freqIn, freq, optIn.interpType)
+            Pxy[:, iInput, :] = InterpPolar(PxyIn, freqIn, freq, optIn.interpType)
+            Txy[:, iInput, :] = InterpPolar(TxyIn, freqIn, freq, optIn.interpType)
+            Cxy[:, iInput, :] = InterpVal(CxyIn, freqIn, freq, optIn.interpType)
+
+
+    else: # Single-Input, Sigle-FreqVector
+
+        # Compute the Power Spectrums
+        _   , xDft, Pxx = Spectrum(x, opt)
+        freq, yDft, Pyy = Spectrum(y, opt)
+
+        # Compute Cross Spectrum Power with scaling
+        lenX = x.shape[-1]
+        win = signal.get_window(opt.winType, lenX)
+        scale = PowerScale(opt.scaleType, opt.freqRate, win)
+        
+        Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
+        
+        # Interpolate Power Spectrums to the Desired Frequency Basis
+        if opt.freqInterp is not None:
+            Pxx = InterpPolar(Pxx, freq, opt.freqInterp, opt.interpType)
+            Pyy = InterpPolar(Pyy, freq, opt.freqInterp, opt.interpType)
+            Pxy = InterpPolar(Pxy, freq, opt.freqInterp, opt.interpType)
+            freq = opt.freqInterp
+        
+        # Smooth
+        Pxy_smooth = SmoothPolar(Pxy, opt)
+
+        # Coherence, use the Smoothed Cross Spectrum
+        Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
+        
+        # Compute complex transfer function approximation
+        Txy = Pxy / Pxx
+        
+    # Ensure outputs are 2D
+    freq = np.atleast_2d(freq)
+    Txy = np.atleast_2d(Txy)
+    Cxy = np.atleast_2d(Cxy)
+    Pxx = np.atleast_2d(Pxx)
+    Pyy = np.atleast_2d(Pyy)
+    Pxy = np.atleast_2d(Pxy)
+    
+    return freq, Txy, Cxy, Pxx, Pyy, Pxy
+
 def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
     '''
     Estimates the Transfer Function Response from input/output time histories
@@ -59,63 +171,72 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
 
     # If the input is multidimensional, recursively call
     numIn = x.shape[0]
+    numOut = y.shape[0]
     if numIn > 1: # Multi-Input
 
         freqOpt = np.atleast_2d(opt.freq)
         freqOptN = np.atleast_2d(optN.freq)
 
         # Get the shape of the frequency vectors
-        numFreq = freqOpt.shape[0]
-        numFreqN = freqOptN.shape[0]
+        numChan = freqOpt.shape[0]
+        numChanN = freqOptN.shape[0]
 
-        if not ((numFreq is numIn) or (numFreq is 1)):
-            raise Exception('Number of frequency vectors should either be 1 or match the number of vectors in x; value: {}'.format(numFreq))
-        freq = []
-        Txy = []
-        Cxy = []
-        Pxx = []
-        Pyy = []
-        Pxy = []
-        TxyUnc = []
-        Pyy_N = []
+        if not ((numChan is numIn) or (numChan is 1)):
+            raise Exception('Number of frequency vectors should either be 1 or match the number of vectors in x; value: {}'.format(numChan))
 
+        freq = np.sort(freqOpt.flatten())
+        numFreq = freq.shape[-1]
+        
+        freqN = np.sort(freqOptN.flatten())
+        numFreqN = freqN.shape[-1]
+            
+        Pxx = np.zeros((numIn, numFreq))
+        Pyy = np.zeros((numOut, numIn, numFreq))
+        Cxy = np.zeros((numOut, numIn, numFreq))
+        Pxy = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        Txy = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        
+        TxyUnc = np.zeros((numOut, numIn, numFreq))
+        Pyy_N = np.zeros((numOut, numFreqN))
+        
         optIn = copy.deepcopy(opt)
         optInN = copy.deepcopy(optN)
-
+        
         for iInput in range(0, numIn):
-            if numFreq == 1:
+            if numChan == 1:
                 freqOptIn = np.copy(freqOpt)
             else: # Multi-Input, Multi-FreqVector
                 freqOptIn = np.copy(freqOpt[iInput])
-
-            if numFreqN == 1:
+                
+            if numChanN == 1:
                 freqOptInN = np.copy(freqOptN)
             else: # Multi-Input, Multi-FreqNullVector
                 freqOptInN = np.copy(freqOptN[iInput])
+            
+            # Index of frequencies associated with current iInput
+            iFreq = np.where(np.isin(np.sort(freqOpt.flatten()), freqOptIn))
+            iFreqN = np.where(np.isin(np.sort(freqOptN.flatten()), freqOptInN))
 
             optIn.freq = np.atleast_2d(freqOptIn)
             optInN.freq = np.atleast_2d(freqOptInN)
             freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn, TxyUncIn, Pyy_NIn = FreqRespFuncEstNoise(np.atleast_2d(x[iInput]), y, optIn, optInN)
 
-            freq.append(np.copy(freqIn))
-            Txy.append(np.copy(TxyIn))
-            Cxy.append(np.copy(CxyIn))
-            Pxx.append(np.copy(PxxIn))
-            Pyy.append(np.copy(PyyIn))
-            Pxy.append(np.copy(PxyIn))
-            TxyUnc.append(np.copy(TxyUncIn))
-            Pyy_N.append(np.copy(Pyy_NIn))
+            Pxx[iInput, :] = InterpVal(PxxIn, freqIn, freq, optIn.interpType)
+            Pyy[:, iInput, :] = InterpVal(PyyIn, freqIn, freq, optIn.interpType)
+            Pxy[:, iInput, :] = InterpPolar(PxyIn, freqIn, freq, optIn.interpType)
+            Txy[:, iInput, :] = InterpPolar(TxyIn, freqIn, freq, optIn.interpType)
+            Cxy[:, iInput, :] = InterpVal(CxyIn, freqIn, freq, optIn.interpType)
+
+            TxyUnc[:, iInput, :] = InterpPolar(TxyUncIn, freqIn, freq, optIn.interpType)
+            Pyy_N = np.expand_dims(Pyy_NIn, 1)
+
 
     else: # Single-Input, Sigle-FreqVector
 
         # Compute the Power Spectrums
         _   , xDft, Pxx = Spectrum(x, opt)
         freq, yDft, Pyy = Spectrum(y, opt)
-        freqN, yDft_NN, Pyy_NN = Spectrum(y, optN) # Noise in freqN basis
-
-        # Interpolate to transform yDft_N from freqN basis to freqE basis
-        yDft_N = InterpPolar(yDft_NN, freqN, freq)
-#        Pyy_N = InterpPolar(Pyy_NN, freqN, freq)
+        freqN, yDft_N, Pyy_N = Spectrum(y, optN) # Noise in freqN basis
 
         # Compute Cross Spectrum Power with scaling
         lenX = x.shape[-1]
@@ -123,23 +244,34 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect(), optN = OptSpect()):
         scale = PowerScale(opt.scaleType, opt.freqRate, win)
         
         Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
-        Pxy_N = np.conjugate(xDft) * yDft_N * 2*scale
+        Pxy_N = np.conjugate(xDft) * InterpPolar(yDft_N, freqN, freq, opt.interpType) * 2*scale
+        
+        # Noise Power
+        Pyy_N = np.conjugate(yDft_N) * yDft_N * 2*scale
+        
+        # Interpolate Power Spectrums to the Desired Frequency Basis
+        if optN.freqInterp is not None:
+            Pxy_N = InterpPolar(Pxy_N, freq, optN.freqInterp, optN.interpType)
+            Pyy_N = InterpPolar(Pyy_N, freqN, optN.freqInterp, optN.interpType)
+            freqN = optN.freqInterp
+            
+        if opt.freqInterp is not None:
+            Pxx = InterpPolar(Pxx, freq, opt.freqInterp, opt.interpType)
+            Pyy = InterpPolar(Pyy, freq, opt.freqInterp, opt.interpType)
+            Pxy = InterpPolar(Pxy, freq, opt.freqInterp, opt.interpType)
+            freq = opt.freqInterp
         
         # Smooth
         Pxy_smooth = SmoothPolar(Pxy, opt)
         Pxy_N_smooth = SmoothPolar(Pxy_N, optN)
-        
-        # Noise Power
-        Pyy_N = np.conjugate(yDft_N) * yDft_N * 2*scale
-#        Pyy_N_smooth = SmoothPolar(Pyy_N, optN)
+        Pyy_N_smooth = SmoothPolar(Pyy_N, optN)
 
-        
         # Coherence, use the Smoothed Cross Spectrum
         Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
         
         # Compute complex transfer function approximation
         Txy = Pxy / Pxx
-        TxyUnc = Pxy_N / Pxx
+        TxyUnc = np.abs(Pxy_N) / Pxx
         
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
@@ -165,13 +297,22 @@ def SmoothPolar(z, opt):
 
     return zE
 
+# Interpolate
+def InterpVal(y, x, xE, kind = 'linear'):
+
+    interpF = interp.interp1d(np.squeeze(x), y, kind = kind, fill_value = "extrapolate")
+
+    yE = interpF(np.squeeze(xE))
+
+    return yE
+
 # Smooth polar coordinates
-def InterpPolar(z, freqN, freqE):
+def InterpPolar(z, freqN, freqE, kind = 'linear'):
     amp = np.abs(z)
     theta = np.angle(z)
 
-    interpAmp = interp.interp1d(np.squeeze(freqN), amp, fill_value = "extrapolate")
-    interpTheta = interp.interp1d(np.squeeze(freqN), theta, fill_value = "extrapolate")
+    interpAmp = interp.interp1d(np.squeeze(freqN), amp, kind = kind, fill_value = "extrapolate")
+    interpTheta = interp.interp1d(np.squeeze(freqN), theta, kind = kind, fill_value = "extrapolate")
 
     ampE = interpAmp(np.squeeze(freqE))
     thetaE = interpTheta(np.squeeze(freqE))
@@ -179,100 +320,6 @@ def InterpPolar(z, freqN, freqE):
     zE = ampE * np.exp( 1j * thetaE )
 
     return zE
-
-#%% Estimate Transfer Function from Time history data
-def FreqRespFuncEst(x, y, opt = OptSpect()):
-    '''
-    Estimates the Transfer Function Response from input/output time histories
-    Single-Input Multi-Output at a Single-FreqVector
-
-    x and y are real and must be the same length
-    Assumes x and y have uniform spacing
-
-    x has dimension (1, p) or (p,) at input and is expanded to (1, p)
-    y has dimension (n, p) or (p,) at input and is expanded to (n, p)
-    Pxx has dimension (1, r) and is reduced to (1, r) or (r,) depending on input form of x
-    Pyy has dimension (n, r) and is reduced to (n, r) or (r,) depending on input form of x
-    Pxy, Cxy, and Txy has dimension (n, r) or (r,)
-
-        m is the number of input signals
-        n is the number of output signals
-        p is the length of the each signal
-        r is the length of the freq vector
-
-    returns the onesided DFT
-    fs and freq must have same units. (Pxx and Pyy will only have correct power scale if units are rad/sec)
-
-    '''
-    from copy import copy
-
-    x = np.atleast_2d(x)
-    y = np.atleast_2d(y)
-    freqOpt = np.atleast_2d(opt.freq)
-
-    # Get the shape of the inputs and outputs. Expand dimensions
-    numIn = x.shape[0]
-    numFreq = freqOpt.shape[0]
-
-    # If the input is multidimensional, recursively call
-    if numIn > 1: # Multi-Input
-        if not ((numFreq is numIn) or (numFreq is 1)):
-            raise Exception('Number of frequency vectors should either be 1 or match the number of vectors in x; value: {}'.format(numFreq))
-        freq = []
-        Txy = []
-        Cxy = []
-        Pxx = []
-        Pyy = []
-        Pxy = []
-
-        optIn = copy(opt)
-
-        for iInput in range(0, numIn):
-            if numFreq == 1:
-                freqOptIn = freqOpt
-            else: # Multi-Input, Multi-Freqvector
-                freqOptIn = freqOpt[iInput]
-
-            optIn.freq = np.atleast_2d(freqOptIn.copy())
-            freqIn, TxyIn, CxyIn, PxxIn, PyyIn, PxyIn = FreqRespFuncEst(np.atleast_2d(x[iInput]), y, optIn)
-
-            freq.append(freqIn)
-            Txy.append(TxyIn)
-            Cxy.append(CxyIn)
-            Pxx.append(PxxIn)
-            Pyy.append(PyyIn)
-            Pxy.append(PxyIn)
-
-    else: # Single-Input, Sigle-FreqVector
-        # Compute the Power Spectrums
-        _   , xDft, Pxx = Spectrum(x, opt)
-        freq, yDft, Pyy = Spectrum(y, opt)
-
-        # Compute Cross Spectrum Power with scaling
-        lenX = x.shape[-1]
-        win = signal.get_window(opt.winType, lenX)
-        scale = PowerScale(opt.scaleType, opt.freqRate, win)
-
-        Pxy = np.conjugate(xDft) * yDft * 2*scale # Scale is doubled because one-sided DFT
-
-        # Smooth - Cross-Spectrum (polar coordinates)
-        Pxy_smooth = SmoothPolar(Pxy, opt)
-
-        # Coherence, use the Smoothed Cross Spectrum
-        Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
-
-        # Compute complex transfer function approximation
-        Txy = Pxy / Pxx
-
-    # Ensure outputs are 2D
-    freq = np.atleast_2d(freq)
-    Txy = np.atleast_2d(Txy)
-    Cxy = np.atleast_2d(Cxy)
-    Pxx = np.atleast_2d(Pxx)
-    Pyy = np.atleast_2d(Pyy)
-    Pxy = np.atleast_2d(Pxy)
-
-    return freq, Txy, Cxy, Pxx, Pyy, Pxy
 
 
 #%%
@@ -332,10 +379,9 @@ def Spectrum(x, opt = OptSpect()):
 
         # Compute Power, factor of 2 because CZT is one-sided
         P = (np.conjugate(xDft) * xDft).real * 2*scale
-
+    
     # Smooth the Power
     P = Smooth(P, opt.smooth)
-
 
     # Ensure the outputs are at least 2D
     freq = np.atleast_2d(freq)
@@ -452,6 +498,28 @@ def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False)
     return gain, phase
 
 #
+def Sigma(T, TUnc = None, pCrit = -1+0j):
+    
+    sNom = np.zeros(T.shape[1:])
+    sLB = np.zeros(T.shape[1:])
+    
+    if TUnc is None: # There is no Uncertainty estimate, just return the distance between T and pCrit
+        for i in range(T.shape[-1]):
+            TNom = np.abs(T[..., i] - pCrit)
+            sNom[..., i] = np.linalg.svd(TNom, compute_uv = False)
+            sLB = None
+        
+    else:
+        for i in range(T.shape[-1]):
+            TNom = np.abs(T[..., i] - pCrit)
+            sNom[..., i] = np.linalg.svd(TNom, compute_uv = False)
+            
+            TLB = TNom * np.abs(1 - TUnc[...,i]/np.abs(TNom))
+            sLB[..., i] = np.linalg.svd(TLB, compute_uv = False)
+        
+    return sNom, sLB
+
+#
 def DistCrit(T, TUnc = None, pCrit = -1+0j, typeUnc = 'ellipse'):
 
     if TUnc is None: # There is no Uncertainty estimate, just return the distance between T and pCrit
@@ -484,9 +552,9 @@ def DistCritCirc(T, TUnc = None, pCrit = -1+0j, typeNorm = 'RMS'):
     else:
         rCritUnc = 0.0
     
-     # If the point is inside the ellipse return the distance as negative
-    inside = rCritUnc > rCritNom
-    rCritUnc[inside] = -rCritUnc[inside]
+#     # If the point is inside the ellipse return the distance as negative
+#    inside = rCritUnc > rCritNom
+#    rCritUnc[inside] = -rCritUnc[inside]
 
     # Uncertain Distance is the difference between Nominal and rCritUnc Distance
     rCrit = rCritNom - rCritUnc
@@ -793,7 +861,7 @@ def PlotBode(freq_hz, gain_mag, phase_deg, coher_nd = None, gainUnc_mag = None, 
         plt.setp(ax[1].get_xticklabels(), visible=False)
 
     # Coherence
-    if coher_nd.any() is None:
+    if coher_nd is None:
         coher_nd = np.ones_like(freq_hz)
 
     # Make the plots
@@ -855,7 +923,10 @@ def PlotNyquist(T, TUnc = None, fig = None, fmt = '', label=''):
     if TUnc is not None:
         for iNom, nom in enumerate(T):
             unc = TUnc[iNom]
-            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc.real, 2*unc.imag, color=p[-1].get_color(), alpha=0.25)
+            if unc.imag == 0:
+                uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color=p[-1].get_color(), alpha=0.25)
+            else:
+                uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc.real, 2*unc.imag, color=p[-1].get_color(), alpha=0.25)
             ax[0].add_artist(uncPatch)
             #ax[0].set_label(label)
 

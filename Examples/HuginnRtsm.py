@@ -181,8 +181,8 @@ for iSeg, seg in enumerate(oDataSegs):
 # Define the excitation frequencies
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 1.0), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 1), winType = ('tukey', 1.0), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = np.asarray(freqExc_rps)
@@ -212,7 +212,7 @@ for iSeg, seg in enumerate(oDataSegs):
         
         
     T.append( T_seg )
-    TUnc.append( TUnc_seg )
+    TUnc.append( np.abs(TUnc_seg) )
 
 #    C.append(Cev)
     C.append(Ceb)
@@ -230,14 +230,14 @@ rCritUnc_mag = []
 rCrit_mag = []
 for iSeg in range(0, len(oDataSegs)):
 
-    gainElem_mag, gainElemUnc_mag, gainElemDiff_mag = FreqTrans.DistCritCirc(T[iSeg], TUnc[iSeg], pCrit = 0+0j, typeNorm = 'RMS')
+    gainElem_mag, gainElemUnc_mag, gainElemDiff_mag = FreqTrans.DistCritCirc(T[iSeg], TUnc[iSeg], pCrit = 0+0j, typeNorm = 'RSS')
         
     gain_mag.append(gainElem_mag)
     gainUnc_mag.append(gainElemUnc_mag)
     
     phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = True))
 
-    nom_mag, unc_mag, diff_mag = FreqTrans.DistCrit(T[iSeg], TUnc[iSeg], pCrit = -1+0j, typeUnc = 'ellipse')
+    nom_mag, unc_mag, diff_mag = FreqTrans.DistCritCirc(T[iSeg], TUnc[iSeg], pCrit = -1+0j, typeNorm = 'RSS')
 
     rCritNom_mag.append(nom_mag)
     rCritUnc_mag.append(unc_mag)
@@ -276,9 +276,6 @@ if False:
 inPlot = sigExcList # Elements of sigExcList
 outPlot = sigFbList # Elements of sigFbList
 
-#inPlot = [sigExcList[0]] # Elements of sigExcList
-#outPlot = [sigFbList[0]] # Elements of sigFbList
-
 if True:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
@@ -295,7 +292,7 @@ if True:
 
 
 #%% Nyquist Plots
-if True:
+if False:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
 
@@ -312,8 +309,7 @@ if True:
 
 
 #%% Bode Plots
-if True:
-
+if False:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
 

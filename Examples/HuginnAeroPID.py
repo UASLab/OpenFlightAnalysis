@@ -37,7 +37,7 @@ rps2hz = 1 / hz2rps
 import os.path as path
 
 pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Huginn')
-pathBase = path.join('O:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
+pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
 
 fileList = {}
 flt = 'FLT03'
@@ -71,7 +71,7 @@ from Core import FreqTrans
 rtsmSegList = [
 #        {'flt': 'FLT03', 'seg': ('time_us', [880217573, 893797477], 'FLT03 - Sym1 - 20 m/s')}, # 20 m/s
         {'flt': 'FLT03', 'seg': ('time_us', [710658638, 722078703], 'FLT03 - Sym1 - 23 m/s')}, # 23 m/s
-        {'flt': 'FLT06', 'seg': ('time_us', [1136880543, 1146680543], 'FLT06 - Sym1 - 23 m/s')}, # 23 m/s
+#        {'flt': 'FLT06', 'seg': ('time_us', [1136880543, 1146680543], 'FLT06 - Sym1 - 23 m/s')}, # 23 m/s
 #        {'flt': 'FLT04', 'seg': ('time_us', [914627038, 926728286], 'FLT04 - Sym1 - 26 m/s')}, # 26 m/s
 #        {'flt': 'FLT05', 'seg': ('time_us', [622279236, 634279236], 'FLT05 - Sym1 - 26 m/s')}, # 26 m/s
 #        {'flt': 'FLT05', 'seg': ('time_us', [831211361, 843211361], 'FLT05 - Sym1 - 29 m/s')}, # 29 m/s
@@ -189,7 +189,7 @@ plt.figure()
 
 eList = []
 uList = []
-inSigList = []
+#inSigList = []
 for iSeg, seg in enumerate(oDataSegs):
     eSig = np.zeros((len(sigInList), len(seg['time_s'])))
     uSig = np.zeros((len(sigInList), len(seg['time_s'])))
@@ -203,7 +203,7 @@ for iSeg, seg in enumerate(oDataSegs):
     
     eList.append(eSig)
     uList.append(uSig)
-    inSigList.append(inSig)
+#    inSigList.append(inSig)
 
     
 outList = []
@@ -257,7 +257,7 @@ for iSeg, seg in enumerate(oDataSegs):
 
 
     T.append( T_seg )
-    TUnc.append( TUnc_seg )
+    TUnc.append( np.abs(TUnc_seg) )
     C.append(Cey)
     
 
@@ -277,12 +277,13 @@ for iSeg in range(0, len(oDataSegs)):
 #%% Spectrograms
 if False:
     
-    iSgnl = 1
+    iSgnl = 0
     
     freqRate_rps = 50 * hz2rps
-#    freqExc_rps = np.linspace(0.1, 50/2, 151) * hz2rps
 
-    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = np.asarray(freqExc_rps).flatten(), freqRate = freqRate_rps, winType = ('tukey', 0.0), smooth = ('box', 1), detrendType = 'Linear')
+#    freqSpec = np.asarray(freqExc_rps).flatten()
+    freqSpec = freqExc_rps[iSgnl]
+    optSpec = FreqTrans.OptSpect(dftType = 'czt', freq = freqSpec, freqRate = freqRate_rps, winType = ('tukey', 0.2), smooth = ('box', 3), detrendType = 'Linear')
     
     
     for iSeg in range(0, len(oDataSegs)):

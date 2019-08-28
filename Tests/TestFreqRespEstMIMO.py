@@ -76,12 +76,12 @@ for iOut in range(2):
 
 #%%
 numExc = 2
-numCycles = 1
+numCycles = 3
 ampInit = 1
 ampFinal = 1
 freqMinDes_rps = 0.1 * hz2rps * np.ones(numExc)
 freqMaxDes_rps = 10 * hz2rps *  np.ones(numExc)
-freqStepDes_rps = (5/freqRate_hz) * hz2rps
+freqStepDes_rps = (10/freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 # Generate MultiSine Frequencies
@@ -101,7 +101,7 @@ _, out[1][1], _ = signal.lsim2(sys[1][1], exc[1], time_s)
 
 
 # Generate Noise
-sigmaN = 0.125
+sigmaN = 0 * 0.125
 
 wn = 3 * hz2rps
 d = 0.2
@@ -129,6 +129,7 @@ optSpec.freq = []
 for iChan in range(0, numExc):
     optSpec.freq.append(freqExc_rps[sigIndx[iChan]])
 optSpec.freq = np.asarray(optSpec.freq)
+optSpec.freqInterp = freqExc_rps
 
 # FRF Estimate
 freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(exc, y, optSpec)
@@ -203,33 +204,33 @@ plt.figure(2)
 
 iIn = 0; iOut = 0
 ax1 = plt.subplot(2,2,1); ax1.grid()
-ax1.plot(TSys[0][0].imag, TSys[0][0].real)
+ax1.plot(TSys[0][0].real, TSys[0][0].imag)
 ax1.set_title('K = 1, wn = 2 hz, d = 0.1')
-ax1.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax1.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 ax1.set_xlabel('Real')
 ax1.set_ylabel('Imag')
 
 iIn = 0; iOut = 1
 ax2 = plt.subplot(2,2,2, sharex = ax1, sharey = ax1); ax2.grid()
-ax2.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax2.plot(TSys[iIn][iOut].real, TSys[iIn][iOut].imag)
 ax2.set_title('K = 0.25, wn = 6 hz, d = 0.6')
-ax2.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax2.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 ax2.set_xlabel('Real')
 ax2.set_ylabel('Imag')
 
 iIn = 1; iOut = 0
 ax3 = plt.subplot(2,2,3, sharex = ax1, sharey = ax1); ax3.grid()
-ax3.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax3.plot(TSys[iIn][iOut].real, TSys[iIn][iOut].imag)
 ax3.set_title('K = 1, wn = 4 hz, d = 0.4')
-ax3.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax3.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 ax3.set_xlabel('Real')
 ax3.set_ylabel('Imag')
 
 iIn = 1; iOut = 1
 ax4 = plt.subplot(2,2,4, sharex = ax1, sharey = ax1); ax4.grid(True)
-ax4.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax4.plot(TSys[iIn][iOut].real, TSys[iIn][iOut].imag)
 ax4.set_title('K = 1, wn = 8 hz, d = 0.8')
-ax4.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax4.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 ax4.set_xlabel('Real')
 ax4.set_ylabel('Imag')
 ax4.legend(['Sys', 'Sys Estimate'])

@@ -91,6 +91,8 @@ sysSimOL_gain_dB = 20*np.log10(sysSimOL_gain_nd)
 sysSimOL_phase_deg = sysSimOL_phase_rad * rad2deg
 sysSimOL_rCrit_mag = np.abs(sysSimOL - (-1 + 0j))
 
+sysSimOL_sigma, _ = FreqTrans.Sigma(sysSimOL, pCrit = -1+0j)
+
 
 #%% Excitation
 numExc = 3
@@ -153,8 +155,8 @@ sens = out[-7:]
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear', interpType = 'linear')
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear', interpType = 'linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = []
@@ -169,43 +171,50 @@ optSpecN.freq = freqGap_rps
 freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc, Pbb_N = FreqTrans.FreqRespFuncEstNoise(exc, fb, optSpec, optSpecN)
 _       , Tev, Cev, _  , Pvv, Pev = FreqTrans.FreqRespFuncEst(exc, v, optSpec)
 
-
-nFreq = freq_rps.shape[-1]
-
 freq_hz = freq_rps * rps2hz
-eye = np.tile(np.eye(3), (nFreq, 1, 1)).T
+
 
 # Form the Frequency Response, T = Teb @ Tev^-1
-T = np.empty_like(Tev)
-TUnc = np.empty_like(Tev)
-C = np.empty_like(Tev)
+T = np.zeros_like(Tev, dtype=complex)
+TUnc = np.zeros_like(Tev, dtype=float)
+C = np.zeros_like(Tev, dtype=float)
 
-for i in range(T.shape[-1]):  
+for i in range(T.shape[-1]):
     T[...,i] = (Teb[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
-    TUnc[...,i] = (TebUnc[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
+    TUnc[...,i] = np.abs(TebUnc[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
+
+sNom, sLB = FreqTrans.Sigma(T, TUnc, pCrit = -1+0j) # Singular Value Decomp, U @ S @ Vh == T[...,i]
 
 C = Ceb
 
 T_InputNames = exc_names
 T_OutputNames = fb_names
 
-gain_mag, phase_deg = FreqTrans.GainPhase(T, magUnit='mag', phaseUnit='deg', unwrap=True)
-#rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, typeUnc = 'circle')
+gain_mag, phase_deg = FreqTrans.GainPhase(T, magUnit='mag', phaseUnit='deg', unwrap=False)
+rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, typeUnc = 'circle')
 #rCritNom_mag, rCritUnc_mag, rCrit_mag = FreqTrans.DistCrit(T, TUnc, pCrit = -1+0j, typeUnc = 'ellipse')
-rCritNom_mag, rCritUnc_mag, rCrit_mag, pCont_mag = FreqTrans.DistCritEllipse(T, TUnc, pCrit = -1+0j) # Returns closest approach points
+#rCritNom_mag, rCritUnc_mag, rCrit_mag, pCont_mag = FreqTrans.DistCritEllipse(T, TUnc, pCrit = -1+0j) # Returns closest approach points
 
 
 #%% Disk Margin Plots
 inPlot = exc_names # Elements of exc_names
 outPlot = fb_names # Elements of fb_names
 
+fig = None
+fig = FreqTrans.PlotDistCrit(freqSys_hz, np.min(sysSimOL_sigma, axis=0), fig = fig, fmt = 'k', label='Linear')
+fig = FreqTrans.PlotDistCrit(freq_hz[0], np.min(sNom, axis=0), unc = None, coher_nd = C[iIn, iOut], fmt = '.b', fig = fig, label = 'Excitation')
+fig = FreqTrans.PlotDistCrit(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fmt = '--r', fig = fig, label = 'Critical Limit')
+ax = fig.get_axes()
+ax[0].set_xlim(0, 10)
+ax[0].set_ylim(0, 2)
+
 if True:
     for iIn, inName in enumerate(inPlot):
         for iOut, outName in enumerate(outPlot):
             fig = 60 + 3*iIn + iOut
             fig = FreqTrans.PlotDistCrit(freqSys_hz, sysSimOL_rCrit_mag[iIn, iOut], fig = fig, fmt = 'k', label='Linear')
-            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], rCritNom_mag[iIn, iOut], unc = rCritUnc_mag[iIn, iOut], coher_nd = C[iIn, iOut], fmt = '.b', fig = fig, label = 'Excitation')
-            fig = FreqTrans.PlotDistCrit(freq_hz[iOut, 0], 0.4 * np.ones_like(freq_hz[iOut, 0]), fmt = '--r', fig = fig, label = 'Critical Limit')
+            fig = FreqTrans.PlotDistCrit(freq_hz[0], rCritNom_mag[iOut, iIn], unc = rCritUnc_mag[iIn, iOut], coher_nd = C[iIn, iOut], fmt = '.b', fig = fig, label = 'Excitation')
+            fig = FreqTrans.PlotDistCrit(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fmt = '--r', fig = fig, label = 'Critical Limit')
             ax = fig.get_axes()
             ax[0].set_xlim(0, 10)
             ax[0].set_ylim(0, 2)
@@ -218,8 +227,7 @@ if False:
             fig = 80 + 3*iIn + iOut
 
             fig = FreqTrans.PlotNyquist(sysSimOL[iIn, iOut], fig = fig, fmt = 'k', label='Linear')
-            fig = FreqTrans.PlotNyquist(T[iIn, iOut], TUnc[iIn, iOut], fig = fig, fmt = 'b*:', label='Excitation')
-            fig = FreqTrans.PlotNyquist(pCont_mag[iIn, iOut],  fig = fig, fmt = 'b.', label='Min Critical Dist')
+            fig = FreqTrans.PlotNyquist(T[iOut, iIn], TUnc[iOut, iIn], fig = fig, fmt = 'b*:', label='Excitation')
             
             fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, fmt = 'r*', label='Critical Region')
             fig.suptitle(inName + ' to ' + outName, size=20)
@@ -235,6 +243,6 @@ if False:
         for iOut, outName in enumerate(outPlot):
             fig = 100 + 3*iIn + iOut
             fig = FreqTrans.PlotBode(freqSys_hz, sysSimOL_gain_nd[iIn, iOut], sysSimOL_phase_deg[iIn, iOut], fig = fig, fmt = 'k', label = 'Linear')
-            fig = FreqTrans.PlotBode(freq_hz[iOut, 0], gain_mag[iIn, iOut], phase_deg[iIn, iOut], C[iIn, iOut], fig = fig, fmt = 'b.', label = 'Excitation')
+            fig = FreqTrans.PlotBode(freq_hz[0], gain_mag[iOut, iIn], phase_deg[iOut, iIn], C[iOut, iIn], fig = fig, fmt = 'b.', label = 'Excitation')
             fig.suptitle(inName + ' to ' + outName, size=20)
 

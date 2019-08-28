@@ -139,7 +139,7 @@ y[iOut] = out[0][iOut] + out[1][iOut] + yN[iOut]
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
 optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
@@ -147,9 +147,11 @@ optSpec.freq = []
 for iChan in range(0, numExc):
     optSpec.freq.append(freqExc_rps[sigIndx[iChan]])
 optSpec.freq = np.asarray(optSpec.freq)
+#optSpec.freqInterp = freqExc_rps
 
 # Null Frequencies
 optSpecN.freq = freqGap_rps
+#optSpecN.freqInterp = freqExc_rps
 
 # FRF Estimate
 freq_rps, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, Pyy_N = FreqTrans.FreqRespFuncEstNoise(exc, y, optSpec, optSpecN)
@@ -161,6 +163,8 @@ gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
 
 freq_hz = freq_rps * rps2hz
 phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg
+
+TxyUnc = np.abs(TxyUnc) # Uncertainty is Magnitude only, uncorrelated
 
 gainUnc_dB, phaseUnc_deg = FreqTrans.GainPhase(TxyUnc)
 phaseUnc_deg = np.unwrap(phaseUnc_deg * deg2rad) * rad2deg
@@ -181,7 +185,7 @@ plt.semilogx(freq_hz[iIn,0], 20*np.log10(Pxx[iIn,0]), '*b', label='P Excitation'
 plt.semilogx(freqE_hz[0], 20*np.log10(Pee[iIn]), '*m', label='P Excitation @ Null')
 plt.semilogx(freq_hz[iIn,0], 20*np.log10(Pyy[iIn,iOut]), '*r-', label='P Output')
 plt.semilogx(freqN_hz[0], 20*np.log10(Pnn[iOut]), '.g--', label='P Disturbance')
-plt.semilogx(freq_hz[iIn,0], 20*np.log10(Pyy_N[iIn,iOut]), '*k', label='P Disturbance @ Null')
+#plt.semilogx(freq_hz[iIn,0], 20*np.log10(Pyy_N[iIn,iOut]), '*k', label='P Disturbance @ Null')
 plt.grid(True)
 plt.legend()
 
@@ -254,61 +258,62 @@ ax8.set_xlabel('Frequency (Hz)')
 
     
 #%%
+import matplotlib.patches as patch
 plt.figure(2)
 plt.tight_layout()
 
 iIn = 0; iOut = 0
 ax1 = plt.subplot(2,2,1); ax1.grid()
-ax1.plot(TSys[0][0].imag, TSys[0][0].real)
+ax1.plot(TSys[0][0].real, TSys[0][0].imag)
 ax1.set_title('K = 1, wn = 2 hz, d = 0.1')
 
-ax1.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax1.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 for iNom, nom in enumerate(Txy[iIn,iOut]):
-    unc = np.abs(TxyUnc[iIn,iOut][iNom])
-    uncCirc = plt.Circle((nom.imag, nom.real), unc, color='b', alpha=0.5)
-    ax1.add_artist(uncCirc)
+    unc =TxyUnc[iIn,iOut][iNom]
+    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
+    ax1.add_artist(uncPatch)
 
 ax1.set_xlabel('Real')
 ax1.set_ylabel('Imag')
 
 iIn = 0; iOut = 1
 ax2 = plt.subplot(2,2,2, sharex = ax1, sharey = ax1); ax2.grid()
-ax2.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax2.plot(TSys[iIn][iOut].real, TSys[iIn][iOut].imag)
 ax2.set_title('K = 0.25, wn = 6 hz, d = 0.6')
 
-ax2.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax2.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 for iNom, nom in enumerate(Txy[iIn,iOut]):
-    unc = np.abs(TxyUnc[iIn,iOut][iNom])
-    uncCirc = plt.Circle((nom.imag, nom.real), unc, color='b', alpha=0.5)
-    ax2.add_artist(uncCirc)
+    unc =TxyUnc[iIn,iOut][iNom]
+    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
+    ax2.add_artist(uncPatch)
 
 ax2.set_xlabel('Real')
 ax2.set_ylabel('Imag')
 
 iIn = 1; iOut = 0
 ax3 = plt.subplot(2,2,3, sharex = ax1, sharey = ax1); ax3.grid()
-ax3.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax3.plot(TSys[iIn][iOut].real, TSys[iIn][iOut].imag)
 ax3.set_title('K = 1, wn = 4 hz, d = 0.4')
 
-ax3.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax3.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 for iNom, nom in enumerate(Txy[iIn,iOut]):
-    unc = np.abs(TxyUnc[iIn,iOut][iNom])
-    uncCirc = plt.Circle((nom.imag, nom.real), unc, color='b', alpha=0.5)
-    ax3.add_artist(uncCirc)
+    unc =TxyUnc[iIn,iOut][iNom]
+    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
+    ax3.add_artist(uncPatch)
 
 ax3.set_xlabel('Real')
 ax3.set_ylabel('Imag')
 
 iIn = 1; iOut = 1
 ax4 = plt.subplot(2,2,4, sharex = ax1, sharey = ax1); ax4.grid(True)
-ax4.plot(TSys[iIn][iOut].imag, TSys[iIn][iOut].real)
+ax4.plot(TSys[iIn][iOut].real, TSys[iIn][iOut].imag)
 ax4.set_title('K = 1, wn = 8 hz, d = 0.8')
 
-ax4.plot(Txy[iIn,iOut].imag, Txy[iIn,iOut].real, '.')
+ax4.plot(Txy[iIn,iOut].real, Txy[iIn,iOut].imag, '.')
 for iNom, nom in enumerate(Txy[iIn,iOut]):
-    unc = np.abs(TxyUnc[iIn,iOut][iNom])
-    uncCirc = plt.Circle((nom.imag, nom.real), unc, color='b', alpha=0.5)
-    ax4.add_artist(uncCirc)
+    unc =TxyUnc[iIn,iOut][iNom]
+    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
+    ax4.add_artist(uncPatch)
 
 ax4.set_xlabel('Real')
 ax4.set_ylabel('Imag')

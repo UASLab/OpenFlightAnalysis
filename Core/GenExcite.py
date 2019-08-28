@@ -247,7 +247,7 @@ def MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx =
     numElem = len(freqElem_rps)
     sigElem = np.zeros((numElem, len(time_s)))
     for iElem in range(0, numElem):
-        sigElem[iElem] = ampElem_nd[iElem] * np.cos(freqElem_rps[iElem] * time_s + phaseElem_rad[iElem])
+        sigElem[iElem] = ampElem_nd[iElem] * np.sin(freqElem_rps[iElem] * time_s + phaseElem_rad[iElem])
 
 
     # Combine signal components into signals
