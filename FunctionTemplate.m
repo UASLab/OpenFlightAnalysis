@@ -3,13 +3,13 @@ function [out1, out2] = FunctionTemplate(in1, in2, in3)
 %   Description blah blah blah....
 %
 % Inputs:
-%   in1 - 
-%   in2 - 
-%   in3 - 
+%   in1 -
+%   in2 -
+%   in3 -
 %
 % Outputs:
-%   out1 - 
-%   out2 - 
+%   out1 -
+%   out2 -
 %
 % Notes:
 %
@@ -29,16 +29,16 @@ end
 
 nargoutchk(1, 2)
 
-
 %% Default Values and Constants
 if isempty(in2), in2 = 2; end
 if isempty(in3), in3 = 3; end
 
-
 %% Check Inputs
 
 
-%% 
+%% Constants
+
+%%
 out1 = in1;
 out2 = in2;
 
