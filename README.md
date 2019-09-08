@@ -3,7 +3,7 @@ Open Flight Analysis (oFA)
 
 www.uav.aem.umn.edu
 
-oFA is a companion to OpenFlightSim for simulation and RAPTRS for flight systems.
+oFA is a companion to OpenFlightSim (oFS) for simulation and RAPTRS for flight systems.
 
 https://github.com/UASLab/OpenFlightSim
 
