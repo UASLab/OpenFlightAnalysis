@@ -1,5 +1,4 @@
-% OpenFlightAnalysis - StartupOpenFlightAnalysis
-%   Start file for the 'OpenFlightAnalysis Toolbox'.
+% Start file for the 'OpenFlightAnalysis Toolbox'.
 %
 % Notes:
 %   MATLAB path list gives priority to paths listed at the top.

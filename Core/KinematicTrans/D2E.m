@@ -1,13 +1,14 @@
 function [r_E_m] = D2E(r_D_ddm)
-% Convert Geodetic to ECEF Coordinates
+% OpenFlightAnalysis - D2E
+%  Convert Geodetic to ECEF Coordinates
 %
-% %Inputs:
-% r_D_ddm - Position in Geodetic Coordinates (deg, deg, m)
+% Inputs:
+%  r_D_ddm - Position in Geodetic Coordinates (deg, deg, m)
 %
-%Outputs:
-% r_E_m - Position in ECEF Coordinates (m, m, m)
+% Outputs:
+%  r_E_m - Position in ECEF Coordinates (m, m, m)
 %
-%Notes:
+% Notes:
 %
 % University of Minnesota
 % Aerospace Engineering and Mechanics - UAV Lab

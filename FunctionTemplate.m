@@ -1,6 +1,5 @@
 function [out1, out2] = FunctionTemplate(in1, in2, in3)
-% OpenFlightAnalysis - FunctionTemplate
-%   Description blah blah blah....
+% Description blah blah blah....
 %
 % Inputs:
 %   in1 -
@@ -33,10 +32,6 @@ nargoutchk(1, 2)
 if isempty(in2), in2 = 2; end
 if isempty(in3), in3 = 3; end
 
-%% Check Inputs
-
-
-%% Constants
 
 %%
 out1 = in1;
