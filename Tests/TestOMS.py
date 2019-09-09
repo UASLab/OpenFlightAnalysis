@@ -34,7 +34,7 @@ rps2hz = 1/hz2rps
 numChan = 3
 freqRate_hz = 50;
 timeDur_s = 10.0
-numCycles = 5
+numCycles = 1
 
 freqMinDes_rps = (numCycles/timeDur_s) * hz2rps * np.ones(numChan)
 #freqMaxDes_rps = (freqRate_hz/2) * hz2rps *  np.ones(numChan)

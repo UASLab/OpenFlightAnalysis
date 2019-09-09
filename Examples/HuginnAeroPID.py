@@ -69,12 +69,12 @@ from Core import FreqTrans
 
 rtsmSegList = [
 #        {'flt': 'FLT03', 'seg': ('time_us', [880217573, 893797477], 'FLT03 - Sym1 - 20 m/s')}, # 20 m/s
-#        {'flt': 'FLT03', 'seg': ('time_us', [710658638, 722078703], 'FLT03 - Sym1 - 23 m/s')}, # 23 m/s
-        {'flt': 'FLT06', 'seg': ('time_us', [1136880543, 1146680543], 'FLT06 - Sym1 - 23 m/s')}, # 23 m/s
+        {'flt': 'FLT03', 'seg': ('time_us', [710658638, 722078703], 'FLT03 - Sym1 - 23 m/s')}, # 23 m/s
+#        {'flt': 'FLT06', 'seg': ('time_us', [1136880543, 1146680543], 'FLT06 - Sym1 - 23 m/s')}, # 23 m/s
 #        {'flt': 'FLT04', 'seg': ('time_us', [914627038, 926728286], 'FLT04 - Sym1 - 26 m/s')}, # 26 m/s
-        {'flt': 'FLT05', 'seg': ('time_us', [622279236, 634279236], 'FLT05 - Sym1 - 26 m/s')}, # 26 m/s
-        {'flt': 'FLT05', 'seg': ('time_us', [831211361, 843211361], 'FLT05 - Sym1 - 29 m/s')}, # 29 m/s
-        {'flt': 'FLT06', 'seg': ('time_us', [972425515, 984425515], 'FLT06 - Sym1 - 32 m/s')}, # 32 m/s
+#        {'flt': 'FLT05', 'seg': ('time_us', [622279236, 634279236], 'FLT05 - Sym1 - 26 m/s')}, # 26 m/s
+#        {'flt': 'FLT05', 'seg': ('time_us', [831211361, 843211361], 'FLT05 - Sym1 - 29 m/s')}, # 29 m/s
+#        {'flt': 'FLT06', 'seg': ('time_us', [972425515, 984425515], 'FLT06 - Sym1 - 32 m/s')}, # 32 m/s
         
 #        {'flt': 'FLT04', 'seg': ('time_us', [1054856968, 1067537708], 'FLT04 - Sym2 - 20 m/s')}, # 20 m/s
 #        {'flt': 'FLT03', 'seg': ('time_us', [775518514, 788718440], 'FLT03 - Sym2 - 23 m/s')}, # 23 m/s
