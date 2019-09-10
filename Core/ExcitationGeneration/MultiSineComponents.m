@@ -1,18 +1,19 @@
-function [freqComp_rps, time_s, signalDist] = MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, timeRate_s, numCycles, freqStepDes_rps, methodSW)
+function [structMultiSine] = MultiSineComponents(structMultiSine, methodSW)
 % Define a multisine frequency component distribution.
 %
 % Inputs:
-%  freqMinDes_rps  - minimum desired frequency for each signal, vector (rad/s)
-%  freqMaxDes_rps  - maximum desired frequency for each signal, vector (rad/s)
-%  timeRate_s      - sample time rate (sec)
-%  numCycles       - number of lowest frequency cycles [3]
-%  freqStepDes_rps - maximum frequency step size (rad/s) [0]
+%  structMultiSine [structure]
+%   freqRange_rps  - [minimum, max] desired frequency for each signal, matrix (rad/s)
+%   timeRate_s      - sample time rate (sec)
+%   numCycles       - number of lowest frequency cycles [3]
+%   freqStepDes_rps - maximum frequency step size (rad/s) [0]
 %  methodSW        - component distribution method ['zipper']
 %
 % Outputs:
-%  freqComp_rps - frequency components of the signals (rad/s)
-%  time_s       - time vector (s)
-%  signalDist   - component distribution of the signals
+%  structMultiSine [structure]
+%   freqComp_rps - frequency components of the signals (rad/s)
+%   time_s       - time vector (s)
+%   indxComp     - component distribution of the signals
 %
 % Notes:
 %  For a Schroeder phase distribution to work well the frequency
@@ -29,18 +30,25 @@ function [freqComp_rps, time_s, signalDist] = MultiSineComponents(freqMinDes_rps
 %
 
 %% Check I/O Arguments
-narginchk(3, 6)
-if nargin < 6, methodSW = [];
-    if nargin < 5, freqStepDes_rps = []; end
-    if nargin < 4, numCycles = []; end
+narginchk(1, 2)
+if ~isfield(structMultiSine, 'freqRange_rps')
+    error(['oFA:' mfilename ':Inputs'], 'The freqRange_rps field must be provided');
+end
+if ~isfield(structMultiSine, 'timeRate_s')
+    error(['oFA:' mfilename ':Inputs'], 'The timeRate_s field must be provided');
+end
+if ~isfield(structMultiSine, 'numCycles'), structMultiSine.numCycles = []; end
+if ~isfield(structMultiSine, 'freqStepDes_rps'), structMultiSine.freqStepDes_rps = []; end
+if nargin < 2
+    methodSW = [];
 end
 
-nargoutchk(0, 3)
+nargoutchk(1, 1)
 
 
 %% Default Values and Constants
-if isempty(numCycles), numCycles = 3; end
-if isempty(freqStepDes_rps), freqStepDes_rps = 0; end
+if isempty(structMultiSine.numCycles), structMultiSine.numCycles = 3; end
+if isempty(structMultiSine.freqStepDes_rps), structMultiSine.freqStepDes_rps = 0; end
 if isempty(methodSW), methodSW = 'zipper'; end
 
 % Constants
@@ -49,6 +57,12 @@ rps2hz = 1/hz2rps;
 
 
 %% Check Inputs
+freqMinDes_rps = structMultiSine.freqRange_rps(:,1);
+freqMaxDes_rps = structMultiSine.freqRange_rps(:,2);
+timeRate_s = structMultiSine.timeRate_s;
+numCycles = structMultiSine.numCycles;
+freqStepDes_rps = structMultiSine.freqStepDes_rps;
+
 if length(freqMinDes_rps) ~= length(freqMaxDes_rps)
     warning(['oFA:' mfilename ':Inputs'], 'The min and max frequency inputs must be the same length');
 end
@@ -83,7 +97,7 @@ freqMin_hz = numCycles / timeLength_s;
 freqMax_hz = ceil(max(freqMaxDes_hz) / freqStep_hz) * freqStep_hz;
 
 % Frequencies of all the components
-freqComp_hz = (freqMin_hz : freqStep_hz : freqMax_hz)';
+freqComp_hz = (freqMin_hz : freqStep_hz : freqMax_hz);
 freqComp_rps = freqComp_hz * hz2rps;
 
 % Number of components available to make-up the signals
@@ -92,22 +106,17 @@ numComp = length(freqComp_rps);
 
 %% Distribute the frequency components into the signals
 % Number of signals
-numSignals = length(freqMinDes_rps);
-
-% Initialize the signal distribution to zeros
-signalDist = zeros(numComp, numSignals);
+numChan = length(freqMinDes_rps);
 
 % Distribution methods
+indxChan = cell(1, numChan);
+freqChan_rps = cell(1, numChan);
 switch methodSW
     case {'zipper', 'zip'}
         % Zippered distribution
-        for indxComp = 1:numSignals:numComp
-            for indxSignal = 1:numSignals
-                if indxComp <= numComp
-                    signalDist(indxComp, indxSignal) = 1;
-                end
-                indxComp = indxComp + 1;
-            end
+        for iChan = 1:numChan
+            indxChan{iChan} = iChan:numChan:numComp;
+            freqChan_rps{iChan} = freqComp_rps(indxChan{iChan});
         end
 
     otherwise
@@ -115,3 +124,9 @@ switch methodSW
         % place components to bound the min and max as closely as possible and
         % distribute signals with as even a distribution as possible
 end
+
+
+%% Check Outputs
+structMultiSine.freqChan_rps = freqChan_rps;
+structMultiSine.time_s = time_s;
+structMultiSine.indxChan = indxChan;

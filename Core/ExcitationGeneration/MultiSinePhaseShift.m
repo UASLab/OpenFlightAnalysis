@@ -1,14 +1,16 @@
-function [phaseShift_rad] = MultiSinePhaseShift(signals, time_s, freqComp_rps, signalDist)
+function [structMultiSine] = MultiSinePhaseShift(structMultiSine)
 % Compute the phase shift for a multi-sine signal to start/end near zero.
 %
 % Inputs:
-%  signals      - time history of the composite signals
-%  time_s       - time vector for time history (s)
-%  freqComp_rps - frequency components of the signals (rad/s)
-%  signalDist   - component distribution of the the signals
+%  structMultiSine [structure]
+%   signals      - time history of the composite signals
+%   time_s       - time vector for time history (s)
+%   freqChan_rps - frequency components of the signals (rad/s)
+%   indxChan     - component distribution of the the signals
 %
 % Outputs:
-%  phaseShift_rad - component phase shift (rad)
+%  structMultiSine [structure]
+%   phaseChan_rad - component phase shifted (rad)
 %
 % Notes:
 %
@@ -26,7 +28,7 @@ function [phaseShift_rad] = MultiSinePhaseShift(signals, time_s, freqComp_rps, s
 %
 
 %% Check I/O Arguments
-narginchk(4, 4)
+narginchk(1, 1)
 nargoutchk(0, 1)
 
 
@@ -34,33 +36,36 @@ nargoutchk(0, 1)
 
 
 %% Check Inputs
-% Number of signals and components
-[numComp, numSignals] = size(signalDist);
+numChan = structMultiSine.numChan;
 
 
 %% Time shift per signal
 % Find the time that each signal first crosses zero
-timeShift_s = zeros(numSignals, 1);
-for indxSignal = 1:numSignals
+tShift_s = zeros(numChan, 1);
+for iChan = 1:numChan
 
-    indxShift = 1;
-    initSign = sign(signals(indxSignal, indxShift));
-    while sign(signals(indxSignal, indxShift)) == initSign
-        indxShift = indxShift + 1;
+    iShift = 1;
+    initSign = sign(structMultiSine.signals(iChan, iShift));
+    while sign(structMultiSine.signals(iChan, iShift)) == initSign
+        iShift = iShift + 1;
     end
 
     % Refine the solution via interpolation around the sign switch, and return the time shift
-    timeShift_s(indxSignal) = interp1(signals(indxSignal, (indxShift-1:indxShift)), time_s((indxShift-1:indxShift)), 0);
+    tShift_s(iChan, :) = interp1(structMultiSine.signals(iChan, iShift-1:iShift), structMultiSine.time_s(iShift-1:iShift), 0);
 end
 
 
 %% Phase shift per component
 % Find the phase shift associated with the time shift for each frequency component in the combined signals
-phaseShift_rad = zeros(numComp, 1);
-for indxSignal = 1:numSignals
-    listSigComp = find(signalDist(:,indxSignal));
-    phaseShift_rad(listSigComp, 1) = timeShift_s(indxSignal) * freqComp_rps(listSigComp);
+structMultiSine.phaseShift_rad = cell(1, numChan);
+for iChan = 1:numChan
+    structMultiSine.phaseShift_rad{iChan} = tShift_s(iChan, :) * structMultiSine.freqChan_rps{iChan};
 end
 
-
+% Adjust the phasing by the shift value
+for iChan = 1:numChan
+    structMultiSine.phaseChan_rad{iChan} = structMultiSine.phaseChan_rad{iChan} + structMultiSine.phaseShift_rad{iChan};
+end
+    
 %% Check Outputs
+

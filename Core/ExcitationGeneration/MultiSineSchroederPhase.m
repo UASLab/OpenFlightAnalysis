@@ -1,13 +1,16 @@
-function [phaseComp_rad] = MultiSineSchroederPhase(signalPowerRel, phaseComp1_rad, boundSW)
+function [structMultiSine] = MultiSineSchroederPhase(structMultiSine, phaseComp1_rad, boundSW)
 % Multisine phase shift based on Schroeder's minimum peak criterion.
 %
 % Inputs:
-%  signalPowerRel - relative signal power for each component
+%  structMultiSine [structure]
+%   ampChan_nd     - relative signal power for each component
+%   indxChan       - signal components
 %  phaseComp1_rad - phase of the first component (rad) [0]
 %  boundSW        - switch to force the phase in the range [0, 2*pi) []
 %
 % Outputs:
-%  phaseComp_rad - component phases in the signals (rad)
+%  structMultiSine [structure]
+%   phaseChan_rad - component phases in the signals (rad)
 %
 % Notes:
 %
@@ -27,35 +30,44 @@ function [phaseComp_rad] = MultiSineSchroederPhase(signalPowerRel, phaseComp1_ra
 
 %% Check I/O Arguments
 narginchk(1, 3)
+if ~isfield(structMultiSine, 'ampChan_nd')
+    error(['oFA:' mfilename ':Inputs'], 'The ampChan_nd field must be provided');
+end
+if ~isfield(structMultiSine, 'indxChan')
+    error(['oFA:' mfilename ':Inputs'], 'The indxChan field must be provided');
+end
+
 if nargin < 3, boundSW = [];
     if nargin < 2, phaseComp1_rad = []; end
 end
 
-nargoutchk(0, 1)
+nargoutchk(1, 1)
 
 
 %% Default Values and Constants
 if isempty(phaseComp1_rad), phaseComp1_rad = 0; end
 
-
-%% Check Inputs
-% Ensure the summation of the relative signal power vector is unity
-if sum(signalPowerRel) ~= 1
-    warning(['oFA:' mfilename ':SignalPower'], ['Sum of relative signal power should be unity: ' num2str(sum(signalPowerRel))]);
-end
-
+numChan = structMultiSine.numChan;
 
 %% Compute the Schroeder phase shifts
 % Compute phases  (Reference 1, Equation 11)
-numComp = length(signalPowerRel);
+
+ampComp_nd = [];
+for iChan = 1:numChan
+    ampComp_nd(structMultiSine.indxChan{iChan}) = structMultiSine.ampChan_nd{iChan};
+end
+sigPowerRel = (ampComp_nd / max(ampComp_nd)).^2 / length(ampComp_nd);
+
+numComp = length(ampComp_nd);
+phaseComp_rad = NaN(size(ampComp_nd));
 phaseComp_rad(1) = phaseComp1_rad;
-for indxComp = 2:numComp
+for iComp = 2:numComp
     sumVal = 0;
-    for indxL = 1:indxComp-1
-        sumVal = sumVal + (indxComp - indxL)*signalPowerRel(indxL);
+    for indxL = 1:iComp-1
+        sumVal = sumVal + (iComp - indxL)*sigPowerRel(indxL);
     end
 
-    phaseComp_rad(indxComp, 1) = phaseComp_rad(1) - 2*pi*sumVal;
+    phaseComp_rad(iComp) = phaseComp_rad(1) - 2*pi*sumVal;
 end
 
 
@@ -66,4 +78,15 @@ if boundSW
 end
 
 
+%% Deal Phase components into channels
+phaseChan_rad = {};
+for iChan = 1:numChan
+    phaseChan_rad{iChan} = phaseComp_rad(structMultiSine.indxChan{iChan});
+end
+
+
 %% Check Outputs
+structMultiSine.ampComp_nd = ampComp_nd;
+structMultiSine.phaseComp_rad = phaseComp_rad;
+structMultiSine.phaseChan_rad = phaseChan_rad;
+

@@ -57,7 +57,7 @@ win = WindowSignal(ones(size(x)), winType);
 x = x .* win;
 
 %% Compute Power scaling
-scale = PowerScale(scaleType, freqRate, win);
+scale = PowerScale(scaleType, freqRate, win')';
 
 switch lower(dftType)
     case 'fft'
@@ -85,7 +85,7 @@ switch lower(dftType)
         [xDft, freq] = ChirpZ(x, freqRate, freqVec);
         
         % Compute Power, factor of 2 because CZT is one-sided
-        xxP = 2*scale * (xDft .* conj(xDft));
+        xxP = 2*scale .* (xDft .* conj(xDft));
 end
 
 %% Check Outputs

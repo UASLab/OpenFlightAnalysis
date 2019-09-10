@@ -21,87 +21,84 @@ rps2hz = 1/hz2rps;
 
 
 %% Define the frequency selection and distribution of the frequencies into the signals
-numSignals = 3;
-timeRate_s = 1/50;
-timeDur_s = 10.0;
-numCycles = 1;
+structMultiSine.numChan = 3;
+structMultiSine.timeRate_s = 1/50;
+structMultiSine.timeDur_s = 10.0;
+structMultiSine.numCycles = 1;
 
-freqMinDes_rps = (numCycles/timeDur_s) * hz2rps * ones(numSignals, 1);
-freqMaxDes_rps = 8.25 * hz2rps * ones(numSignals, 1);
-freqStepDes_rps = 0.2 * hz2rps;
+freqMinDes_hz = structMultiSine.numCycles / structMultiSine.timeDur_s;
+freqMaxDes_hz = 10.2;
+
+structMultiSine.freqRange_rps = repmat([freqMinDes_hz, freqMaxDes_hz], [structMultiSine.numChan, 1]) * hz2rps;
+structMultiSine.freqStepDes_rps = (1 / 5) * hz2rps;
 methodSW = 'zip'; % "zippered" component distribution
 
-[freqComp_rps, time_s, signalDist] = MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, timeRate_s, numCycles, freqStepDes_rps, methodSW);
+structMultiSine = MultiSineComponents(structMultiSine, methodSW);
 
 
-%% Relative Signal Power
-signalPowerRel = NaN(size(freqComp_rps));
-for indxSig = 1:numSignals
-    sigSel = find(signalDist(:,indxSig) == 1);
-    signalPowerRel(sigSel) = ones(length(sigSel), 1) ./ length(sigSel); % Flat-spectrum, each signal has unity power
+%% Amplitude
+structMultiSine.ampChan_nd = {};
+for iChan = 1:structMultiSine.numChan
+    structMultiSine.ampChan_nd{iChan} = ones(size(structMultiSine.freqChan_rps{iChan})); % Flat-spectrum, each signal has unity amplitude
 end
 
 
 %% Generate Optimal MultiSine Signal
 phaseComp1_rad = [];
-normalSW = [];
-forceZeroSW = 1;
+normalSW = true;
+forceZeroSW = true;
 costType = 'norm2';
 
-[signals, phaseComp_rad, signalComp] = MultiSineOptimal(freqComp_rps, signalPowerRel, time_s, signalDist, phaseComp1_rad, normalSW, forceZeroSW, costType);
+[structMultiSine] = MultiSineOptimal(structMultiSine, phaseComp1_rad, normalSW, forceZeroSW, costType);
 
 
 %% Modify the Excitation Signal
-gains = 1 * ones(numSignals, 1);
 numRepeat = [];
-seperateSW = [];
-timeLead_s = 1*timeRate_s;
-timeTrail_s = 1*timeRate_s;
+timeLead_s = 1*structMultiSine.timeRate_s;
+timeTrail_s = 1*structMultiSine.timeRate_s;
 
-[signals, time_s] = ModifyExcitation(signals, time_s, gains, numRepeat, seperateSW, timeLead_s, timeTrail_s);
+[structMultiSine] = ModifyExcitation(structMultiSine, numRepeat, timeLead_s, timeTrail_s);
 
 
 %% Results
+signals = structMultiSine.signals;
 peakFactorRel = PeakFactor(signals)/sqrt(2)
 
-figure; plot(time_s, signals); grid on;
-
-% PSD
-freqRate_rps = 1/timeRate_s * hz2rps;
-winType = [];
-smoothFactor = 1;
-
-[xxP, xDft, freq_rps] = SpectEstFFT(signals, freqRate_rps, winType, smoothFactor);
-SpectPlot(freq_rps, xxP, 'rad/sec', [], []);
-
-% Chrip-Z
-xxP_CZ = NaN(max(sum(signalDist)), size(signalDist, 2));
-xDft_CZ = NaN(max(sum(signalDist)), size(signalDist, 2));
-freq_rps_CZ = NaN(max(sum(signalDist)), size(signalDist, 2));
-for indxSignal = 1:size(signals, 1)
-    sigSel = signalDist(:, indxSignal) == 1;
-    freqVec_rps = freqComp_rps(sigSel);
-    sigVec = signals(indxSignal, :);
-    vecElem = 1:length(freqVec_rps);
-
-    [xxP_CZ(vecElem, indxSignal), xDft_CZ(vecElem, indxSignal), freq_rps_CZ(vecElem, indxSignal)] = SpectEstCZT(sigVec, freqVec_rps, freqRate_rps, winType, smoothFactor);
+figure;
+for iChan = 1:structMultiSine.numChan
+    subplot(structMultiSine.numChan, 1, iChan);
+    plot(structMultiSine.time_s, structMultiSine.signals(iChan, :)); grid on;
 end
 
-% [xxP_CZ, xDft_CZ, freq_rps_CZ] = SpectEstCZT(signals, freqComp_rps, freqRate_rps, winType, smoothFactor);
-SpectPlot(freq_rps_CZ, xxP_CZ, 'rad/sec', [], []);
+% PSD
+structMultiSine.freqRate_rps = 1/structMultiSine.timeRate_s * hz2rps;
+winType = 'rect';
+smoothFactor = 1;
 
+% [xxP, xDft, freq_rps] = SpectEst(signals, freqRate_rps, [], winType, smoothFactor, 'FFT');
+% SpectPlot(freq_rps, xxP, 'rad/sec', [], []);
 
+% Chrip-Z
+xxP_CZ = {};
+xDft_CZ = {};
+freq_rps_CZ = {};
+for iChan = 1:structMultiSine.numChan
+    [xxP_CZ{iChan}, xDft_CZ{iChan}, freq_rps_CZ{iChan}] = SpectEst(structMultiSine.signals, structMultiSine.freqRate_rps, structMultiSine.freqChan_rps{iChan}, winType, smoothFactor, 'ChirpZ');
+end
+
+% SpectPlot(freq_rps_CZ, xxP_CZ, 'rad/sec', [], []);
+figure;
+for iChan = 1:structMultiSine.numChan
+    subplot(structMultiSine.numChan, 1, iChan);
+    semilogx(freq_rps_CZ{iChan}, Mag2DB( xxP_CZ{iChan} ), '*-'); grid on;
+end
+
+return;
 %% Create the output for JSON config
-for indxSig = 1:size(signalDist, 2)
-    sigSel = find(signalDist(:, indxSig) == 1);
-    
-    disp(['"Type": "MultiSine", "Duration": ', jsonencode(timeDur_s), ','])
-    disp(['"Frequency": ', jsonencode(freqComp_rps(sigSel)), ','])
-    disp(['"Phase": ', jsonencode(phaseComp_rad(sigSel)), ','])
-    
-    scale = sqrt(0.5 / length(sigSel)); % Goldy3 scales the amplitude vector
-    ampRel(sigSel) = sqrt(0.5 .* signalPowerRel(sigSel)) / scale; % Goldy3 uses the scaled amplitude vector as input
-    
-    disp(['"Amplitude": ', jsonencode(ampRel(sigSel)), ','])
-    disp([' '])
+for iChan = 1:structMultiSine.numChan
+    disp(['"Name_' num2str(iChan) '": {"Type": "MultiSine", "Duration": ', jsonencode(structMultiSine.timeDur_s), ','])
+    disp(['  "Frequency": ', jsonencode(structMultiSine.freqChan_rps{iChan}), ','])
+    disp(['  "Phase": ', jsonencode(structMultiSine.phaseChan_rad{iChan}), ','])
+    disp(['  "Amplitude": ', jsonencode(structMultiSine.ampChan_nd{iChan})])
+    disp(['}, '])
 end

@@ -1,20 +1,22 @@
-function [signals, phaseComp_rad, signalComp] = MultiSineSchroeder(freqComp_rps, signalPowerRel, time_s, signalDist, phaseComp1_rad, boundSW, normalSW, forceZeroSW)
+function [structMultiSine] = MultiSineSchroeder(structMultiSine, phaseComp1_rad, boundSW, normalSW, forceZeroSW)
 % Compute multisine signals based on Schoeders minimum peak criterion.
 %
 % Inputs:
-%  freqComp_rps   - component frequencies in the signals (rad/s)
-%  signalPowerRel - relative power components of the signals
-%  time_s         - time vector for time history (s)
-%  signalDist     - component distribution of the signals
+%  structMultiSine [structure]
+%   freqChan_rps   - component frequencies in the signals (rad/s)
+%   ampChan_nd     - relative power components of the signals
+%   time_s         - time vector for time history (s)
+%   indxChan       - component distribution of the signals
 %  phaseComp1_rad - phase of the first component (rad) [0]
 %  boundSW        - switch to force the phase in the range [0, 2*pi) []
 %  normalSW       - switch to normalize summed signals []
 %  forceZeroSW    - switch to force initial zero [1]
 %
 % Outputs:
-%  signals       - time history of signals
-%  phaseComp_rad - component phases in the signals (rad)
-%  signalComp    - time history of all signal components
+%  structMultiSine [structure]
+%   signals       - time history of signals
+%   phaseComp_rad - component phases in the signals (rad)
+%   signalComp    - time history of all signal components
 %
 % Notes:
 %
@@ -40,14 +42,27 @@ function [signals, phaseComp_rad, signalComp] = MultiSineSchroeder(freqComp_rps,
 %
 
 %% Check I/O Arguments
-narginchk(4, 8)
-if nargin < 8, forceZeroSW = [];
-    if nargin < 7, normalSW = []; end
-    if nargin < 6, boundSW = []; end
-    if nargin < 5, phaseComp1_rad = []; end
+narginchk(1, 5)
+if ~isfield(structMultiSine, 'freqChan_rps')
+    error(['oFA:' mfilename ':Inputs'], 'The freqChan_rps field must be provided');
+end
+if ~isfield(structMultiSine, 'ampChan_nd')
+    error(['oFA:' mfilename ':Inputs'], 'The ampChan_nd field must be provided');
+end
+if ~isfield(structMultiSine, 'time_s')
+    error(['oFA:' mfilename ':Inputs'], 'The time_s field must be provided');
+end
+if ~isfield(structMultiSine, 'indxChan')
+    error(['oFA:' mfilename ':Inputs'], 'The indxChan field must be provided');
 end
 
-nargoutchk(0, 3)
+if nargin < 5, forceZeroSW = [];
+    if nargin < 4, normalSW = []; end
+    if nargin < 3, boundSW = []; end
+    if nargin < 2, phaseComp1_rad = []; end
+end
+
+nargoutchk(1, 1)
 
 
 %% Default Values and Constants
@@ -55,27 +70,21 @@ if isempty(phaseComp1_rad), phaseComp1_rad = 0; end
 if isempty(forceZeroSW), forceZeroSW = 1; end
 
 
-%% Check Inputs
-
-
 %% Schoeder based component phase distribution
-[phaseComp_rad] = MultiSineSchroederPhase(signalPowerRel, phaseComp1_rad, boundSW);
+[structMultiSine] = MultiSineSchroederPhase(structMultiSine, phaseComp1_rad, boundSW);
 
 
 %% Generate the signals
-[signals, signalComp] = MultiSineAssemble(freqComp_rps, phaseComp_rad, signalPowerRel, time_s, signalDist, normalSW);
+[structMultiSine] = MultiSineAssemble(structMultiSine, normalSW);
 
 % Offset the phase components to yield near zero initial and final values
 % for each of the signals, based on Morrelli.  This is optional.
 if forceZeroSW
     % Phase shift required for each of the frequency components
-    phaseShift_rad = MultiSinePhaseShift(signals, time_s, freqComp_rps, signalDist);
-
-    % Adjust the phasing by the shift value
-    phaseComp_rad = phaseComp_rad + phaseShift_rad;
+    structMultiSine = MultiSinePhaseShift(structMultiSine);
 
     % Recompute the sweep signals based on the new phasings
-    [signals, signalComp] = MultiSineAssemble(freqComp_rps, phaseComp_rad, signalPowerRel, time_s, signalDist, normalSW);
+    [structMultiSine] = MultiSineAssemble(structMultiSine, normalSW);
 end
 
 

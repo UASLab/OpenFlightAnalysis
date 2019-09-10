@@ -1,8 +1,8 @@
-function [peakFactor] = PeakFactor(signal)
+function [peakFactor] = PeakFactor(signals)
 % Calculate the peak factor of a multisine signal.
 %
 % Inputs:
-%  signal - time history of the signals
+%  signals - time history of the signals
 %
 % Outputs:
 %  peakFactor - peak factor of each signal
@@ -23,31 +23,15 @@ narginchk(1, 1)
 nargoutchk(0, 1)
 
 
-%% Default Values and Constants
-
-
 %% Check Inputs
-% Determine if transposition is required
-if size(signal, 1) > size(signal, 2)
-    signal = signal';
-    transpose = 1;
-else
-    transpose = 0;
-end
-
 % Number of signals in the input
-numSignals = size(signal, 1);
+numChan = size(signals, 1);
 
 
 %% Calculate the peak factor
-for indxSignal = 1:numSignals
-    signalElem = (signal(indxSignal, :));
-    peakFactor(indxSignal,:) = (max(signalElem) - min(signalElem)) / (2*sqrt(dot(signalElem, signalElem) / length(signalElem)));
+peakFactor = zeros(numChan, 1);
+for iChan = 1:numChan
+    signalElem = signals(iChan, :);
+    peakFactor(iChan) = (max(signalElem) - min(signalElem)) / (2*sqrt(dot(signalElem, signalElem) / length(signalElem)));
 end
 
-
-%% Check Outputs
-% Fix the transpose if necessary
-if transpose == 1
-    peakFactor = peakFactor';
-end

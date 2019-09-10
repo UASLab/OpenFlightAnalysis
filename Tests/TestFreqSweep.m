@@ -32,16 +32,7 @@ freqType = [];
 amplType = [];
 forceZeroSW = 1;
 
-[signal, ampl, freq_rps] = FreqSweep(freqInit_rps, freqFinal_rps, time_s, amplInit, amplFinal, freqType, amplType, forceZeroSW);
-
-
-gains = 1;
-numRepeat = [];
-seperateSW = [];
-timeLead_s = [];
-timeTrail_s = [];
-
-[signals, time_s] = ModifyExcitation(signal, time_s, gains, numRepeat, seperateSW, timeLead_s, timeTrail_s);
+[signals, ampl, freq_rps] = FreqSweep(freqInit_rps, freqFinal_rps, time_s, amplInit, amplFinal, freqType, amplType, forceZeroSW);
 
 
 PeakFactor(signals)/sqrt(2)

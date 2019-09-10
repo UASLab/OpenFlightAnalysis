@@ -19,8 +19,11 @@ disp('Flight Data Analysis Toolbox is starting...');
 % Turn off multiple path warning
 warning('off', 'MATLAB:dispatcher:pathWarning');
 
-% Add paths, excluding those containing '.git'
-addpath(regexprep(genpath(filePath), '.git', ''));
+% General Tool Paths
+addpath(filePath);
+addpath(genpath(fullfile(filePath, 'Examples')));
+addpath(genpath(fullfile(filePath, 'Tests')));
+addpath(genpath(fullfile(filePath, 'Core')));
 
 % Turn on multiple path warning
 warning('on', 'MATLAB:dispatcher:pathWarning');
