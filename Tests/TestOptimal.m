@@ -94,11 +94,28 @@ for iChan = 1:structMultiSine.numChan
 end
 
 return;
+
 %% Create the output for JSON config
+waveName = 'OMS';
+WaveDef = [];
 for iChan = 1:structMultiSine.numChan
-    disp(['"Name_' num2str(iChan) '": {"Type": "MultiSine", "Duration": ', jsonencode(structMultiSine.timeDur_s), ','])
-    disp(['  "Frequency": ', jsonencode(structMultiSine.freqChan_rps{iChan}), ','])
-    disp(['  "Phase": ', jsonencode(structMultiSine.phaseChan_rad{iChan}), ','])
-    disp(['  "Amplitude": ', jsonencode(structMultiSine.ampChan_nd{iChan})])
-    disp(['}, '])
+    name = [waveName '_' num2str(iChan)];
+    WaveDef.(name).Type = 'MultiSine';
+    WaveDef.(name).Duration = structMultiSine.timeDur_s;
+    WaveDef.(name).Frequency = structMultiSine.freqChan_rps{iChan};
+    WaveDef.(name).Phase = structMultiSine.phaseChan_rad{iChan};
+    WaveDef.(name).Amplitude = structMultiSine.ampChan_nd{iChan};
 end
+
+jsonStr = jsonencode(WaveDef);
+
+% Pretty Print
+jsonStr = strrep(jsonStr, '},"', sprintf('},\r"'));
+jsonStr = strrep(jsonStr, ':{', sprintf(':{\r\t'));
+jsonStr = strrep(jsonStr, ',"', sprintf(',\r\t"'));
+jsonStr = strrep(jsonStr, '}}', sprintf('}\r}'));
+jsonStr = strrep(jsonStr, ']}', sprintf(']\r}'));
+jsonStr = strrep(jsonStr, ':', sprintf(': '));
+jsonStr = strrep(jsonStr, ',', sprintf(', '));
+
+disp(jsonStr)

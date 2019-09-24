@@ -22,13 +22,13 @@ rps2hz = 1/hz2rps;
 structMultiSine.numChan = 3;
 structMultiSine.timeRate_s = 1/50;
 structMultiSine.timeDur_s = 10.0;
-structMultiSine.numCycles = 1;
+structMultiSine.numCycles = 2;
 
 freqMinDes_hz = structMultiSine.numCycles / structMultiSine.timeDur_s;
-freqMaxDes_hz = 10.2;
+freqMaxDes_hz = 6.0;
 
 structMultiSine.freqRange_rps = repmat([freqMinDes_hz, freqMaxDes_hz], [structMultiSine.numChan, 1]) * hz2rps;
-structMultiSine.freqStepDes_rps = (1 / 5) * hz2rps;
+structMultiSine.freqStepDes_rps = (1 / 10) * hz2rps;
 methodSW = 'zip'; % "zippered" component distribution
 
 structMultiSine = MultiSineComponents(structMultiSine, methodSW);
@@ -95,10 +95,26 @@ end
 return
 
 %% Create the output for JSON config
+waveName = 'Schroeder';
+WaveDef = [];
 for iChan = 1:structMultiSine.numChan
-    disp(['"Name_' num2str(iChan) '": {"Type": "MultiSine", "Duration": ', jsonencode(structMultiSine.timeDur_s), ','])
-    disp(['  "Frequency": ', jsonencode(structMultiSine.freqChan_rps{iChan}), ','])
-    disp(['  "Phase": ', jsonencode(structMultiSine.phaseChan_rad{iChan}), ','])
-    disp(['  "Amplitude": ', jsonencode(structMultiSine.ampChan_nd{iChan})])
-    disp(['}, '])
+    name = [waveName '_' num2str(iChan)];
+    WaveDef.(name).Type = 'MultiSine';
+    WaveDef.(name).Duration = structMultiSine.timeDur_s;
+    WaveDef.(name).Frequency = structMultiSine.freqChan_rps{iChan};
+    WaveDef.(name).Phase = structMultiSine.phaseChan_rad{iChan};
+    WaveDef.(name).Amplitude = structMultiSine.ampChan_nd{iChan};
 end
+
+jsonStr = jsonencode(WaveDef);
+
+% Pretty Print
+jsonStr = strrep(jsonStr, '},"', sprintf('},\r"'));
+jsonStr = strrep(jsonStr, ':{', sprintf(':{\r\t'));
+jsonStr = strrep(jsonStr, ',"', sprintf(',\r\t"'));
+jsonStr = strrep(jsonStr, '}}', sprintf('}\r}'));
+jsonStr = strrep(jsonStr, ']}', sprintf(']\r}'));
+jsonStr = strrep(jsonStr, ':', sprintf(': '));
+jsonStr = strrep(jsonStr, ',', sprintf(', '));
+
+disp(jsonStr)
