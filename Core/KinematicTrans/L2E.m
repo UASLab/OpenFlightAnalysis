@@ -32,8 +32,5 @@ function [T_LE, r_PL_E_m] = L2E(rRef_LD_D_ddm, r_PL_L_m)
 %% Constants
 
 
-%% Compute the Relative Velocity
-vel_BO = vel_AO + vel_BA + cross(omega_AO, pos_BA);
-
 
 %% Outputs
