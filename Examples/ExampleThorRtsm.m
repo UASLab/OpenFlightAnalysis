@@ -1,19 +1,18 @@
+% University of Minnesota
+% Aerospace Engineering and Mechanics - UAV Lab
+% Copyright (c) 2019 Regents of the University of Minnesota
+% See: LICENSE.md for complete license details
+%
+% Author: Chris Regan
 
 %% Constants
 r2d = 180/pi;
 d2r = 1/r2d;
 in2m = 0.0254;
-
+hz2rps = 2*pi;
 
 %%
-
 pathRoot = fullfile('G:', 'Shared drives', 'UAVLab', 'Flight Data');
-
-
-
-%% Load Config
-fileConfig = fullfile(pathData, ['thor' '.json']);
-fileFltDef = fullfile(pathData, ['thor_def' '.json']);
 
 
 %% Segment Defintions
@@ -50,18 +49,23 @@ for iSeg = 1:numSeg
 end
 
 %% Load Data
-[fltData, segData] = LoadData(segDef);
+[segData, fltData] = LoadData(segDef);
+
+%% Plot Ins and Outs
+
+%% Frequency Response
+
+optSpect.dftType = 'ChirpZ';
+optSpect.freqRate = 50 * hz2rps;
+optSpect.freq = [1:10] * hz2rps;
+
+optSpect.scaleType = 'density';
 
 
+x = segData{1}.Excitation.cmdRoll_rps;
+y = segData{1}.Control.cmdRoll_rps;
 
-clear flt;
-
-flt{1}.param.vehName = 'Thor'; flt{1}.param.fltNum = '120'; 
-flt{1}.param.apType = 'Goldy3'; flt{1}.param.config = '2';
-
-flt{2}.param.vehName = 'Thor'; flt{2}.param.fltNum = '121'; 
-flt{2}.param.apType = 'Goldy3'; flt{2}.param.config = '2';
-
-
+optSpect.optWin.len = length(x);
+[freq, xyT, xyC, xxP, yyP, xyP] = FreqRespEst(x, y, optSpect);
 
 

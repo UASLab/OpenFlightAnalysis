@@ -1,15 +1,16 @@
-function [freq, gain_dB, phase_deg, xyC, xyT, xxP, yyP, xyP] = FreqRespEstChirpZ(x, y, freqVec, freqRate, winType, smoothFactor, coherLimit)
+function [freq, gain_dB, phase_deg, xyC, xyT, xxP, yyP, xyP] = FreqRespEst(x, y, optSpect)
 % Estimate the frequency response function (x -> y) between two time histories using the
 % Chirp-z transform.
 %
 % Inputs:
 %  x            - assumed input time history
 %  y            - assumed output time history
-%  freqVec      - frequencies of interest (see Note)
-%  freqRate     - sample rate (see Note)
-%  winType      - desired data window ['rectwin']
-%  smoothFactor - moving average width [1]
-%  coherLimit   - coherence limit theshold []
+%  optSpect
+%    freqRate     - sample rate (see Note)
+%    freq         - frequencies of interest (see Note)
+%    winType      - desired data window ['rectwin']
+%    smoothFactor - moving average width [1]
+%    coherLimit   - coherence limit theshold []
 %
 % Outputs:
 %  freq      - frequency of transfer function (see Note)

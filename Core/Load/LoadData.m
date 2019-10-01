@@ -1,5 +1,23 @@
-function [fltData, segData] = LoadData(segDef)
+function [segData, fltData] = LoadData(segDef)
+% Load flight data and segment based on Segment Definition
+%
+%Inputs:
+% segDef   - Cell Array of Segment Definitions
+%
+%Outputs:
+% segData - Open Data formated segments
+% fltData - Flight Data, structure with named fields for each unique
+%
 
+% University of Minnesota
+% Aerospace Engineering and Mechanics - UAV Lab
+% Copyright (c) 2019 Regents of the University of Minnesota
+% See: LICENSE.md for complete license details
+% Author: Chris Regan
+
+%% Check I/O Arguments
+narginchk(1, 1);
+nargoutchk(1, 2);
 
 %% Create a list of Files to load
 numSeg = length(segDef);
@@ -51,15 +69,13 @@ end
 
 
 %% Segment Flight Data
-
-oData = {}
+segData = {};
 for iSeg = 1:numSeg
     fltName = segDef{iSeg}.fltName;
     
-    timeSeg = segDef{iSeg}.time_us;
-
-    oData{iSeg} = OpenData_RaptrsLog(fltData.(fltName).logData, fltData.(fltName).config);
+    % Convert the Raw Log data to oData
+    oData = OpenData_RaptrsLog(fltData.(fltName).logData, fltData.(fltName).config);
     
+    % Slice the oData based on the segDef
+    segData{iSeg} = OpenData_Slice(oData, oData.time_us, segDef{iSeg}.time_us);
 end
-    
-    

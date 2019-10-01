@@ -7,14 +7,12 @@ function [oData] = OpenData_RaptrsLog(logData, config)
 %Outputs:
 % oData - Structure of file variables
 %
-%Notes:
-% Any Special Notes.
-%
 
-%Version History: Version 1.0
-% 01/16/2018  C. Regan     Initial Release (v1.0)
-%
-
+% University of Minnesota
+% Aerospace Engineering and Mechanics - UAV Lab
+% Copyright (c) 2019 Regents of the University of Minnesota
+% See: LICENSE.md for complete license details
+% Author: Chris Regan
 
 %% Check I/O Arguments
 narginchk(1, 2);

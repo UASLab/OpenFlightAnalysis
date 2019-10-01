@@ -1,21 +1,23 @@
-function [xxP, xDft, freq] = SpectEst(x, freqRate, freqVec, winType, smoothFactor, dftType)
+function [xxP, xDft, freq, scale] = SpectEst(x, optSpect)
 % Compute the Spectrum of time history data using FFT.
 %
-%Usage:  [xDft, freq] = SpectEst(x, freqRate);
+%Usage:  [xxP, xDft, freq, scale] = SpectEst(x, optSpect);
 %
 %Inputs:
 % x            - time history data
-% freqRate     - sampling frequency of data (see Note)
-% freqVec      - vector of frequencies (see Note)
-% winType      - Window Type
-% smoothFactor - Smoothing [1]
-% dftType      - DFT Type ['FFT']
-% scaleType    - Power Scale Type ['density']
+% optSpect
+%   freqRate     - sampling frequency of data (see Note)
+%   freq         - vector of frequencies (see Note)
+%   winType      - Window Type
+%   smoothFactor - Smoothing [1]
+%   dftType      - DFT Type ['FFT']
+%   scaleType    - Power Scale Type ['density']
 %
 %Outputs:
 % xxP   - Spectrum Power (scaled) (mag)
 % xDft  - result of the DFT
 % freq  - frequency vector (see Note)
+% scale - scaling value
 %
 %Notes:
 % The 'freq' output will have the units of the 'freqRate' input.
@@ -28,16 +30,27 @@ function [xxP, xDft, freq] = SpectEst(x, freqRate, freqVec, winType, smoothFacto
 %
 
 %% Check I/O Arguments
-narginchk(1, 6);
+narginchk(1, 2);
 if nargin < 2
-    freqRate = [];
+    optSpect = struct();
 end
 
-nargoutchk(0, 3);
+nargoutchk(0, 4);
 
 %% Default Values and Constants
-if isempty(freqRate), freqRate = 1; end
-scaleType = 'density';
+if ~isfield(optSpect, 'dftType'), optSpect.dftType = []; end
+if ~isfield(optSpect, 'freqRate'), optSpect.freqRate = []; end
+if ~isfield(optSpect, 'scaleType'), optSpect.scaleType = []; end
+if ~isfield(optSpect, 'optWin')
+    optSpect.optWin = struct();
+end
+if ~isfield(optSpect.optWin, 'len'), optSpect.optWin.len = []; end
+if ~isfield(optSpect, 'smoothType'), optSpect.smoothType = []; end
+
+if isempty(optSpect.freqRate), optSpect.freqRate = 1; end
+if isempty(optSpect.scaleType), optSpect.scaleType = 'density'; end
+if isempty(optSpect.optWin.len), optSpect.optWin.len = length(x); end
+
 
 %% Check Inputs
 [widthX, lenX] = size(x);
@@ -52,17 +65,18 @@ else
 end
 
 % Detrend and Window
-x = detrend(x')';
-win = WindowSignal(ones(size(x)), winType);
-x = x .* win;
+x = detrend(x);
+
+win = WindowFunc(optSpect.optWin);
+xWin = x .* win;
 
 %% Compute Power scaling
-scale = PowerScale(scaleType, freqRate, win')';
+scale = PowerScale(optSpect.scaleType, optSpect.freqRate, win);
 
-switch lower(dftType)
+switch lower(optSpect.dftType)
     case 'fft'
         %% Compute FFT of x
-        [xDft, freq] = FFT(x, freqRate);
+        [xDft, freq] = FFT(xWin, optSpect.freqRate);
         
         %% Power
         xxP = scale * (xDft .* conj(xDft));
@@ -82,22 +96,30 @@ switch lower(dftType)
         end
         
     case {'czt', 'chirpz'}
-        [xDft, freq] = ChirpZ(x, freqRate, freqVec);
+        [xDft, freq] = ChirpZ(xWin, optSpect.freqRate, optSpect.freq);
         
         % Compute Power, factor of 2 because CZT is one-sided
         xxP = 2*scale .* (xDft .* conj(xDft));
 end
 
-%% Check Outputs
-% Transpose
-if transposeFlag == 1
-    xxP = xxP';
-    xDft = xDft';
-    freq = freq';
-end
+
 
 end %SpectEst
 
+
+%% [Function] PowerScale
+function [scale] = PowerScale(scaleType, freqRate, win)
+    % Compute the scaling for power
+    switch lower(scaleType)
+        case 'density'
+            scale = 1.0 / (freqRate * sum(win.^2));
+        case 'spectrum'
+            scale = 1.0 / sum(win).^2;
+        otherwise
+            scale = 1;
+            warning([mfilename ' - Unknown Power Scaling.']);
+    end
+end
 
 %% [Function] ChirpZ
 function [xDft, freq] = ChirpZ(x, freqRate, freqVec)
