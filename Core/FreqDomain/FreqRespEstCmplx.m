@@ -26,26 +26,13 @@ nargoutchk(0, 2);
 
 
 %% Check Inputs
-[widthXX, lenXX] = size(xxP);
+[~, lenXX] = size(xxP);
 [widthYY, lenYY] = size(yyP);
 [widthXY, lenXY] = size(xyP);
 
 % Input lengths must be equal
 if (lenXX ~= lenYY) || (lenXX ~= lenXY) || (widthXY ~= widthYY)
-    error('Inputs must be of equal dimension')
-end
-
-% Transpose
-if widthXX > lenXX
-    transposeFlag = 1;
-    xxP = xxP';
-    yyP = yyP';
-    xyP = xyP';
-    [widthXX, lenXX] = size(xxP);
-    [widthYY, lenYY] = size(yyP);
-    [widthXY, lenXY] = size(xyP);
-else
-    transposeFlag = 0;
+    error([mfilename ' - Inputs must be of equal dimension'])
 end
 
 
@@ -58,8 +45,3 @@ xyC = (abs(xyP).^2)./(repmat(xxP, widthYY, 1) .* yyP);
 
 
 %% Check Outputs
-% Transpose
-if transposeFlag == 1
-    xyT = xyT';
-    xyC = xyC';
-end
