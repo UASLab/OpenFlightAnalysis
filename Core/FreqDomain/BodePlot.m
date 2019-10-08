@@ -1,16 +1,18 @@
-function [figHandle] = BodePlot(freq, gain_dB, phase_deg, xyC, coherLimit, plotTitle, saveFile)
+function [figHandle] = BodePlot(frf, optPlot)
 % Plot the Gain, Phase, and Coherence versus frequency.
 %
-%Usage:  [figHandle] = BodePlot(freq, gain_dB, phase_deg, xyC, coherLimit, plotTitle, saveFile);
+%Usage:  [figHandle] = BodePlot(frf, title, saveFile);
 %
 %Inputs:
-% freq       - frequency of response
-% gain_dB    - gain of response (dB)
-% phase_deg  - phase of response (deg)
-% xyC        - coherence of response []
-% coherLimit - coherence threshold []
-% plotTitle  - title of plot ['Bode Plot']
-% saveFile   - file to save figure []
+% frf
+%   freq       - frequency of response
+%   gain_dB    - gain of response (dB)
+%   phase_deg  - phase of response (deg)
+%   xyC        - coherence of response []
+% optPlot
+%   coherLimit - coherence threshold []
+%   title      - title of plot ['Bode Plot']
+%   saveFile   - file to save figure []
 %
 %Outputs:
 % figHandle - object handle of the figure
@@ -26,21 +28,26 @@ function [figHandle] = BodePlot(freq, gain_dB, phase_deg, xyC, coherLimit, plotT
 %
 
 %% Check I/O Arguments
-narginchk(3, 7);
-if nargin < 7, saveFile = [];
-    if nargin < 6, plotTitle = []; end
-    if nargin < 5, coherLimit = []; end
-    if nargin < 4, xyC = []; end
-end
+narginchk(1, 2);
+if nargin < 2, optPlot = struct(); end
 
 nargoutchk(0, 1);
 
 
 %% Default Values and Constants
-if isempty(plotTitle), plotTitle = 'Bode Plot'; end
+if ~isfield(optPlot, 'title'), optPlot.title = []; end
+if isempty(optPlot.title), optPlot.title = 'Bode Plot'; end
 
+if ~isfield(optPlot, 'coherLimit'), optPlot.coherLimit = []; end
 
 %% Check Inputs
+if ~isfield(frf, 'coher')
+    frf.coher = [];
+end
+
+if ~isfield(frf, 'gain_dB') | ~isfield(frf, 'phase_deg')
+    [frf.gain_dB, frf.phase_deg] = GainPhase(frf.T);
+end
 
 
 %% Plot
@@ -48,46 +55,46 @@ if isempty(plotTitle), plotTitle = 'Bode Plot'; end
 figHandle = figure;
 
 % Set number of plots
-if ~isempty(xyC)
+if ~isempty(frf.coher)
     numPlots = 3;
 else
     numPlots = 2;
 end
 
 % Min and Max Freq axis for plotting
-plotFreqMin = min(freq);
-plotFreqMax = max(freq);
+plotFreqMin = min(frf.freq);
+plotFreqMax = max(frf.freq);
 
 % Gain Plot
 subplot(numPlots, 1, 1);
-semilogx(freq, gain_dB);
+semilogx(frf.freq, frf.gain_dB);
 grid on; xlim([plotFreqMin, plotFreqMax]); ylim('auto');
 ylabel('Gain (dB)');
-title(plotTitle, 'Interpreter', 'none');
+title(optPlot.title, 'Interpreter', 'none');
 
 % Phase Plot
 subplot(numPlots, 1, 2);
-semilogx(freq, phase_deg);
+semilogx(frf.freq, frf.phase_deg);
 grid on; xlim([plotFreqMin, plotFreqMax]); ylim('auto');
 ylabel('Phase (deg)');
 
 % Coherence Plot
-if ~isempty(xyC)
+if ~isempty(frf.coher)
     subplot(numPlots, 1, 3);
-    semilogx(freq, xyC);
+    semilogx(frf.freq, frf.coher);
     grid on; xlim([plotFreqMin, plotFreqMax]);
     ylabel('Coherence');
 
     % Min and Max Coherence axis for plotting, and threshold line
-    if ~isempty(coherLimit) % coherLimit defined
-        plotCoherMin = coherLimit - (1 - coherLimit);
+    if ~isempty(optPlot.coherLimit) % coherLimit defined
+        plotCoherMin = optPlot.coherLimit - (1 - optPlot.coherLimit);
         plotCoherMax = 1;
 
         % Coherence theshold line
-        line([plotFreqMin plotFreqMax], [coherLimit, coherLimit], 'LineStyle', '--');
+        line([plotFreqMin plotFreqMax], [optPlot.coherLimit, optPlot.coherLimit], 'LineStyle', '--');
 
     else % coherLimit not defined
-        plotCoherMin = max(min(xyC));
+        plotCoherMin = max(min(frf.coher));
         plotCoherMax = 1;
     end
 
@@ -105,8 +112,8 @@ linkaxes(findobj(gcf, 'Type', 'axes'), 'x');
 
 
 %% Save the plot as a fig
-if saveFile
-    saveas(figHandle, saveFile, 'fig');
+if isfield (optPlot, 'saveFile')
+    saveas(figHandle, optPlot.saveFile, 'fig');
 end
 
 

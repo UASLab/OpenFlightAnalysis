@@ -30,28 +30,9 @@ nargoutchk(0, 2);
 r2d = 180/pi;
 
 
-%% Check Inputs
-[widthT, lenT] = size(xyT);
-
-% Transpose
-if widthT > lenT
-    transposeFlag = 1;
-    xyT = xyT';
-else
-    transposeFlag = 0;
-end
-
-
 %% Compute magnitude and phase from complex transfer function
 gain_dB = Mag2DB(abs(xyT));
 phase_deg = angle(xyT) * r2d;
 %phase_deg = atan2(imag(xyT), real(xyT)) * r2d; % Equivalent
 %phase_deg = imag(log(xyT)) * r2d; % Equivalent but slower
 
-
-%% Check Outputs
-% Transpose
-if transposeFlag == 1
-    gain_dB = gain_dB';
-    phase_deg = phase_deg';
-end

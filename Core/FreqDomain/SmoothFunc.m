@@ -22,9 +22,9 @@ function [xSmooth] = SmoothFunc(x, optSmooth)
 narginchk(1, 2)
 if nargin < 2
     optSmooth = struct();
-    if ~isfield(optSmooth, 'type'), optSmooth.type = []; end
-    if ~isfield(optSmooth, 'len'), optSmooth.len = []; end
 end
+if ~isfield(optSmooth, 'type'), optSmooth.type = []; end
+if ~isfield(optSmooth, 'len'), optSmooth.len = []; end
 
 nargoutchk(0, 1)
 

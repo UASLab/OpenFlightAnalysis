@@ -1,25 +1,28 @@
-function [freq, xyT, xyC, xxP, yyP, xyP] = FreqRespEst(x, y, optSpect)
+function [frf] = FreqRespEst(x, y, optFrf)
 % Estimate the transfer function (y/x) between two time histories.
 %
-%Usage:  [freq, xyT, xyC, xxP, yyP, xyP] = FreqRespEst(x, y, optSpect);
+%Usage:  [frf] = FreqRespEst(x, y, optFrf);
 %
 %Inputs:
 % x            - assumed input time history
 % y            - assumed output time history
-% optSpect
-%   freqRate     - sample rate (see Note)
-%   freq         - frequencies of interest (see Note)
-%   winType      - desired data window ['rectwin']
-%   smoothFactor - moving average width [1]
-%   coherLimit   - coherence limit theshold []
+% optFrf
+%   optSpect
+%     freqRate     - sample rate (see Note)
+%     freq         - frequencies of interest (see Note)
+%     optWin       - Window Options
+%     optSmooth    - Smoothing Options
 %
 %Outputs:
-% freq      - frequency of transfer function (see Note)
-% xyT       - complex transfer function
-% xyC       - magnitude squared coherence
-% xxP       - auto-spectral density of the input
-% yyP       - auto-spectral density of the output
-% xyP       - cross-spectral density of the ouput/input
+% frf
+%   freq      - frequency of transfer function (see Note)
+%   T       - complex transfer function
+%   cohor       - magnitude squared coherence
+%   crossP       - cross-spectral Power of the ouput/input
+%   inP       - input Power
+%   outP       - output Power
+%   inSpect
+%   outSpect
 %
 %Notes:
 % 'freq' and 'freqRate' must have the same units; 'freq' will have the
@@ -38,65 +41,61 @@ function [freq, xyT, xyC, xxP, yyP, xyP] = FreqRespEst(x, y, optSpect)
 %% Check I/O Arguments
 narginchk(2, 3);
 if nargin < 3
-    optSpect = struct();
+    optFrf = struct();
 end
 
-nargoutchk(0, 6);
+nargoutchk(0, 1);
 
 %% Default Values and Constants
-if ~isfield(optSpect, 'dftType'), optSpect.dftType = []; end
-if ~isfield(optSpect, 'freqRate'), optSpect.freqRate = []; end
-if ~isfield(optSpect, 'scaleType'), optSpect.scaleType = []; end
+if ~isfield(optFrf, 'dftType'), optFrf.dftType = []; end
+if ~isfield(optFrf, 'freqRate'), optFrf.freqRate = []; end
+if ~isfield(optFrf, 'scaleType'), optFrf.scaleType = []; end
 
-if ~isfield(optSpect, 'optWin')
-    optSpect.optWin = struct();
-end
-if ~isfield(optSpect.optWin, 'len'), optSpect.optWin.len = []; end
+if ~isfield(optFrf, 'optWin'), optFrf.optWin = struct(); end
 
-if ~isfield(optSpect, 'optSmooth')
-    optSpect.optSmooth = struct();
-end
-if ~isfield(optSpect.optSmooth, 'type'), optSpect.optSmooth.type = []; end
-if ~isfield(optSpect.optSmooth, 'len'), optSpect.optSmooth.len = []; end
-
-
-if isempty(optSpect.freqRate), optSpect.freqRate = 1; end
-if isempty(optSpect.scaleType), optSpect.scaleType = 'density'; end
-if isempty(optSpect.optWin.len), optSpect.optWin.len = length(x); end
-if isempty(optSpect.optSmooth.type), optSpect.optSmooth.type = 'rect'; end
-if isempty(optSpect.optSmooth.len), optSpect.optSmooth.len = 5; end
+if isempty(optFrf.freqRate), optFrf.freqRate = 1; end
+if isempty(optFrf.scaleType), optFrf.scaleType = 'density'; end
 
 
 %% Check Inputs
-% Input lengths must be equal
-if (length(x) ~= length(y)) % (v2.0)
-    error([mfilename ' - Input 1 and input 2 must be of equal length.'])
-end
 
 
 %% Approximate the transfer function response
-% Compute the FFT and PSD for x and y
-[xxP, xDft, freq, powerScale] = SpectEst(x, optSpect);
-[yyP, yDft] = SpectEst(y, optSpect);
+frf.inSig = x;
+frf.outSig = y;
 
-% Smooth the PSDs, see SpectEstFFT.m
-xxP = SmoothFunc(xxP, optSpect.optSmooth);
-yyP = SmoothFunc(yyP, optSpect.optSmooth);
+% Compute the FFT and PSD for x and y
+optSpectIn = optFrf; optSpectIn.freqIn = []; optSpectIn.freqOut = [];
+optSpectOut = optFrf; optSpectOut.freqIn = []; optSpectOut.freqOut = [];
+
+
+optSpectIn.freq = optFrf.freqIn;
+[frf.inSpect] = SpectEst(frf.inSig, optSpectIn);
+
+optSpectOut.freq = optFrf.freqOut;
+[frf.outSpect] = SpectEst(frf.outSig, optSpectOut);
+
+
+if all(frf.inSpect.freq == frf.inSpect.freq)
+    frf.freq = frf.inSpect.freq;
+end
+
+frf.inP = frf.inSpect.P;
+frf.outP = frf.outSpect.P;
 
 % Compute cross spectral density, Scale is doubled because one-sided DFTs
-xyP = 2*powerScale * (yDft .* repmat(conj(xDft), size(yDft, 1), 1));
-
-% Smooth the PSDs, see SpectEstFFT.m
-xyP_smooth = SmoothFunc(xyP, optSpect.optSmooth);
+frf.crossP = 2*frf.inSpect.scale * (frf.outSpect.dft .* repmat(conj(frf.inSpect.dft), size(frf.outSpect.dft, 1), 1));
 
 
 %% Compute complex transfer function approximation
-xyT = xyP ./ xxP;
+frf.T = FreqRespEstCmplx(frf.inP, frf.crossP);
+
+% Smooth the PSDs
+if isfield(optFrf, 'optSmooth')
+    frf.crossPRaw = frf.crossP;
+    frf.crossP = SmoothFunc(frf.crossPRaw, optFrf.optSmooth);
+end
 
 % Compute magnitude squared coherence
-xyC = abs(xyP_smooth).^2 ./ (xxP .* yyP);
-%xyC = abs((xyT).*(xyP_smooth ./ yyP)); % equivalent to above
-
-
-%% Check Outputs
+frf.coher = Coherence(frf.crossP, frf.inP, frf.outP);
 

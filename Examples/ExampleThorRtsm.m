@@ -12,7 +12,8 @@ in2m = 0.0254;
 hz2rps = 2*pi;
 
 %%
-pathRoot = fullfile('G:', 'Shared drives', 'UAVLab', 'Flight Data');
+% pathRoot = fullfile('G:', 'Shared drives', 'UAVLab', 'Flight Data');
+pathRoot = fullfile('/mnt', 'Data', 'chris', 'Documents', 'FlightArchive');
 
 
 %% Segment Defintions
@@ -55,17 +56,39 @@ end
 
 %% Frequency Response
 
-optSpect.dftType = 'ChirpZ';
-optSpect.freqRate = 50 * hz2rps;
-optSpect.freq = [1:10] * hz2rps;
-
-optSpect.scaleType = 'density';
-
-
+t = segData{1}.time_s;
 x = segData{1}.Excitation.cmdRoll_rps;
 y = segData{1}.Control.cmdRoll_rps;
 
-optSpect.optWin.len = length(x);
-[freq, xyT, xyC, xxP, yyP, xyP] = FreqRespEst(x, y, optSpect);
 
+%
+optSpect.dftType = 'ChirpZ';
+optSpect.scaleType = 'density';
+optSpect.freqRate = 50 * hz2rps;
+
+optSpect.freq = [1:0.1:10] * hz2rps;
+
+optSpect.optWin.len = length(x);
+
+
+[xSpect] = SpectEst(x, optSpect);
+[ySpect] = SpectEst(x, optSpect);
+plot(t, xSpect.signal, t, xSpect.win)
+plot(xSpect.freq, xSpect.P)
+
+
+%
+optFrf.optWin.type = 'rect';
+
+optFrf.dftType = 'ChirpZ';
+optFrf.scaleType = 'density';
+optFrf.freqRate = 50 * hz2rps;
+optFrf.optSmooth.len = 5;
+
+optFrf.freqIn = [1:0.1:10] * hz2rps;
+optFrf.freqOut = [1:0.1:10] * hz2rps;
+
+[xyFrf] = FreqRespEst(x, y, optFrf);
+
+[figHandle] = BodePlot(xyFrf, optPlot);
 
