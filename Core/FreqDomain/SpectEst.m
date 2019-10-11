@@ -11,7 +11,7 @@ function [spect] = SpectEst(x, optSpect)
 %   winType      - Window Type
 %   smoothFactor - Smoothing [1]
 %   dftType      - DFT Type ['FFT']
-%   scaleType    - Power Scale Type ['density']
+%   scaleType    - Power Scale Type ['spectrum']
 %
 %Outputs:
 % spect
@@ -48,7 +48,7 @@ if ~isfield(optSpect, 'scaleType'), optSpect.scaleType = []; end
 if ~isfield(optSpect, 'optWin'), optSpect.optWin = struct(); end
 
 if isempty(optSpect.freqRate), optSpect.freqRate = 1; end
-if isempty(optSpect.scaleType), optSpect.scaleType = 'density'; end
+if isempty(optSpect.scaleType), optSpect.scaleType = 'spectrum'; end
 
 %% Check Inputs
 spect.signal = x;
@@ -56,7 +56,7 @@ spect.signal = x;
 % Detrend and Window
 optSpect.optWin.len = length(spect.signal);
 win = WindowFunc(optSpect.optWin);
-spect.win = detrend(spect.signal) .* win;
+spect.win = detrend(spect.signal')' .* win;
 
 %% Compute Power scaling
 spect.scale = PowerScale(optSpect.scaleType, optSpect.freqRate, win);

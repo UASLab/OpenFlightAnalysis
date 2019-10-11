@@ -47,15 +47,23 @@ end
 %% Define the Convolution Kernel
 switch lower(optSmooth.type)
     case 'rect'
-        kernel = ones(widthX, optSmooth.len) / optSmooth.len;
+        kernel = ones(1, optSmooth.len) / optSmooth.len;
     otherwise % TODO: add more smoothing kernels
         warning('MATLAB:SmoothData:method', 'Rectangular is the only known kernel for smoothing') % FIXME: message ID
-        kernel = ones(widthX, optSmooth.len) / optSmooth.len;
+        kernel = ones(1, optSmooth.len) / optSmooth.len;
 end
 
 
 %% Perform the Smoothing
+% Pad the start and end with values
+lenPad = floor(optSmooth.len/2);
+xPad = [repmat(x(:,1), 1, lenPad), x, repmat(x(:,end), 1, lenPad)];
+
 % Convolve the kernel over the data
-xSmooth = conv(x, kernel, 'same');
+for i = 1:widthX
+    xSmooth(i,:) = conv(xPad(i,:), kernel, 'same');
+end
+
+xSmooth = xSmooth(:, 1+lenPad : end-lenPad);
 
 %% Check Output

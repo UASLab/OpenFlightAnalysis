@@ -37,7 +37,7 @@ for iSeg = 1:numSeg
     end
 end
 
-%%
+%% Load Flight Data
 fltData = struct();
 numFlt = length(fileDataList);
 for iFlt = 1:numFlt
@@ -64,7 +64,7 @@ for iFlt = 1:numFlt
     fltData.(fltName).config = ReadConfig(fileConfigList{iFlt});
 
     % Read the Flight Definition
-    fltData.(fltName).fltDef = ReadConfig(fileConfigList{iFlt});
+    fltData.(fltName).fltDef = ReadConfig(fileDefList{iFlt});
 end
 
 

@@ -31,9 +31,9 @@ oData = struct();
 % Time
 oData.time_us = double(logData.Sensors.Fmu.Time_us);
 oData.time_s = oData.time_us / 1e6;
+oData.dt_s = [0, diff(oData.time_s)];
 
-% Effectors
-
+%% Sensors
 % Pitot-Static
 if isfield(logData.Sensors, 'Swift')
     oData.pTip_Pa = logData.Sensors.Swift.Differential.Pressure_Pa;
@@ -82,6 +82,14 @@ oData.vIas_mps = logData.Sensor_Processing.vIAS_ms;
 oData.altBaro_m = logData.Sensor_Processing.hBaro_m;
 
 % TODO - Use the Config to get Controllers
+cntrlNames = fieldnames(logData.Control);
+for iCntrl = 1:length(cntrlNames)
+    name = cntrlNames{iCntrl};
+    
+    if contains(name, 'FF') || contains(name, 'FB')
+        oData.Control.(name) = logData.Control.(name);
+    end
+end
 
 % TODO - Use the Config to get an effector list
 
@@ -112,8 +120,8 @@ oData.magImu_L_uT = [logData.Sensors.Fmu.Mpu9250.MagX_uT; logData.Sensors.Fmu.Mp
 if isfield(logData.Sensors, 'Imu')
     imuList = fields(logData.Sensors.Imu);
     for iImu = 1:length(imuList)
-        oData.('a'+imuName+'IMU_IMU_mps2') = [logData.Sensors.Imu.(imuName).AccelX_mss, logData.Sensors.Imu.(imuName).AccelY_mss, logData.Sensors.Imu.(imuName).AccelZ_mss];
-        oData.('w'+imuName+'IMU_IMU_rps') = [logData.Sensors.Imu.(imuName).GyroX_rads, logData.Sensors.Imu.(imuName).GyroY_rads, logData.Sensors.Imu.(imuName).GyroZ_rads];
+        oData.('a'+imuName+'IMU_IMU_mps2') = [logData.Sensors.Imu.(imuName).AccelX_mss; logData.Sensors.Imu.(imuName).AccelY_mss; logData.Sensors.Imu.(imuName).AccelZ_mss];
+        oData.('w'+imuName+'IMU_IMU_rps') = [logData.Sensors.Imu.(imuName).GyroX_rads; logData.Sensors.Imu.(imuName).GyroY_rads; logData.Sensors.Imu.(imuName).GyroZ_rads];
     end
 end
 
@@ -145,8 +153,12 @@ end
 
 
 % Make sure the base values are available from the excitation
-if ~isfield(oData, 'Control'), oData.Control = struct(); end
+if ~isfield(oData, 'Control')
+    oData.Control = struct();
+end
+
 sigList = fields(oData.Excitation);
+
 for iSig = 1:length(sigList)
     sigName = sigList{iSig};
 

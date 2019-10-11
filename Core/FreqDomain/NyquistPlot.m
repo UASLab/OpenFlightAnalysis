@@ -1,19 +1,20 @@
-function [figHandle] = NyquistPlot(freq_rps, xyT, xyC, coherLimit, plotTitle, saveFile)
+function [figHandle] = NyquistPlot(frf, optPlot)
 % Plot the Real and Imaginary portion of a TF, also plot Coherence.
 %
-%Usage:  [figHandle] = NyquistPlot(freq_rps, xyT, xyC, coherLimit, plotTitle, saveFile);
+%Usage:  [figHandle] = NyquistPlot(frf, optPlot);
 %
 %Inputs:
-% freq_rps   - frequency of response (rad/sec)
-% xyT        - complex transfer function
-% xyC        - coherence of response []
-% coherLimit - coherence threshold []
-% plotTitle  - title of plot ['Nyquist Plot']
-% saveFile   - file to save figure []
+% frf
+%   freq     - frequency of response
+%   T        - gain of response (dB)
+%   coher    - coherence of response []
+% optPlot
+%   coherPlot  - plot Coherence [false]
+%   title      - title of plot ['Nyquist Plot']
+%   saveFile   - file to save figure []
 %
 %Outputs:
 % figHandle - object handle of the figure
-%
 
 % University of Minnesota
 % Aerospace Engineering and Mechanics - UAV Lab
@@ -23,76 +24,87 @@ function [figHandle] = NyquistPlot(freq_rps, xyT, xyC, coherLimit, plotTitle, sa
 %
 
 %% Check I/O Arguments
-error(nargchk(2, 6, nargin, 'struct'))
-if nargin < 6, saveFile = [];
-    if nargin < 5, plotTitle = []; end
-    if nargin < 4, coherLimit = []; end
-    if nargin < 3, xyC = []; end
-end
+narginchk(1, 2);
+if nargin < 2, optPlot = []; end
 
-error(nargoutchk(0, 1, nargout, 'struct'))
+if isempty(optPlot), optPlot = struct(); end
+
+nargoutchk(0, 1);
 
 
 %% Default Values and Constants
-if isempty(plotTitle), plotTitle = 'Nyquist Plot'; end
+if ~isfield(optPlot, 'freqUnits'), optPlot.freqUnits = []; end
+if isempty(optPlot.freqUnits), optPlot.freqUnits = ''; end
+
+if ~isfield(optPlot, 'freqScale'), optPlot.freqScale = []; end
+if isempty(optPlot.freqScale), optPlot.freqScale = 'log'; end
+
+if ~isfield(optPlot, 'coherPlot'), optPlot.coherPlot = []; end
+if isempty(optPlot.coherPlot), optPlot.coherPlot = true; end
+
+if ~isfield(optPlot, 'title'), optPlot.title = []; end
+if isempty(optPlot.title), optPlot.title = 'Nyquist Plot'; end
+
+r2d = 180/pi;
+d2r = 1/r2d;
+hz2rps = 2*pi;
+rps2hz = 1/hz2rps;
+
 
 
 %% Check Inputs
+if ~isfield(frf, 'coher')
+    frf.coher = [];
+end
+
+switch lower(optPlot.freqUnits)
+    case 'hz'
+        freq = frf.freq * rps2hz;
+    otherwise
+        freq = frf.freq;
+end
+
+xyT = frf.T;
+xyC = frf.coher;
 
 
 %% Plot
+% New figure with handle
+figHandle = figure;
+
 % Set number of plots
-if ~isempty(xyC)
+if optPlot.coherPlot
     numPlots = 3;
 else
     numPlots = 2;
 end
 
-% Min and Max Freq axis for plotting
-plotFreqMin = min(freq_rps);
-plotFreqMax = max(freq_rps);
-
 % Nyquist Plot
-figure;
 subplot(numPlots, 1, 1:2);
-plot(real(xyT), imag(xyT));
-grid on; xlim('auto'); ylim('auto');
+plot(real(xyT)', imag(xyT)'); grid on;
+xlim('auto'); ylim('auto');
 xlabel('Real Component');
 ylabel('Imaginary Component');
-title(plotTitle, 'Interpreter', 'none');
+title(optPlot.title, 'Interpreter', 'none');
 
 % Coherence Plot
 if ~isempty(xyC)
     subplot(numPlots, 1, 3);
-    semilogx(freq_rps, xyC);
-    grid on; xlim([plotFreqMin, plotFreqMax]);
-    xlabel('Frequency (rad/sec)'); ylabel('Coherence');
 
-    % Min and Max Coherence axis for plotting
-    if ~isempty(coherLimit) % coherLimit defined
-        plotCoherMin = coherLimit - (1 - coherLimit);
-        plotCoherMax = 1;
-
-        % Coherence theshold line
-        line([plotFreqMin plotFreqMax], [coherLimit, coherLimit], 'LineStyle', '--');
-
-    else % coherLimit not defined
-        plotCoherMin = max(min(xyC), 0);
-        plotCoherMax = 1;
+    plot(freq, xyC); grid on;
+    
+    if strcmp(optPlot.freqScale, 'log')
+        set(gca,'XScale','log');
     end
-
-    % Coherence plot limits
-    ylim([plotCoherMin, plotCoherMax]);
+    
+    xlim([min(freq), max(freq)]);
+    xlabel(['Frequency (' optPlot.freqUnits ')']);
+    ylabel('Coherence');
 end
-
-% figure handle
-figHandle = gcf;
 
 
 %% Save the plot as a fig
-if saveFile
-    saveas(figHandle, saveFile, 'fig');
+if isfield (optPlot, 'saveFile')
+    saveas(figHandle, optPlot.saveFile, 'fig');
 end
 
-
-%% Check Inputs

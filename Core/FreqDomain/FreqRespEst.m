@@ -54,48 +54,72 @@ if ~isfield(optFrf, 'scaleType'), optFrf.scaleType = []; end
 if ~isfield(optFrf, 'optWin'), optFrf.optWin = struct(); end
 
 if isempty(optFrf.freqRate), optFrf.freqRate = 1; end
-if isempty(optFrf.scaleType), optFrf.scaleType = 'density'; end
+if isempty(optFrf.scaleType), optFrf.scaleType = 'spectrum'; end
 
 
 %% Check Inputs
 
 
-%% Approximate the transfer function response
-frf.inSig = x;
-frf.outSig = y;
+%% Approximate the frequency response function
+if iscell(optFrf.freq) % SIMO at Multiple sets of frequencies
+    numFrf = length(optFrf.freq);
+    optFrfSet = optFrf;
+    
+    frf = cell(size(optFrf.freq));
+    for iFrf = 1:numFrf
+        
+        frf{iFrf}.freq = optFrf.freq{iFrf};
+        frf{iFrf}.inSig = x(iFrf,:);
+        frf{iFrf}.outSig = y;
+        
+        optFrfSet.freq = frf{iFrf}.freq;
+        frf{iFrf} = FreqRespEst(x(iFrf,:), y, optFrfSet);
+    
+        % Merge Frf at different frequencies
+        % Interpolate or fit then interpolate to get a common frequency basis
+        if ~isempty(optFrf.freqE)
+            frf{iFrf}.inP = interp1(frf{iFrf}.freq, frf{iFrf}.inP', optFrf.freqE, 'pchip')';
+            frf{iFrf}.outP = interp1(frf{iFrf}.freq, frf{iFrf}.outP', optFrf.freqE, 'pchip')';
+            frf{iFrf}.crossP = interp1(frf{iFrf}.freq, frf{iFrf}.crossP', optFrf.freqE, 'pchip')';
+            
+            frf{iFrf}.T = interp1(frf{iFrf}.freq, frf{iFrf}.T', optFrf.freqE, 'pchip')';
+            frf{iFrf}.coher = interp1(frf{iFrf}.freq, frf{iFrf}.coher', optFrf.freqE, 'pchip')';
+            
+%             frf{iFrf}.T = FreqRespEstCmplx(frf{iFrf}.inP, frf{iFrf}.crossP);
+%             frf{iFrf}.coher = Coherence(frf{iFrf}.crossP, frf{iFrf}.inP, frf{iFrf}.outP);
+            
+            frf{iFrf}.freq = optFrf.freqE;
+        end
+    end
 
-% Compute the FFT and PSD for x and y
-optSpectIn = optFrf; optSpectIn.freqIn = []; optSpectIn.freqOut = [];
-optSpectOut = optFrf; optSpectOut.freqIn = []; optSpectOut.freqOut = [];
+else % SIMO at one frequency set
 
+    % Add x and y to frf structure
+    frf.freq = optFrf.freq;
+    frf.inSig = x;
+    frf.outSig = y;
+        
+    % Compute the DFT and Spectrum for x and y
+    [frf.inSpect] = SpectEst(frf.inSig, optFrf);
+    [frf.outSpect] = SpectEst(frf.outSig, optFrf);
+    
+    % Add x and y specturm to frf structure
+    frf.inP = frf.inSpect.P;
+    frf.outP = frf.outSpect.P;
+    
+    % Compute cross spectrum, Scale is doubled because one-sided DFTs
+    frf.crossP = 2*frf.inSpect.scale * (frf.outSpect.dft .* repmat(conj(frf.inSpect.dft), size(frf.outSpect.dft, 1), 1));
 
-optSpectIn.freq = optFrf.freqIn;
-[frf.inSpect] = SpectEst(frf.inSig, optSpectIn);
+    %% Compute complex transfer function approximation
+    frf.T = FreqRespEstCmplx(frf.inP, frf.crossP);
+    
+    % Smooth the PSDs
+    if isfield(optFrf, 'optSmooth')
+        frf.crossPRaw = frf.crossP;
+        frf.crossP = SmoothFunc(frf.crossPRaw, optFrf.optSmooth);
+    end
+    
+    % Compute magnitude squared coherence
+    frf.coher = Coherence(frf.crossP, frf.inP, frf.outP);
 
-optSpectOut.freq = optFrf.freqOut;
-[frf.outSpect] = SpectEst(frf.outSig, optSpectOut);
-
-
-if all(frf.inSpect.freq == frf.inSpect.freq)
-    frf.freq = frf.inSpect.freq;
 end
-
-frf.inP = frf.inSpect.P;
-frf.outP = frf.outSpect.P;
-
-% Compute cross spectral density, Scale is doubled because one-sided DFTs
-frf.crossP = 2*frf.inSpect.scale * (frf.outSpect.dft .* repmat(conj(frf.inSpect.dft), size(frf.outSpect.dft, 1), 1));
-
-
-%% Compute complex transfer function approximation
-frf.T = FreqRespEstCmplx(frf.inP, frf.crossP);
-
-% Smooth the PSDs
-if isfield(optFrf, 'optSmooth')
-    frf.crossPRaw = frf.crossP;
-    frf.crossP = SmoothFunc(frf.crossPRaw, optFrf.optSmooth);
-end
-
-% Compute magnitude squared coherence
-frf.coher = Coherence(frf.crossP, frf.inP, frf.outP);
-

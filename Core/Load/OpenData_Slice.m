@@ -27,9 +27,9 @@ fieldList = fieldnames(oData);
 for iField = 1:length(fieldList)
     fieldName = fieldList{iField};
     if isstruct(oData.(fieldName))
-        oDataSlice.(fieldName) = OpenData_Slice(oData.(fieldName), sigCond, sigRange)
+        oDataSlice.(fieldName) = OpenData_Slice(oData.(fieldName), sigCond, sigRange);
     else
-        oDataSlice.(fieldName) = oData.(fieldName)(indx);
+        oDataSlice.(fieldName) = oData.(fieldName)(:,indx);
     end
 end
 

@@ -60,7 +60,7 @@ switch lower(optWin.type)
         win(end-(lenTaper-1):end) = 0.5 * (1 - cos(pi*(lenTaper-1:-1:0)/(lenTaper-1)));
         
     otherwise % Polynomial Based Windows
-        switch optWin
+        switch lower(optWin.type)
             case {'hann', 'hanning', 'han'} % Hann
                 c0 = 0.5;
                 c1 = 0.5;
