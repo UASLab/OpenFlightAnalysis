@@ -3,7 +3,6 @@
 % Notes:
 %
 
-
 % University of Minnesota
 % Aerospace Engineering and Mechanics - UAV Lab
 % Copyright (c) 2019 Regents of the University of Minnesota
@@ -27,10 +26,10 @@ structMultiSine.timeDur_s = 10.0;
 structMultiSine.numCycles = 1;
 
 freqMinDes_hz = structMultiSine.numCycles / structMultiSine.timeDur_s;
-freqMaxDes_hz = 10.2;
+freqMaxDes_hz = 9.6;
 
 structMultiSine.freqRange_rps = repmat([freqMinDes_hz, freqMaxDes_hz], [structMultiSine.numChan, 1]) * hz2rps;
-structMultiSine.freqStepDes_rps = (1 / 5) * hz2rps;
+structMultiSine.freqStepDes_rps = (1 / 10) * hz2rps;
 methodSW = 'zip'; % "zippered" component distribution
 
 structMultiSine = MultiSineComponents(structMultiSine, methodSW);
@@ -71,26 +70,33 @@ for iChan = 1:structMultiSine.numChan
 end
 
 % PSD
-structMultiSine.freqRate_rps = 1/structMultiSine.timeRate_s * hz2rps;
-winType = 'rect';
-smoothFactor = 1;
+optSpect.dftType = 'ChirpZ';
+optSpect.scaleType = 'spectrum';
+optSpect.freqRate = 1/structMultiSine.timeRate_s * hz2rps;
+optSpect.freq = structMultiSine.freqChan_rps{1};
+
+optSpect.optWin.type = 'tukey';
+optSpect.optWin.taperRatio = 0.0;
+
+optSpect.optSmooth.type = 'rect';
+optSpect.optSmooth.len = 1;
 
 % [xxP, xDft, freq_rps] = SpectEst(signals, freqRate_rps, [], winType, smoothFactor, 'FFT');
 % SpectPlot(freq_rps, xxP, 'rad/sec', [], []);
 
 % Chrip-Z
-xxP_CZ = {};
-xDft_CZ = {};
-freq_rps_CZ = {};
+spect = {};
 for iChan = 1:structMultiSine.numChan
-    [xxP_CZ{iChan}, xDft_CZ{iChan}, freq_rps_CZ{iChan}] = SpectEst(structMultiSine.signals, structMultiSine.freqRate_rps, structMultiSine.freqChan_rps{iChan}, winType, smoothFactor, 'ChirpZ');
+%     [xxP_CZ{iChan}, xDft_CZ{iChan}, freq_rps_CZ{iChan}] = SpectEst(structMultiSine.signals, optSpect);
+    optSpect.freq = structMultiSine.freqChan_rps{iChan};
+    spect{iChan} = SpectEst(structMultiSine.signals, optSpect);
 end
 
 % SpectPlot(freq_rps_CZ, xxP_CZ, 'rad/sec', [], []);
 figure;
 for iChan = 1:structMultiSine.numChan
     subplot(structMultiSine.numChan, 1, iChan);
-    semilogx(freq_rps_CZ{iChan}, Mag2DB( xxP_CZ{iChan} ), '*-'); grid on;
+    semilogx(spect{iChan}.freq, Mag2DB( spect{iChan}.P ), '*-'); grid on;
 end
 
 return;

@@ -1,8 +1,9 @@
-function [oData] = OpenData_RaptrsLog(logData, config)
-% Create the FDAT structure from the Goldy3 Raw structure
+function [oData] = OpenData_Raptrs(logData, config)
+% Create the oData structure from the Goldy3/Raptrs structures
 %
 %Inputs:
-% logData   - Raw flight structure
+% logData - Raw flight log structure
+% config - Flight Configuration structure
 %
 %Outputs:
 % oData - Structure of file variables
@@ -14,7 +15,7 @@ function [oData] = OpenData_RaptrsLog(logData, config)
 % See: LICENSE.md for complete license details
 % Author: Chris Regan
 
-%% Check I/O Arguments
+%% Check I/O Arguments and Defaults
 narginchk(1, 2);
 nargoutchk(1, 1);
 
@@ -87,33 +88,26 @@ oData.altBaro_m = logData.Sensor_Processing.hBaro_m;
 
 % Copy the active Baseline controller data up to Control/Baseline and Control
 % Then copy active Test controller data up to Control/Test and Control
-baseCntrlNames = fieldnames(config.Mission_Manager.Baseline_Select_Switch.ControlSel);
-
-testCtrlNames = {};
-for iTest = 1:length(config.Mission_Manager.Test_Points)
-    testCtrlNames{iTest} = config.Mission_Manager.Test_Points(iTest).Control;
-end
-          
-for i = 1:length(oData.time_s)
-    setName = 'Baseline';
-    groupName = baseCntrlNames{logData.Mission.baseCtrlSel(i) + 1};
+if isfield(config.Mission_Manager, 'Baseline_Select_Switch')
+    baseCntrlNames = fieldnames(config.Mission_Manager.Baseline_Select_Switch.ControlSel);
     
-    levelNames = fieldnames(config.Control.GroupDef.(groupName));
-    for iLevel = 1:length(levelNames)
-        cntrlName = config.Control.GroupDef.(groupName).(levelNames{iLevel});
-        cntrlName = strrep(cntrlName, '-', '_');
-        sgnlNameList = fieldnames(logData.Control.(setName).(cntrlName));
-        for iSgnl = 1:length(sgnlNameList)
-            sgnlName = sgnlNameList{iSgnl};
-            
-            logData.Control.(setName).(sgnlName)(i) = logData.Control.(setName).(cntrlName).(sgnlName)(i);
-            logData.Control.(sgnlName)(i) = logData.Control.(setName).(cntrlName).(sgnlName)(i);
-        end
+    testCtrlNames = {};
+    for iTest = 1:length(config.Mission_Manager.Test_Points)
+        testCtrlNames{iTest} = config.Mission_Manager.Test_Points(iTest).Control;
     end
     
-    if (logData.Mission.testCtrlMode(i) >= 1) % Test is either Armed or Engaged
-        setName = 'Test';
-        groupName = testCtrlNames{logData.Mission.testPtID(i) + 1};
+    for i = 1:length(oData.time_s)
+        setName = 'Baseline';
+        groupName = baseCntrlNames{logData.Mission.baseCtrlSel(i) + 1};
+        
+        % Fix the GroupName - If duplicates are listed MATLAB add "_#" to the end
+        groupNameList = fieldnames(config.Control.GroupDef);
+        while length(groupName) > 0
+            if any(contains(groupNameList, groupName))
+                break;
+            end
+            groupName = groupName(1:end-1); % Strip the last character off
+        end
         
         levelNames = fieldnames(config.Control.GroupDef.(groupName));
         for iLevel = 1:length(levelNames)
@@ -124,13 +118,33 @@ for i = 1:length(oData.time_s)
                 sgnlName = sgnlNameList{iSgnl};
                 
                 logData.Control.(setName).(sgnlName)(i) = logData.Control.(setName).(cntrlName).(sgnlName)(i);
-                
-                if (logData.Mission.testCtrlMode(i) == 3) % Test is Engaged
-                    logData.Control.(sgnlName)(i) = logData.Control.(setName).(cntrlName).(sgnlName)(i);
+                logData.Control.(sgnlName)(i) = logData.Control.(setName).(cntrlName).(sgnlName)(i);
+            end
+        end
+        
+        if (logData.Mission.testCtrlMode(i) >= 1) % Test is either Armed or Engaged
+            setName = 'Test';
+            groupName = testCtrlNames{logData.Mission.testPtID(i) + 1};
+            
+            levelNames = fieldnames(config.Control.GroupDef.(groupName));
+            for iLevel = 1:length(levelNames)
+                cntrlName = config.Control.GroupDef.(groupName).(levelNames{iLevel});
+                cntrlName = strrep(cntrlName, '-', '_');
+                sgnlNameList = fieldnames(logData.Control.(setName).(cntrlName));
+                for iSgnl = 1:length(sgnlNameList)
+                    sgnlName = sgnlNameList{iSgnl};
+                    
+                    logData.Control.(setName).(sgnlName)(i) = logData.Control.(setName).(cntrlName).(sgnlName)(i);
+                    
+                    if (logData.Mission.testCtrlMode(i) == 3) % Test is Engaged
+                        logData.Control.(sgnlName)(i) = logData.Control.(setName).(cntrlName).(sgnlName)(i);
+                    end
                 end
             end
         end
     end
+else
+    
 end
       
 oData.Control = logData.Control;

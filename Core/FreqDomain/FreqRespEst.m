@@ -50,6 +50,7 @@ nargoutchk(0, 1);
 if ~isfield(optFrf, 'dftType'), optFrf.dftType = []; end
 if ~isfield(optFrf, 'freqRate'), optFrf.freqRate = []; end
 if ~isfield(optFrf, 'scaleType'), optFrf.scaleType = []; end
+if ~isfield(optFrf, 'freqE'), optFrf.freqE = []; end
 
 if ~isfield(optFrf, 'optWin'), optFrf.optWin = struct(); end
 
@@ -78,15 +79,15 @@ if iscell(optFrf.freq) % SIMO at Multiple sets of frequencies
         % Merge Frf at different frequencies
         % Interpolate or fit then interpolate to get a common frequency basis
         if ~isempty(optFrf.freqE)
-            frf{iFrf}.inP = interp1(frf{iFrf}.freq, frf{iFrf}.inP', optFrf.freqE, 'pchip')';
-            frf{iFrf}.outP = interp1(frf{iFrf}.freq, frf{iFrf}.outP', optFrf.freqE, 'pchip')';
-            frf{iFrf}.crossP = interp1(frf{iFrf}.freq, frf{iFrf}.crossP', optFrf.freqE, 'pchip')';
+            interpType = 'linear'; % 'linear', 'nearest', 'next', 'previous', 'pchip', 'cubic', 'v5cubic', 'makima', or 'spline'
+            extrapType = 'extrap'; % 'extrap', nan
             
-            frf{iFrf}.T = interp1(frf{iFrf}.freq, frf{iFrf}.T', optFrf.freqE, 'pchip')';
-            frf{iFrf}.coher = interp1(frf{iFrf}.freq, frf{iFrf}.coher', optFrf.freqE, 'pchip')';
-            
-%             frf{iFrf}.T = FreqRespEstCmplx(frf{iFrf}.inP, frf{iFrf}.crossP);
-%             frf{iFrf}.coher = Coherence(frf{iFrf}.crossP, frf{iFrf}.inP, frf{iFrf}.outP);
+            frf{iFrf}.inP = interp1(frf{iFrf}.freq, frf{iFrf}.inP', optFrf.freqE, interpType, extrapType)';
+            frf{iFrf}.outP = interp1(frf{iFrf}.freq, frf{iFrf}.outP', optFrf.freqE, interpType, extrapType)';
+            frf{iFrf}.crossP = interp1(frf{iFrf}.freq, frf{iFrf}.crossP', optFrf.freqE, interpType, extrapType)';
+
+            frf{iFrf}.T = FreqRespEstCmplx(frf{iFrf}.inP, frf{iFrf}.crossP);
+            frf{iFrf}.coher = Coherence(frf{iFrf}.crossP, frf{iFrf}.inP, frf{iFrf}.outP);
             
             frf{iFrf}.freq = optFrf.freqE;
         end
@@ -108,7 +109,7 @@ else % SIMO at one frequency set
     frf.outP = frf.outSpect.P;
     
     % Compute cross spectrum, Scale is doubled because one-sided DFTs
-    frf.crossP = 2*frf.inSpect.scale * (frf.outSpect.dft .* repmat(conj(frf.inSpect.dft), size(frf.outSpect.dft, 1), 1));
+    frf.crossP = 2*frf.inSpect.scale * conj(frf.inSpect.dft) .* frf.outSpect.dft;
 
     %% Compute complex transfer function approximation
     frf.T = FreqRespEstCmplx(frf.inP, frf.crossP);

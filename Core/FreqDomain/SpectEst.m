@@ -6,12 +6,11 @@ function [spect] = SpectEst(x, optSpect)
 %Inputs:
 % x            - time history data
 % optSpect
+%   dftType      - DFT Type ['FFT']
+%   scaleType    - Power Scale Type ['spectrum']
 %   freqRate     - sampling frequency of data (see Note)
 %   freq         - vector of frequencies (see Note)
 %   winType      - Window Type
-%   smoothFactor - Smoothing [1]
-%   dftType      - DFT Type ['FFT']
-%   scaleType    - Power Scale Type ['spectrum']
 %
 %Outputs:
 % spect

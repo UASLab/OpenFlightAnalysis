@@ -36,6 +36,7 @@ if isempty(optPlot), optPlot = struct(); end
 nargoutchk(0, 1);
 
 
+
 %% Default Values and Constants
 if ~isfield(optPlot, 'freqUnits'), optPlot.freqUnits = []; end
 if isempty(optPlot.freqUnits), optPlot.freqUnits = ''; end
@@ -64,12 +65,34 @@ hz2rps = 2*pi;
 rps2hz = 1/hz2rps;
 
 %% Check Inputs
+
+if ~isfield(frf, 'gain_dB') || ~isfield(frf, 'phase_deg')
+    [frf.gain_dB, frf.phase_deg] = GainPhase(frf.T);
+end
+
 if ~isfield(frf, 'coher')
     frf.coher = [];
 end
 
-if ~isfield(frf, 'gain_dB') || ~isfield(frf, 'phase_deg')
-    [frf.gain_dB, frf.phase_deg] = GainPhase(frf.T);
+% Recursive Call
+if length(size(frf.gain_dB)) == 3
+   [~, numIn, ~] = size(frf.gain_dB);
+
+    figHandle = cell(1, numIn);
+   
+    for iIn = 1:numIn
+        tempFrf.freq = frf.freq;
+        tempFrf.gain_dB = squeeze(frf.gain_dB(:,iIn,:));
+        tempFrf.phase_deg = squeeze(frf.phase_deg(:,iIn,:));
+        if ~isempty(frf.coher)
+            tempFrf.coher = squeeze(frf.coher(:,iIn,:));
+        end
+        
+        figHandle{iIn} = BodePlot(tempFrf, optPlot);
+        
+    end
+    
+    return
 end
 
 switch lower(optPlot.freqUnits)
