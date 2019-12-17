@@ -166,7 +166,7 @@ function [Interp] = InterpFRD(FRF)
 
     Interp.Frequency = FRF.Opt.Interp.FreqInterp;
 
-    Interp.PowerIn = interp1(FRF.FRD.Frequency, FRF.PowerIn', Interp.Frequency, interpType, extrapType);
+    Interp.PowerIn = interp1(FRF.FRD.Frequency, FRF.PowerIn', Interp.Frequency, interpType, extrapType)';
     Interp.PowerOut = interp1(FRF.FRD.Frequency, FRF.PowerOut', Interp.Frequency, interpType, extrapType)';
     Interp.PowerCross = interp1(FRF.FRD.Frequency, FRF.PowerCross', Interp.Frequency, interpType, extrapType)';
 

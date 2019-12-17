@@ -12,9 +12,9 @@ in2m = 0.0254;
 hz2rps = 2*pi;
 
 %%
-% pathRoot = fullfile('G:', 'Shared drives', 'UAVLab', 'Flight Data');
+pathRoot = fullfile('G:', 'Shared drives', 'UAVLab', 'Flight Data');
 % pathRoot = fullfile('/mnt', 'Data', 'chris', 'Documents', 'FlightArchive');
-pathRoot = fullfile('/', 'home', 'rega0051', 'FlightArchive');
+% pathRoot = fullfile('/', 'home', 'rega0051', 'FlightArchive');
 
 
 %% Segment Defintions
@@ -39,7 +39,7 @@ segDef{iSeg}.time_us = [1461077095, 1474659271];
 
 
 iSeg = iSeg + 1;
-segDef{iSeg}.vehName = 'Thor'; segDef{iSeg}.fltNum = '001';
+segDef{iSeg}.vehName = 'Thor'; segDef{iSeg}.fltNum = '_PID01';
 segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'SIM');
 segDef{iSeg}.time_us = [227979999, 245399999];
 
@@ -128,89 +128,60 @@ end
 
 
 %%
-optFrf.dftType = 'ChirpZ';
-optFrf.scaleType = 'spectrum';
-optFrf.freqRate = 50 * hz2rps;
+% FR Estimation
+FRF.Opt = [];
+FRF.Opt.DftType = 'ChirpZ';
+FRF.Opt.ScaleType = 'spectrum';
+FRF.Opt.Ts = 1/50;
 
-optFrf.optWin.type = 'rect';
-% optFrf.optWin.taperRatio = 0.0;
+FRF.Opt.Window.Type = 'rect';
+% FRF.Opt.Window.TaperRatio = 0.1;
 
-optFrf.optSmooth.type = 'rect';
-optFrf.optSmooth.len = 3;
+FRF.Opt.Smooth.Type = 'rect';
+FRF.Opt.Smooth.Length = 3;
+
+FRF.Opt.Interp.Type = 'linear';
+FRF.Opt.MIMO = true;
+
 
 evFrf = {};
 ebFrf = {};
 vbFrf = {};
 
-Tev = {};
-Teb = {};
-Tvb = {};
-Cev = {};
-Ceb = {};
-Cvb = {};
+evFrf_MIMO = {};
+ebFrf_MIMO = {};
+vbFrf_MIMO = {};
 
 for iSeg = 1:numSeg
     % Compute Frequency Response
-    optFrf.freq = freq{iSeg};
+    FRF.Opt.Frequency = freq{iSeg};
     
     % Merge Frf at different frequencies
     % Interpolate or fit then interpolate to get a common frequency basis
-    optFrf.freqE = sort(vertcat(optFrf.freq{:}));
+    FRF.Opt.Interp.FreqInterp = sort(vertcat(FRF.Opt.Frequency{:}));
     
-    evFrf{iSeg} = FreqRespEst(v_exc{iSeg}, v{iSeg}, optFrf);
-    ebFrf{iSeg} = FreqRespEst(v_exc{iSeg}, v_fb{iSeg}, optFrf);
+    [evFrf{iSeg}, evFrf_MIMO{iSeg}] = FreqRespEst(v_exc{iSeg}, v{iSeg}, FRF);
+    [ebFrf{iSeg}, ebFrf_MIMO{iSeg}] = FreqRespEst(v_exc{iSeg}, v_fb{iSeg}, FRF);
     
     % Tvb = Teb * inv(Tev)
-    Tev{iSeg} = zeros(numOut, numIn, length(optFrf.freqE));
-    Teb{iSeg} = zeros(numOut, numIn, length(optFrf.freqE));
+    vbFrf_MIMO{iSeg}.FRD = ebFrf_MIMO{iSeg}.FRD * inv(evFrf_MIMO{iSeg}.FRD);
+    vbFrf_MIMO{iSeg}.Coherence = evFrf_MIMO{iSeg}.Coherence;
     
-    for iIn = 1:numIn
-        Tev{iSeg}(:, iIn, :) = evFrf{iSeg}{iIn}.T;
-        Cev{iSeg}(:, iIn, :) = evFrf{iSeg}{iIn}.coher;
-        Teb{iSeg}(:, iIn, :) = ebFrf{iSeg}{iIn}.T;
-        Ceb{iSeg}(:, iIn, :) = ebFrf{iSeg}{iIn}.coher;
-    end
-    
-    for iFreq = 1:length(optFrf.freqE)
-        Tvb{iSeg}(:, :, iFreq) = Teb{iSeg}(:, :, iFreq) * inv(Tev{iSeg}(:, :, iFreq));
-        Cvb{iSeg}(:, :, iFreq) = Cev{iSeg}(:, :, iFreq);
-    end
-    
-    vbFrf{iSeg}.freq = optFrf.freqE;
-    vbFrf{iSeg}.T = Tvb{iSeg};
-    vbFrf{iSeg}.coher = Cvb{iSeg};
-    vbFrf{iSeg}.sys = frd(vbFrf{iSeg}.T, vbFrf{iSeg}.freq, 1/(optFrf.freqRate / hz2rps));
+%     for iFreq = 1:length(optFrf.freqE)
+%         Tvb{iSeg}(:, :, iFreq) = Teb{iSeg}(:, :, iFreq) * inv(Tev{iSeg}(:, :, iFreq));
+%         Cvb{iSeg}(:, :, iFreq) = Cev{iSeg}(:, :, iFreq);
+%     end
+%     
+%     vbFrf{iSeg}.freq = optFrf.freqE;
+%     vbFrf{iSeg}.T = Tvb{iSeg};
+%     vbFrf{iSeg}.coher = Cvb{iSeg};
+%     vbFrf{iSeg}.sys = frd(vbFrf{iSeg}.T, vbFrf{iSeg}.freq, 1/(optFrf.freqRate / hz2rps));
 
 end
 
-% margin(vbFrf{iSeg}.sys)
+% margin(vbFrf_MIMO{iSeg}.FRD(1,1))
 
-
-%%
-iIn = 3;
-
-optSpect.dftType = 'ChirpZ';
-optSpect.scaleType = 'spectrum';
-optSpect.freqRate = 50 * hz2rps;
-
-optSpect.freq = freq{iSeg}{iIn};
-
-optSpect.optWin.type = 'rect';
-% optSpect.optWin.taperRatio = 0.0;
-
-optSpect.optSmooth.type = 'rect';
-optSpect.optSmooth.len = 3;
-
-x = v_exc{iSeg}(iIn,:);
-% y = v{iSeg}(iIn,:);
-y = v_fb{iSeg}(1,:);
-
-% xSpect = SpectEst(x, optSpect);
-% SpectPlot(xSpect, optPlot);
-xyFrf = FreqRespEst(x, y, optSpect);
-
-optPlot.freqUnits = 'Hz';
-BodePlot(xyFrf, optPlot);
+return;
 
 
 %% Sim
@@ -218,58 +189,27 @@ UltraStick25e_System;
 
 
 %%
-optPlot.freqUnits = 'Hz';
-for iSeg = 4:4
-%         [figBode] = BodePlot(vbFrf{iSeg}, optPlot);
+% Linear Model Response
+
+sysLin_frd = frd(sysCtrlL, linspace(0.4, 120, 500), 'rad/s');
+[T, w_rps] = freqresp(sysLin_frd);
+[Gain_mag, Phase_deg] = bode(sysLin_frd); Gain_dB = Mag2DB(Gain_mag);
+
+%
+%     [vbFrf_MIMO{iSeg}.Gain_mag, vbFrf_MIMO{iSeg}.Phase_deg] = bode(vbFrf_MIMO{iSeg}.FRD);
+%     vbFrf_MIMO{iSeg}.Gain_dB = Mag2DB(vbFrf_MIMO{iSeg}.Gain_mag);
+%         [figBode] = BodePlot(vbFrf_MIMO{iSeg}.FRD(iOut,iIn), optPlot);
+
+
+optPlot.FreqUnits = 'Hz';
+for iIn = 1:length(evFrf{iSeg})
+    figure;
+    for iSeg = 4:4
         
-    for iFrf = 1:length(evFrf{iSeg})
-%         [figSpectIn] = SpectPlot(ebFrf{iSeg}{iFrf}.inSpect, optPlot);
-%         [figSpectOut] = SpectPlot(ebFrf{iSeg}{iFrf}.outSpect, optPlot);
-%         [figSpectOut] = SpectPlot(evFrf{iSeg}{iFrf}.outSpect, optPlot);
+        iOut = 1;
         
-        [figBode] = BodePlot(ebFrf{iSeg}{iFrf}, optPlot);
-%         [figBode] = BodePlot(evFrf{iSeg}{iFrf}, optPlot);
+        bode(sysLin_frd(iOut,iIn), vbFrf_MIMO{iSeg}.FRD(iOut,iIn)); hold on;
         
-%         [figNyquist] = NyquistPlot(ebFrf{iFrf}, optPlot);
-%         [figNyquist] = NyquistPlot(evFrf{iFrf}, optPlot);
-%         [figNyquist] = NyquistPlot(vbFrf{iFrf}, optPlot);
     end
 end
 
-%%
-numFreqE = length(optFrf.freqE );
-evT = nan(numOut, numIn, numFreqE);
-ebT = nan(numOut, numIn, numFreqE);
-for iFrf = 1:length(evFrf)
-    evT(:, iFrf, :) = evFrf{iFrf}.T;
-    ebT(:, iFrf, :) = ebFrf{iFrf}.T;
-    
-    L.coher(:, iFrf, :) = ebFrf{iFrf}.coher;
-end
-
-L.freq = optFrf.freqE;
-L.T = nan(size(evT));
-for iFreq = 1:numFreqE
-    L.T(:, :, iFreq) = ebT(:, :, iFreq) * inv(evT(:, :, iFreq));
-end
-
-[L.gain_dB, L.phase_deg] = GainPhase(L.T);
-
-for iIn = 1:numIn
-    
-    %     [figNyquist] = NyquistPlot(evFrf{iFrf}, optPlot);
-    
-    figure;
-    subplot(3,1,1)
-    plot(L.freq, squeeze(L.gain_dB(:, iIn, :)));
-    subplot(3,1,2)
-    plot(L.freq, squeeze(L.phase_deg(:, iIn, :)));
-    subplot(3,1,3)
-    plot(L.freq, squeeze(L.coher(:, iIn, :)));
-    
-%     figure;
-%     subplot(3,1,1:2)
-%     plot(real(squeeze(L.T(:, iIn, :)))', imag(squeeze(L.T(:, iIn, :)))');
-%     subplot(3,1,3)
-%     plot(L.freq, squeeze(L.coher(:, iIn, :)));
-end

@@ -91,7 +91,7 @@ FRF.Opt.Smooth.Type = 'rect';
 FRF.Opt.Smooth.Length = 3;
 
 FRF.Opt.Interp.FreqInterp = sort(horzcat(FRF.Opt.Frequency{:}));
-FRF.Opt.Interp.Type = 'pchip';
+FRF.Opt.Interp.Type = 'linear';
 FRF.Opt.MIMO = true;
 
 [evFrf, evFrf_MIMO] = FreqRespEst(exc, v, FRF);
@@ -113,7 +113,7 @@ evFrf_MIMO.Gain_dB = Mag2DB(evFrf_MIMO.Gain_mag);
 % evFrf_MIMO.Phase_deg = unwrap(evFrf_MIMO.Phase_deg * d2r, [], 3) * r2d;
 
 %%
-optPlot.freqUnits = 'Hz';
+optPlot.FreqUnits = 'Hz';
 for iIn = 1:length(iExcList)
     iExc = iExcList(iIn);
 

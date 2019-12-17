@@ -6,18 +6,18 @@ function [figHandle] = BodePlot(frf, optPlot)
 %Inputs:
 % frf
 %   freq       - frequency of response
-%   gain_dB    - gain of response (dB)
-%   phase_deg  - phase of response (deg)
-%   xyC        - coherence of response []
+%   Gain_dB    - gain of response (dB)
+%   Phase_deg  - Phase of response (deg)
+%   xyC        - Coherenceence of response []
 % optPlot
-%   title      - title of plot ['Bode Plot']
+%   Title      - Title of plot ['Bode Plot']
 %   saveFile   - file to save figure []
 %
 %Outputs:
 % figHandle - object handle of the figure
 %
 %Notes:
-% gain and phase will be computed if xyT is provided
+% gain and Phase will be computed if xyT is provided
 %
 
 % University of Minnesota
@@ -38,26 +38,26 @@ nargoutchk(0, 1);
 
 
 %% Default Values and Constants
-if ~isfield(optPlot, 'freqUnits'), optPlot.freqUnits = []; end
-if isempty(optPlot.freqUnits), optPlot.freqUnits = ''; end
+if ~isfield(optPlot, 'FreqUnits'), optPlot.FreqUnits = []; end
+if isempty(optPlot.FreqUnits), optPlot.FreqUnits = ''; end
 
-if ~isfield(optPlot, 'freqScale'), optPlot.freqScale = []; end
-if isempty(optPlot.freqScale), optPlot.freqScale = 'log'; end
+if ~isfield(optPlot, 'FreqScale'), optPlot.FreqScale = []; end
+if isempty(optPlot.FreqScale), optPlot.FreqScale = 'log'; end
 
-if ~isfield(optPlot, 'gainUnits'), optPlot.gainUnits = []; end
-if isempty(optPlot.gainUnits), optPlot.gainUnits = 'dB'; end
+if ~isfield(optPlot, 'GainUnits'), optPlot.GainUnits = []; end
+if isempty(optPlot.GainUnits), optPlot.GainUnits = 'dB'; end
 
-if ~isfield(optPlot, 'gainScale'), optPlot.gainScale = []; end
-if isempty(optPlot.gainScale), optPlot.gainScale = 'linear'; end
+if ~isfield(optPlot, 'GainScale'), optPlot.GainScale = []; end
+if isempty(optPlot.GainScale), optPlot.GainScale = 'linear'; end
 
-if ~isfield(optPlot, 'phaseUnits'), optPlot.phaseUnits = []; end
-if isempty(optPlot.phaseUnits), optPlot.phaseUnits = 'deg'; end
+if ~isfield(optPlot, 'PhaseUnits'), optPlot.PhaseUnits = []; end
+if isempty(optPlot.PhaseUnits), optPlot.PhaseUnits = 'deg'; end
 
-if ~isfield(optPlot, 'phaseUnwrap'), optPlot.phaseUnwrap = []; end
-if isempty(optPlot.phaseUnwrap), optPlot.phaseUnwrap = false; end
+if ~isfield(optPlot, 'PhaseUnwrap'), optPlot.PhaseUnwrap = []; end
+if isempty(optPlot.PhaseUnwrap), optPlot.PhaseUnwrap = false; end
 
-if ~isfield(optPlot, 'title'), optPlot.title = []; end
-if isempty(optPlot.title), optPlot.title = 'Bode Plot'; end
+if ~isfield(optPlot, 'Title'), optPlot.Title = []; end
+if isempty(optPlot.Title), optPlot.Title = 'Bode Plot'; end
 
 r2d = 180/pi;
 d2r = 1/r2d;
@@ -66,26 +66,26 @@ rps2hz = 1/hz2rps;
 
 %% Check Inputs
 
-if ~isfield(frf, 'gain_dB') || ~isfield(frf, 'phase_deg')
-    [frf.gain_dB, frf.phase_deg] = GainPhase(frf.T);
+if ~isfield(frf, 'Gain_dB') || ~isfield(frf, 'Phase_deg')
+    [frf.Gain_dB, frf.Phase_deg] = GainPhase(frf.FRD);
 end
 
-if ~isfield(frf, 'coher')
-    frf.coher = [];
+if ~isfield(frf, 'Coher')
+    frf.Coherence = [];
 end
 
 % Recursive Call
-if length(size(frf.gain_dB)) == 3
-   [~, numIn, ~] = size(frf.gain_dB);
+if length(size(frf.Gain_dB)) == 3
+   [~, numIn, ~] = size(frf.Gain_dB);
 
     figHandle = cell(1, numIn);
    
     for iIn = 1:numIn
         tempFrf.freq = frf.freq;
-        tempFrf.gain_dB = squeeze(frf.gain_dB(:,iIn,:));
-        tempFrf.phase_deg = squeeze(frf.phase_deg(:,iIn,:));
-        if ~isempty(frf.coher)
-            tempFrf.coher = squeeze(frf.coher(:,iIn,:));
+        tempFrf.Gain_dB = squeeze(frf.Gain_dB(:,iIn,:));
+        tempFrf.Phase_deg = squeeze(frf.Phase_deg(:,iIn,:));
+        if ~isempty(frf.Coherence)
+            tempFrf.Coherence = squeeze(frf.Coherence(:,iIn,:));
         end
         
         figHandle{iIn} = BodePlot(tempFrf, optPlot);
@@ -95,26 +95,26 @@ if length(size(frf.gain_dB)) == 3
     return
 end
 
-switch lower(optPlot.freqUnits)
+switch lower(optPlot.FreqUnits)
     case 'hz'
-        freq = frf.freq * rps2hz;
+        Freq = frf.Frequency * rps2hz;
     otherwise
-        freq = frf.freq;
+        Freq = frf.Frequency;
 end
 
-switch lower(optPlot.gainUnits)
+switch lower(optPlot.GainUnits)
     case 'mag'
-        gain = DB2Mag(frf.gain_dB);
+        Gain = DB2Mag(frf.Gain_dB);
     otherwise
-        gain = frf.gain_dB;
+        Gain = frf.Gain_dB;
 end
 
 
-switch lower(optPlot.phaseUnits)
+switch lower(optPlot.PhaseUnits)
     case 'rad'
-        phase = frf.phase_deg * d2r;
+        Phase = frf.Phase_deg * d2r;
     otherwise
-        phase = frf.phase_deg;
+        Phase = frf.Phase_deg;
 end
 
 %% Plot
@@ -122,7 +122,7 @@ end
 figHandle = figure;
 
 % Set number of plots
-if ~isempty(frf.coher)
+if ~isempty(frf.Coherence)
     numPlots = 3;
 else
     numPlots = 2;
@@ -130,36 +130,36 @@ end
 
 % Gain Plot
 subplot(numPlots, 1, 1); grid on;
-plot(freq, gain); grid on;
+plot(Freq, Gain); grid on;
 
-if strcmp(optPlot.freqScale, 'log')
+if strcmp(optPlot.FreqScale, 'log')
     set(gca,'XScale','log');
 end
-if strcmp(optPlot.gainScale, 'log')
+if strcmp(optPlot.GainScale, 'log')
     set(gca,'YScale','log');
 end
 
 ylim('auto');
-ylabel(['Gain (' optPlot.gainUnits ')']);
-title(optPlot.title, 'Interpreter', 'none');
+ylabel(['Gain (' optPlot.GainUnits ')']);
+Title(optPlot.Title, 'Interpreter', 'none');
 
 % Phase Plot
 subplot(numPlots, 1, 2);
-plot(freq, phase); grid on;
+plot(Freq, Phase); grid on;
 
-if strcmp(optPlot.freqScale, 'log')
+if strcmp(optPlot.FreqScale, 'log')
     set(gca,'XScale','log');
 end
 
 ylim('auto');
-ylabel(['Phase (' optPlot.phaseUnits ')']);
+ylabel(['Phase (' optPlot.PhaseUnits ')']);
 
 % Coherence Plot
-if ~isempty(frf.coher)
+if ~isempty(frf.Coherence)
     subplot(numPlots, 1, 3);
-    plot(freq, frf.coher); grid on;
+    plot(Freq, frf.Coherence); grid on;
     
-    if strcmp(optPlot.freqScale, 'log')
+    if strcmp(optPlot.FreqScale, 'log')
         set(gca,'XScale','log');
     end
     
@@ -168,14 +168,14 @@ end
 
 % Add Common x-axis label, and link the axes together and apply tight limits
 subplot(numPlots, 1, numPlots);
-xlabel(['Frequency (' optPlot.freqUnits ')']);
+xlabel(['Frequency (' optPlot.FreqUnits ')']);
 linkaxes(findobj(gcf, 'Type', 'axes'), 'x');
 
-xlim([min(freq), max(freq)]);
+xlim([min(Freq), max(Freq)]);
 
 %% Save the plot as a fig
-if isfield (optPlot, 'saveFile')
-    saveas(figHandle, optPlot.saveFile, 'fig');
+if isfield (optPlot, 'SaveFile')
+    saveas(figHandle, optPlot.SaveFile, 'fig');
 end
 
 
