@@ -25,13 +25,14 @@ rps2hz = 1/hz2rps;
 structMultiSine.numChan = 3;
 structMultiSine.timeRate_s = 1/50;
 structMultiSine.timeDur_s = 10.0;
-structMultiSine.numCycles = 1;
+structMultiSine.numCycles = 5;
 
-freqMinDes_hz = structMultiSine.numCycles / structMultiSine.timeDur_s;
+freqMinDes_hz = 1.0 / structMultiSine.timeDur_s;
 freqMaxDes_hz = 10.2;
 
+
 structMultiSine.freqRange_rps = repmat([freqMinDes_hz, freqMaxDes_hz], [structMultiSine.numChan, 1]) * hz2rps;
-structMultiSine.freqStepDes_rps = (2 / 10) * hz2rps;
+structMultiSine.freqStepDes_rps = (1 / 10) * hz2rps;
 methodSW = 'zip'; % "zippered" component distribution
 
 structMultiSine = MultiSineComponents(structMultiSine, methodSW);
@@ -64,9 +65,7 @@ y = lsim(sysCtrlCL, u, t)';
 iExcList = 4:6;
 iOutList = 7:9;
 
-fb = y(iOutList, :);
-ff = zeros(size(fb));
-v = ff - fb;
+v = y(iOutList, :);
 
 %%
 % PSD
@@ -85,25 +84,35 @@ optFrf.optSmooth.len = 3;
 evFrf = FreqRespEst(exc, v, optFrf);
 
 
+w_rps = {};
+T = {};
+gain_dB = {};
+phase_deg = {};
+
 optPlot.freqUnits = 'Hz';
 for iIn = 1:length(iExcList)
     iExc = iExcList(iIn);
     
     [evFrf{iIn}.gain_dB, evFrf{iIn}.phase_deg] = GainPhase(evFrf{iIn}.T);
-    [gain_mag, phase_deg, w_rps] = bode(sysCtrlCL(iOutList, iExc), evFrf{iIn}.freq);
-    gain_dB = Mag2DB(gain_mag);
+    
+    [T{iIn}, w_rps{iIn}] = freqresp(sysCtrlCL(iOutList, iExc), evFrf{iIn}.freq);
+    [gain_dB{iIn}, phase_deg{iIn}] = GainPhase(T{iIn});
     
     for iOut = 1:length(iOutList)
         figure;
         subplot(3,1,1);
-        semilogx(w_rps, gain_dB(iOut,:), 'o'); hold on;
-        semilogx(evFrf{iIn}.freq, evFrf{iIn}.gain_dB(iOut,:));
+        semilogx(w_rps{iIn}, gain_dB{iIn}(iOut,:), 'k'); hold on; grid on;
+        semilogx(evFrf{iIn}.freq, evFrf{iIn}.gain_dB(iOut,:), '-*r');
         subplot(3,1,2);
-        semilogx(w_rps, phase_deg(iOut,:), 'o'); hold on;
-        semilogx(evFrf{iIn}.freq, evFrf{iIn}.phase_deg(iOut,:));
+        semilogx(w_rps{iIn}, phase_deg{iIn}(iOut,:), 'k'); hold on; grid on;
+        semilogx(evFrf{iIn}.freq, evFrf{iIn}.phase_deg(iOut,:), '-*r');
         subplot(3,1,3);
-        semilogx(w_rps, ones(size(w_rps)), 'o'); hold on;
-        semilogx(evFrf{iIn}.freq, evFrf{iIn}.coher(iOut,:));
+        semilogx(w_rps{iIn}, ones(size(w_rps{iIn})), 'k'); hold on; grid on;
+        semilogx(evFrf{iIn}.freq, evFrf{iIn}.coher(iOut,:), '-*r');
+        legend({'Linear Model', 'Excited System'});
+        
+        subplot(3,1,1);
+        title(['Bode Plot: ', sysOL.InputName{iIn}, ' to ', sysOL.OutputName{iOut}]);
     end
     
 end

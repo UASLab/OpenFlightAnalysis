@@ -109,7 +109,7 @@ else % SIMO at one frequency set
     frf.outP = frf.outSpect.P;
     
     % Compute cross spectrum, Scale is doubled because one-sided DFTs
-    frf.crossP = 2*frf.inSpect.scale * conj(frf.inSpect.dft) .* frf.outSpect.dft;
+    frf.crossP = 2*frf.inSpect.scale * frf.inSpect.dft .* conj(frf.outSpect.dft);
 
     %% Compute complex transfer function approximation
     frf.T = FreqRespEstCmplx(frf.inP, frf.crossP);
