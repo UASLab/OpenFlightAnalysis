@@ -151,13 +151,21 @@ oData.Control = logData.Control;
 
 % Get the Effectors List from config
 effList = {};
-for iEff = 1:length(config.Effectors)
-    if strcmp(config.Effectors{iEff}.Type, 'Node')
-        for iEffNode = 1:length(config.Effectors{iEff}.Effectors)
-            [~, effList{end+1}] = fileparts(config.Effectors{iEff}.Effectors(iEffNode).Input);
+effDef = config.Effectors;
+for iEff = 1:length(effDef)
+    if iscell(effDef)
+        effDefSel = effDef{iEff};
+    else
+        effDefSel = effDef(iEff);
+    end
+    
+    if strcmp(effDefSel.Type, 'Node')
+        for iEffNode = 1:length(effDefSel.Effectors)
+            try [~, effList{end+1}] = fileparts(effDefSel.Effectors{iEffNode}.Input); end
+            try [~, effList{end+1}] = fileparts(effDefSel.Effectors(iEffNode).Input); end
         end
     else
-        [~, effList{end+1}] = fileparts(config.Effectors{iEff}.Input);
+        [~, effList{end+1}] = fileparts(effDefSel.Input);
     end
 end
 
@@ -185,8 +193,9 @@ oData.magImu_L_uT = [logData.Sensors.Fmu.Mpu9250.MagX_uT; logData.Sensors.Fmu.Mp
 if isfield(logData.Sensors, 'Imu')
     imuList = fields(logData.Sensors.Imu);
     for iImu = 1:length(imuList)
-        oData.('a'+imuName+'IMU_IMU_mps2') = [logData.Sensors.Imu.(imuName).AccelX_mss; logData.Sensors.Imu.(imuName).AccelY_mss; logData.Sensors.Imu.(imuName).AccelZ_mss];
-        oData.('w'+imuName+'IMU_IMU_rps') = [logData.Sensors.Imu.(imuName).GyroX_rads; logData.Sensors.Imu.(imuName).GyroY_rads; logData.Sensors.Imu.(imuName).GyroZ_rads];
+        imuName = imuList{iImu};
+        oData.(['a', imuName, 'IMU_IMU_mps2']) = [logData.Sensors.Imu.(imuName).AccelX_mss; logData.Sensors.Imu.(imuName).AccelY_mss; logData.Sensors.Imu.(imuName).AccelZ_mss];
+        oData.(['w', imuName, 'IMU_IMU_rps']) = [logData.Sensors.Imu.(imuName).GyroX_rads; logData.Sensors.Imu.(imuName).GyroY_rads; logData.Sensors.Imu.(imuName).GyroZ_rads];
     end
 end
 

@@ -29,16 +29,16 @@ dataDef.Segments = testPtDef;
 jsonStr = jsonencode(dataDef);
 
 % Pretty Print
-jsonStr = strrep(jsonStr, '[{', sprintf('[\r\t{'));
-jsonStr = strrep(jsonStr, '},"', sprintf('},\r"'));
-% jsonStr = strrep(jsonStr, ':{', sprintf(':{\r\t'));
-% jsonStr = strrep(jsonStr, ',"', sprintf(',\r\t"'));
-% jsonStr = strrep(jsonStr, '}}', sprintf('}\r}'));
-jsonStr = strrep(jsonStr, '},{', sprintf('},\r\t{'));
-jsonStr = strrep(jsonStr, ']}]', sprintf(']}\r]'));
+jsonStr = strrep(jsonStr, '[{', sprintf('[\r\n\t{'));
+jsonStr = strrep(jsonStr, '},"', sprintf('},\r\n"'));
+% jsonStr = strrep(jsonStr, ':{', sprintf(':{\r\n\t'));
+% jsonStr = strrep(jsonStr, ',"', sprintf(',\r\n\t"'));
+% jsonStr = strrep(jsonStr, '}}', sprintf('}\r\n}'));
+jsonStr = strrep(jsonStr, '},{', sprintf('},\r\n\t{'));
+jsonStr = strrep(jsonStr, ']}]', sprintf(']}\r\n]'));
 jsonStr = strrep(jsonStr, ':', sprintf(': '));
 jsonStr = strrep(jsonStr, ',', sprintf(', '));
-jsonStr = strrep(jsonStr, ', "Segments"', sprintf(',\r"Segments"'));
+jsonStr = strrep(jsonStr, ', "Segments"', sprintf(',\r\n"Segments"'));
 
 % disp(jsonStr)
 

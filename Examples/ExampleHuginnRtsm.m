@@ -24,25 +24,44 @@ makeFltName = @(seg, segType) [seg.vehName, segType, seg.fltNum];
 segDef = {};
 
 iSeg = 1;
-segDef{iSeg}.vehName = 'Thor'; segDef{iSeg}.fltNum = '128';
+% segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '03';
+% segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
+% segDef{iSeg}.time_us = [693478512, 708458622]; % 23 m/s
+% 
+% iSeg = iSeg + 1;
+% segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '03';
+% segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
+% segDef{iSeg}.time_us = [865897708, 878157589]; % 26 m/s
+% 
+% iSeg = iSeg + 1;
+% segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '04';
+% segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
+% segDef{iSeg}.time_us = [884703586, 896345033]; % 29 m/s
+% 
+% iSeg = iSeg + 1;
+% segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '04';
+% segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
+% segDef{iSeg}.time_us = [998753749, 1010974466]; %32 m/s
+% 
+% iSeg = iSeg + 1;
+segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '05';
 segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
-segDef{iSeg}.time_us = [700283749, 712283749];
+segDef{iSeg}.time_us = [582428501, 594428501]; % 26 m/s
 
 iSeg = iSeg + 1;
-segDef{iSeg}.vehName = 'Thor'; segDef{iSeg}.fltNum = '128';
+segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '05';
 segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
-segDef{iSeg}.time_us = [714405473, 746405473];
+segDef{iSeg}.time_us = [799508311, 811508311]; % 29 m/s
 
 iSeg = iSeg + 1;
-segDef{iSeg}.vehName = 'Thor'; segDef{iSeg}.fltNum = '129';
+segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '06';
 segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
-segDef{iSeg}.time_us = [1461077095, 1473077095];
+segDef{iSeg}.time_us = [955842068, 967842068]; % 32 m/s
 
 iSeg = iSeg + 1;
-segDef{iSeg}.vehName = 'Thor'; segDef{iSeg}.fltNum = '01';
-segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'SIM_PID');
-segDef{iSeg}.time_us = [227979999, 239979999];
-
+segDef{iSeg}.vehName = 'Huginn'; segDef{iSeg}.fltNum = '06';
+segDef{iSeg}.fltName = makeFltName(segDef{iSeg}, 'FLT');
+segDef{iSeg}.time_us = [1122559648, 1134559648]; %23 m/s
 
 % Create the Data, Config, and Def fullfiles, add to segDef
 makeDataPath = @(pathRoot, seg) fullfile(pathRoot, seg.vehName, seg.fltName, [seg.fltName '.mat']);
@@ -51,6 +70,7 @@ makeDefPath = @(pathRoot, seg) fullfile(pathRoot, seg.vehName, seg.fltName, [low
 
 numSeg = length(segDef);
 for iSeg = 1:numSeg
+%     segDef{iSeg}.time_us(2) = segDef{iSeg}.time_us(1) + 12e6;
     segDef{iSeg}.fileData = makeDataPath(pathRoot, segDef{iSeg});
     segDef{iSeg}.fileConfig = makeConfigPath(pathRoot, segDef{iSeg});
     segDef{iSeg}.fileDef = makeDefPath(pathRoot, segDef{iSeg});
@@ -67,13 +87,13 @@ for iSeg = 1:numSeg
     if isfield(fltData.(segDef{iSeg}.fltName).config.Excitation, 'WaveDef')
         logVers(iSeg) = 2;
         
-        segData{iSeg}.Control.cmdYaw_pid_rpsFF = zeros(size(segData{iSeg}.Control.cmdPitch_pid_rpsFF));
-        segData{iSeg}.Control.cmdYaw_pid_rpsFB = segData{iSeg}.Control.Test.SCAS_Att.cmdYaw_damp_rps;
+        segData{iSeg}.Control.cmdBend_pid_rpsFF = zeros(size(segData{iSeg}.Control.cmdPitch_PID_rpsFF));
+        segData{iSeg}.Control.cmdBend_pid_rpsFB = zeros(size(segData{iSeg}.Control.cmdPitch_PID_rpsFF));
     else
         logVers(iSeg) = 1;
         
-        segData{iSeg}.Control.cmdYaw_pidFF = zeros(size(segData{iSeg}.Control.cmdPitch_pidFF));
-        segData{iSeg}.Control.cmdYaw_pidFB = segData{iSeg}.Control.cmdYaw_damp_rps;
+        segData{iSeg}.Control.cmdBend_PID_ndFF = zeros(size(segData{iSeg}.Control.cmdPitch_PID_rpsFF));
+        segData{iSeg}.Control.cmdBend_PID_ndFB = zeros(size(segData{iSeg}.Control.cmdPitch_PID_rpsFF));
     end
 end
 
@@ -89,21 +109,21 @@ freq = {};
 for iSeg = 1:numSeg
 
     t{iSeg} = segData{iSeg}.time_s;
-    v_exc{iSeg} = [segData{iSeg}.Excitation.cmdRoll_rps; segData{iSeg}.Excitation.cmdPitch_rps; segData{iSeg}.Excitation.cmdYaw_rps];
+    v_exc{iSeg} = [segData{iSeg}.Excitation.cmdRoll_rps; segData{iSeg}.Excitation.cmdPitch_rps; segData{iSeg}.Excitation.cmdBend_nd];
     
     if logVers(iSeg) == 2
-        v_ff{iSeg} = [segData{iSeg}.Control.cmdRoll_pid_rpsFF; segData{iSeg}.Control.cmdPitch_pid_rpsFF; segData{iSeg}.Control.cmdYaw_pid_rpsFF];
-        v_fb{iSeg} = [segData{iSeg}.Control.cmdRoll_pid_rpsFB; segData{iSeg}.Control.cmdPitch_pid_rpsFB; segData{iSeg}.Control.cmdYaw_pid_rpsFB];
+        v_ff{iSeg} = [segData{iSeg}.Control.cmdRoll_pid_rpsFF; segData{iSeg}.Control.cmdPitch_pid_rpsFF; segData{iSeg}.Control.cmdBend_pid_rpsFF];
+        v_fb{iSeg} = [segData{iSeg}.Control.cmdRoll_pid_rpsFB; segData{iSeg}.Control.cmdPitch_pid_rpsFB; segData{iSeg}.Control.cmdBend_pid_rpsFB];
         
-        v{iSeg} = v_exc{iSeg} + [segData{iSeg}.Control.cmdRoll_rps; segData{iSeg}.Control.cmdPitch_rps; segData{iSeg}.Control.cmdYaw_rps];
+        v{iSeg} = v_exc{iSeg} + [segData{iSeg}.Control.cmdRoll_rps; segData{iSeg}.Control.cmdPitch_rps; segData{iSeg}.Control.cmdBend_nd];
         
         freq{iSeg} = {fltData.(segDef{iSeg}.fltName).config.Excitation.WaveDef.OMS_1.Frequency, fltData.(segDef{iSeg}.fltName).config.Excitation.WaveDef.OMS_2.Frequency, fltData.(segDef{iSeg}.fltName).config.Excitation.WaveDef.OMS_3.Frequency}; % [rad/s]
     
     else
-        v_ff{iSeg} = [segData{iSeg}.Control.cmdRoll_pidFF; segData{iSeg}.Control.cmdPitch_pidFF; segData{iSeg}.Control.cmdYaw_pidFF];
-        v_fb{iSeg} = [segData{iSeg}.Control.cmdRoll_pidFB; segData{iSeg}.Control.cmdPitch_pidFB; segData{iSeg}.Control.cmdYaw_pidFB];
+        v_ff{iSeg} = [segData{iSeg}.Control.cmdRoll_PID_rpsFF; segData{iSeg}.Control.cmdPitch_PID_rpsFF; segData{iSeg}.Control.cmdBend_PID_ndFF];
+        v_fb{iSeg} = [segData{iSeg}.Control.cmdRoll_PID_rpsFB; segData{iSeg}.Control.cmdPitch_PID_rpsFB; segData{iSeg}.Control.cmdBend_PID_ndFB];
         
-        v{iSeg} = [segData{iSeg}.Control.cmdRoll_rps; segData{iSeg}.Control.cmdPitch_rps; segData{iSeg}.Control.cmdYaw_rps];
+        v{iSeg} = [segData{iSeg}.Control.cmdRoll_rps; segData{iSeg}.Control.cmdPitch_rps; segData{iSeg}.Control.cmdBend_nd];
         
         freq{iSeg} = {fltData.(segDef{iSeg}.fltName).config.Excitation.OMS_RTSM_1.Frequency, fltData.(segDef{iSeg}.fltName).config.Excitation.OMS_RTSM_2.Frequency, fltData.(segDef{iSeg}.fltName).config.Excitation.OMS_RTSM_3.Frequency}; % [rad/s]
     end
@@ -214,12 +234,12 @@ BodePlot(xyFrf, optPlot);
 
 
 %% Sim
-UltraStick25e_System;
+% UltraStick25e_System;
 
 
 %%
 optPlot.freqUnits = 'Hz';
-for iSeg = 4:4
+for iSeg = 1:4
 %         [figBode] = BodePlot(vbFrf{iSeg}, optPlot);
         
     for iFrf = 1:length(evFrf{iSeg})
@@ -227,7 +247,7 @@ for iSeg = 4:4
 %         [figSpectOut] = SpectPlot(ebFrf{iSeg}{iFrf}.outSpect, optPlot);
 %         [figSpectOut] = SpectPlot(evFrf{iSeg}{iFrf}.outSpect, optPlot);
         
-        [figBode] = BodePlot(ebFrf{iSeg}{iFrf}, optPlot);
+%         [figBode] = BodePlot(ebFrf{iSeg}{iFrf}, optPlot);
 %         [figBode] = BodePlot(evFrf{iSeg}{iFrf}, optPlot);
         
 %         [figNyquist] = NyquistPlot(ebFrf{iFrf}, optPlot);
@@ -237,16 +257,14 @@ for iSeg = 4:4
 end
 
 %%
-iSeg = 1;
-
 numFreqE = length(optFrf.freqE );
 evT = nan(numOut, numIn, numFreqE);
 ebT = nan(numOut, numIn, numFreqE);
-for iFrf = 1:length(evFrf{iSeg})
-    evT(:, iFrf, :) = evFrf{iSeg}{iFrf}.T;
-    ebT(:, iFrf, :) = ebFrf{iSeg}{iFrf}.T;
+for iFrf = 1:length(evFrf)
+    evT(:, iFrf, :) = evFrf{iFrf}.T;
+    ebT(:, iFrf, :) = ebFrf{iFrf}.T;
     
-    L.coher(:, iFrf, :) = ebFrf{iSeg}{iFrf}.coher;
+    L.coher(:, iFrf, :) = ebFrf{iFrf}.coher;
 end
 
 L.freq = optFrf.freqE;

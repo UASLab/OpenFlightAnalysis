@@ -22,8 +22,11 @@ nargoutchk(1, 1);
 time_us = fltData.logData.Sensors.Fmu.Time_us;
 socEng = fltData.logData.Mission.socEngage;
 
-socStart = find([0, diff(socEng)]);
-socEnd = find([diff(1-socEng), 1]);
+socStart = find(diff(socEng));
+socEnd = find(diff(1-socEng));
+while (length(socEnd) < length(socStart))
+    socEnd = [socEnd, length(socEng)];
+end
 
 segLen = socEnd - socStart;
 
@@ -44,9 +47,28 @@ try testIndx = fltData.logData.Mission.testID(iSocEng(excStart+1)) + 1; end
 try testIndx = fltData.logData.Mission.testPtID(iSocEng(excStart)) + 1; end
 
 excSegDef = fltData.config.Mission_Manager.Test_Points(testIndx);
+
 for iExc = 1:length(excSegDef)
-    excSegDef(iExc).time_us = time_us([excStart(iExc), excEnd(iExc)]);
+    excRange = excStart(iExc):excEnd(iExc);
+    excSegDef(iExc).time_us = time_us([excRange(1), excRange(end)]);
 end
+
+    
+% Refine the Segment to 1 seconds after excitation ends
+% tExtEnd_us = 1e6;
+% for iExc = 1:length(excSegDef)
+%     
+%     excCell = struct2cell(fltData.logData.Excitation.(excSegDef(iExc).Excitation));
+%     excArray = vertcat(excCell{:});
+%     excArray = excArray(:, iSocEng);
+%     
+%     excRange = excStart(iExc):excEnd(iExc);
+%     excArray = excArray(:, excRange);
+%     indxLast = find(any(excArray~=0), 1, 'last');
+%     excRange = excRange(1:indxLast);
+%     
+%     excSegDef(iExc).time_us = time_us([excRange(1), excRange(end) + tExtEnd_us]);
+% end
 
 %%
 testPtDef.SocEngage = socEngSegDef;
