@@ -1,14 +1,14 @@
-function [win] = WindowFunc(optWin)
+function [Window] = WindowFunc(Opt)
 % Apply any of several windows to data. 
 %
 %Inputs:
-% optWin - Structured Window function options
-%   len  - Length of window
-%   type - Type of window ['rect']
+% Opt - Structured Window function options
+%   Length  - Length of window
+%   Type - Type of window ['rect']
 %   [options]
 %
 %Outputs:
-% win - window data
+% Window - Window data
 %
 
 % University of Minnesota
@@ -22,45 +22,45 @@ narginchk(1, 1)
 nargoutchk(0, 1)
 
 %% Check Inputs
-if ~isfield(optWin, 'len')
-    error([mfilename ' - len must be specified.']);
+if ~isfield(Opt, 'Length')
+    error([mfilename ' - Length must be specified.']);
 end
-if ~isfield(optWin, 'type')
-    optWin.type = [];
+if ~isfield(Opt, 'Type')
+    Opt.Type = [];
 end
 
-if isempty(optWin.type), optWin.type = 'rect'; end
+if isempty(Opt.Type), Opt.Type = 'Rect'; end
 
 
 %% Windowing Options
-switch lower(optWin.type)
+switch lower(Opt.Type)
     case {'rectwin', 'rect'} % Rectangular
-        win = ones(1, optWin.len);
+        Window = ones(1, Opt.Length);
         
     case {'cosi', 'cosine', 'tukey', 'tukeywin'} % Cosine taper
         % Taper ratio determines the length of the cosine sections
-        if ~isfield(optWin, 'taperRatio')
-            error([mfilename ' - taperRatio must be specified.']);
+        if ~isfield(Opt, 'TaperRatio')
+            error([mfilename ' - TaperRatio must be specified.']);
         end
             
-        if optWin.taperRatio < 2/optWin.len
-            optWin.taperRatio = 2/optWin.len;
-            warning([mfilename ' - taperRatio must be in the range (0 0.5]']); % FIXME: message ID
-        elseif optWin.taperRatio > 0.5
-            optWin.taperRatio = 0.5;
-            warning([mfilename ' - taperRatio must be in the range (0 0.5]']); % FIXME: message ID
+        if Opt.TaperRatio < 2/Opt.Length
+            Opt.TaperRatio = 2/Opt.Length;
+            warning([mfilename ' - TaperRatio must be in the range (0 0.5]']); % FIXME: message ID
+        elseif Opt.TaperRatio > 0.5
+            Opt.TaperRatio = 0.5;
+            warning([mfilename ' - TaperRatio must be in the range (0 0.5]']); % FIXME: message ID
         end
 
         % Taper length
-        lenTaper = round(optWin.taperRatio * optWin.len);
+        lenTaper = round(Opt.TaperRatio * Opt.Length);
 
         % Compute the window weight vector
-        win = ones(1, optWin.len);
-        win(1:lenTaper) = 0.5 * (1 - cos(pi*(0:lenTaper-1)/(lenTaper-1)));
-        win(end-(lenTaper-1):end) = 0.5 * (1 - cos(pi*(lenTaper-1:-1:0)/(lenTaper-1)));
+        Window = ones(1, Opt.Length);
+        Window(1:lenTaper) = 0.5 * (1 - cos(pi*(0:lenTaper-1)/(lenTaper-1)));
+        Window(end-(lenTaper-1):end) = 0.5 * (1 - cos(pi*(lenTaper-1:-1:0)/(lenTaper-1)));
         
     otherwise % Polynomial Based Windows
-        switch lower(optWin.type)
+        switch lower(Opt.Type)
             case {'hann', 'hanning', 'han'} % Hann
                 c0 = 0.5;
                 c1 = 0.5;
@@ -80,10 +80,10 @@ switch lower(optWin.type)
                 c3 = 0;
                 c4 = 0;
             otherwise
-                error([mfilename ' - Unkown window type: ''' optWin ''''])
+                error([mfilename ' - Unknown window Type: ''' Opt.Type ''''])
         end
         
-        temp = (0:optWin.len-1)/(optWin.len-1);
-        win = c0 - c1*cos(2*pi*temp) + c2*cos(4*pi*temp) - c3*cos(6*pi*temp) + c4*cos(8*pi*temp);
+        temp = (0:Opt.Length-1)/(Opt.Length-1);
+        Window = c0 - c1*cos(2*pi*temp) + c2*cos(4*pi*temp) - c3*cos(6*pi*temp) + c4*cos(8*pi*temp);
 end
 

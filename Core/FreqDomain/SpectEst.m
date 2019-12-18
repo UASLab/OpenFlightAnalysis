@@ -1,28 +1,29 @@
-function [spect] = SpectEst(x, optSpect)
+function [Spect] = SpectEst(x, Spect)
 % Compute the Spectrum of time history data using FFT.
 %
-%Usage:  [spect] = SpectEst(x, optSpect);
+%Usage:  [Spect] = SpectEst(x, Spect);
 %
 %Inputs:
 % x            - time history data
-% optSpect
-%   dftType      - DFT Type ['FFT']
-%   scaleType    - Power Scale Type ['spectrum']
-%   freqRate     - sampling frequency of data (see Note)
-%   freq         - vector of frequencies (see Note)
+% Spect.Opt
+%   DftType      - DFT Type ['FFT']
+%   ScaleType    - Power Scale Type ['Spectrum']
+%   Ts           - sampling time of data (see Note)
+%   Frequency    - vector of frequencies (see Note)
 %   winType      - Window Type
 %
 %Outputs:
-% spect
-%   signal - original time history signal
-%   win    - signal after detrend and window
-%   P      - Spectrum Power (scaled) (mag)
-%   dft    - result of the DFT
-%   freq   - frequency vector (see Note)
-%   scale  - scaling value
+% Spect
+%   Signal - original time history signal
+%   Window    - signal after detrend and window
+%   Power      - Spectrum Power (scaled) (mag)
+%   DFT    - result of the DFT
+%   Frequency   - frequency vector (see Note)
+%   Scale  - scaling value
 %
 %Notes:
-% The 'freq' output will have the units of the 'freqRate' input.
+% The 'freq' output will have the units of the 2*pi/'Ts' input.
+% So, if Ts is in seconds then 1/sec = Hz, 2*pi/Ts is rad/s
 
 % University of Minnesota
 % Aerospace Engineering and Mechanics - UAV Lab
@@ -34,67 +35,63 @@ function [spect] = SpectEst(x, optSpect)
 %% Check I/O Arguments
 narginchk(1, 2);
 if nargin < 2
-    optSpect = struct();
+    Spect.Opt = struct();
 end
 
 nargoutchk(0, 1);
 
 %% Default Values and Constants
-if ~isfield(optSpect, 'dftType'), optSpect.dftType = []; end
-if ~isfield(optSpect, 'freqRate'), optSpect.freqRate = []; end
-if ~isfield(optSpect, 'scaleType'), optSpect.scaleType = []; end
+if ~isfield(Spect.Opt, 'DftType'), Spect.Opt.DftType = []; end
+if ~isfield(Spect.Opt, 'Ts'), Spect.Opt.Ts = []; end
+if ~isfield(Spect.Opt, 'ScaleType'), Spect.Opt.ScaleType = []; end
 
-if ~isfield(optSpect, 'optWin'), optSpect.optWin = struct(); end
+if ~isfield(Spect.Opt, 'Window'), Spect.Opt.Window = struct(); end
 
-if isempty(optSpect.freqRate), optSpect.freqRate = 1; end
-if isempty(optSpect.scaleType), optSpect.scaleType = 'spectrum'; end
+if isempty(Spect.Opt.Ts), Spect.Opt.Ts = 1; end
+if isempty(Spect.Opt.ScaleType), Spect.Opt.ScaleType = 'Spectrum'; end
 
 %% Check Inputs
-spect.signal = x;
+Spect.Signal = x;
 
 % Detrend and Window
-optSpect.optWin.len = length(spect.signal);
-win = WindowFunc(optSpect.optWin);
-spect.win = detrend(spect.signal')' .* win;
+Spect.Opt.Window.Length = length(Spect.Signal);
+Spect.Window = WindowFunc(Spect.Opt.Window);
+Spect.SignalWin = detrend(Spect.Signal')' .* Spect.Window;
 
 %% Compute Power scaling
-spect.scale = PowerScale(optSpect.scaleType, optSpect.freqRate, win);
+Spect.Scale = PowerScale(Spect.Opt.ScaleType, 2*pi/Spect.Opt.Ts, Spect.Window);
 
-switch lower(optSpect.dftType)
+switch lower(Spect.Opt.DftType)
     case 'fft'
         %% Compute FFT of x
-        [spect.dft, spect.freq] = FFT(spect.win, optSpect.freqRate);
+        [Spect.DFT, Spect.Frequency] = FFT(Spect.SignalWin, 2*pi/Spect.Opt.Ts);
         
         %% Power
-        spect.P = spect.scale * (spect.dft .* conj(spect.dft));
+        Spect.Power = Spect.Scale * (Spect.DFT .* conj(Spect.DFT));
         
         % The Power should be doubled for a one-sided DFT, however if the Last point is an unpaired Nyquist freq point, don't double
-        spect.P = 2 * spect.P;
+        Spect.Power = 2 * Spect.Power;
         
-        if mod(length(spect.P), 2) == 1
-            spect.P(:, end) = 0.5 * spect.P(:, end);
+        if mod(length(Spect.Power), 2) == 1
+            Spect.Power(:, end) = 0.5 * Spect.Power(:, end);
         end
         
         % If the signal was detrended the zero frequency component should be removed
-        if ~isempty(detrendType)
-            spect.freq(:, end) = [];
-            spect.dft(:, end) = [];
-            spect.P(:, end) = [];
+        if 1
+            Spect.Frequency(:, end) = [];
+            Spect.DFT(:, end) = [];
+            Spect.Power(:, end) = [];
         end
         
     case {'czt', 'chirpz'}
-        [spect.dft, spect.freq] = ChirpZ(spect.win, optSpect.freqRate, optSpect.freq);
+        [Spect.DFT, Spect.Frequency] = ChirpZ(Spect.SignalWin, 2*pi/Spect.Opt.Ts, Spect.Opt.Frequency);
 
         % Compute Power, factor of 2 because CZT is one-sided
-        spect.P = 2*spect.scale .* (spect.dft .* conj(spect.dft));
+        Spect.Power = 2*Spect.Scale .* (Spect.DFT .* conj(Spect.DFT));
 end
 
-        
 % Smooth the Power Output
-if isfield(optSpect, 'optSmooth')
-    spect.PRaw = spect.P;
-    spect.P = SmoothFunc(spect.PRaw, optSpect.optSmooth);
+if isfield(Spect.Opt, 'Smooth')
+    Spect.PowerRaw = Spect.Power;
+    Spect.Power = SmoothFunc(Spect.PowerRaw, Spect.Opt.Smooth);
 end
-
-
-
