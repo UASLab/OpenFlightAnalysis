@@ -1,6 +1,5 @@
 load('UltraStick25e_Lin17.mat')
 
-
 % dt = SampleTime;
 dt = 1/50;
 
@@ -138,7 +137,6 @@ sysCtrlCL = connect(sysScas, sysExc, sysMixer, sysPlant, ...
 sysCtrlL = getLoopTransfer(sysCtrlCL, sysExc.InputName(2:2:end), 1);
 
 return;
-
 %% Steps
 timeStep_s = 5;
 opt = stepDataOptions;

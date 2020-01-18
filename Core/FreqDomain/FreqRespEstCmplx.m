@@ -24,12 +24,16 @@ nargoutchk(0, 1);
 
 
 %% Check Inputs
-[~, lenXX] = size(xxP);
+[widthXX, lenXX] = size(xxP);
 [widthXY, lenXY] = size(xyP);
 
 % Input lengths must be equal
 if (lenXX ~= lenXY)
-    error([mfilename ' - Inputs must be of equal dimension'])
+    if (widthXX == lenXY)
+        xxP = xxP';
+    else
+        error([mfilename ' - Inputs must be of equal dimension'])
+    end
 end
 
 

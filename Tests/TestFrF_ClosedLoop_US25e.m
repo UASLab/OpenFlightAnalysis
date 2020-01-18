@@ -25,7 +25,7 @@ rps2hz = 1/hz2rps;
 structMultiSine.numChan = 3;
 structMultiSine.timeRate_s = 1/50;
 structMultiSine.timeDur_s = 10.0;
-structMultiSine.numCycles = 5;
+structMultiSine.numCycles = 3;
 
 freqMinDes_hz = 1.0 / structMultiSine.timeDur_s;
 freqMaxDes_hz = 10.2;
@@ -143,5 +143,23 @@ end
 
 %%
 figure();
-sigma(sysLin_frd, evFrf_MIMO.FRD)
+hBode = bodeplot(sysLin_frd); hold on; grid on;
+bodeplot(evFrf_MIMO.FRD);
 legend({'Linear Model', 'Excited/Estimated Interpolated MIMO'});
+setoptions(hBode, 'FreqUnits', 'Hz');
+% setoptions(hBode, 'IOGrouping', 'all');
+
+figure();
+hNyq = nyquistplot(sysLin_frd); hold on; grid on;
+nyquistplot(evFrf_MIMO.FRD);
+legend({'Linear Model', 'Excited/Estimated Interpolated MIMO'});
+setoptions(hNyq, 'FreqUnits', 'Hz');
+setoptions(hNyq, 'MagUnits', 'abs');
+% setoptions(hNyq, 'IOGrouping', 'all');
+
+figure();
+hSig = sigmaplot(sysLin_frd, [], 2); hold on; grid on;
+sigmaplot(evFrf_MIMO.FRD, [], 2);
+legend({'Linear Model', 'Excited/Estimated Interpolated MIMO'});
+setoptions(hSig, 'FreqUnits', 'Hz');
+setoptions(hSig, 'MagUnits', 'abs');
