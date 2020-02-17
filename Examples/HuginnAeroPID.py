@@ -37,7 +37,7 @@ rps2hz = 1 / hz2rps
 import os.path as path
 
 pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Huginn')
-pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
+#pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Huginn')
 
 fileList = {}
 flt = 'FLT03'
@@ -224,24 +224,18 @@ for iSeg, seg in enumerate(oDataSegs):
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = np.asarray(freqExc_rps)
-
-# Null Frequencies
-freqGap_rps = optSpec.freq.flatten()[0:-1] + 0.5 * np.diff(optSpec.freq.flatten())
-optSpecN.freq = freqGap_rps
 
 # FRF Estimate
 freq_rps = []
 freq_hz = []
 T = []
-TUnc = []
 C = []
 for iSeg, seg in enumerate(oDataSegs):
 
-    freq, Tey, Cey, Pee, Pyy, Pey, TeyUnc, Pyy_N = FreqTrans.FreqRespFuncEstNoise(eList[iSeg], outList[iSeg], optSpec, optSpecN)
+    freq, Tey, Cey, Pee, Pyy, Pey = FreqTrans.FreqRespFuncEst(eList[iSeg], outList[iSeg], optSpec)
     freq, Teu, Ceu, _, Puu, Peu = FreqTrans.FreqRespFuncEst(eList[iSeg], uList[iSeg], optSpec)
 
     # Form the Frequency Response
@@ -249,15 +243,12 @@ for iSeg, seg in enumerate(oDataSegs):
 
     # Form the Frequency Response
     T_seg = np.zeros_like(Tey)
-    TUnc_seg = np.zeros_like(Tey)
 
     for i in range(T_seg.shape[-1]):
-        T_seg[...,i] = (Tey[...,i].T @ np.linalg.inv(Teu[...,i].T)).T
-        TUnc_seg[...,i] = (TeyUnc[...,i].T @ np.linalg.inv(Teu[...,i].T)).T
+        T_seg[...,i] = Tey[...,i] @ np.linalg.inv(Teu[...,i])
 
 
     T.append( T_seg )
-    TUnc.append( np.abs(TUnc_seg) )
     C.append(Cey)
 
 
@@ -266,11 +257,9 @@ T_OutputNames = sigOutList
 
 # Compute Gain, Phase, Crit Distance
 gain_mag = []
-gainUnc_mag = []
 phase_deg = []
 for iSeg in range(0, len(oDataSegs)):
     gain_mag.append(FreqTrans.Gain(T[iSeg], magUnit = 'mag'))
-    gainUnc_mag.append(FreqTrans.Gain(TUnc[iSeg], magUnit = 'mag'))
     phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = False))
 
 
@@ -308,12 +297,12 @@ inPlot = sigInList # Elements of sigInList
 outPlot = sigOutList # Elements of sigOutList
 
 if False:
-    for iIn, inName in enumerate(inPlot):
-        for iOut, outName in enumerate(outPlot):
+    for iOut, outName in enumerate(outPlot):
+        for iIn, inName in enumerate(inPlot):
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotNyquist(T[iSeg][iIn, iOut], TUnc[iSeg][iIn, iOut], fig = fig, fmt = '*', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotNyquist(T[iSeg][iOut, iIn], fig = fig, fmt = '*', label = oDataSegs[iSeg]['Desc'])
 
             fig.suptitle(inName + ' to ' + outName, size=20)
 
@@ -325,11 +314,11 @@ if False:
 #%% Bode Plots
 if True:
 
-    for iIn, inName in enumerate(inPlot):
-        for iOut, outName in enumerate(outPlot):
+    for iOut, outName in enumerate(outPlot):
+        for iIn, inName in enumerate(inPlot):
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotBode(freq_hz[iIn, 0], gain_mag[iSeg][iIn, iOut], phase_deg[iSeg][iIn, iOut], C[iSeg][iIn, iOut], gainUnc_mag = gainUnc_mag[iSeg][iIn, iOut], dB = False, fig = fig, fmt = '*--', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotBode(freq_hz[0], gain_mag[iSeg][iOut, iIn], phase_deg[iSeg][iOut, iIn], C[iSeg][iOut, iIn], dB = False, fig = fig, fmt = '*--', label = oDataSegs[iSeg]['Desc'])
 
             fig.suptitle(inName + ' to ' + outName, size = 20)
