@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 
     path.insert(0, abspath(join(dirname(argv[0]), "..")))
     path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
-    
+
     del path, argv, dirname, abspath, join
 
 from Core import GenExcite
@@ -64,7 +64,7 @@ Psd_dB = 20*np.log10(Psd_mag)
 
 ## Plot Spectrum
 plt.figure()
-plt.plot(freq_hz, Psd_dB)
+plt.plot(freq_hz[0], Psd_dB[0])
 plt.xlabel('frequency (Hz)');
 plt.ylabel('Spectrum (dB)');
 plt.grid()

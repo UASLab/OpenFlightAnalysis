@@ -19,7 +19,7 @@ if __name__ == "__main__" and __package__ is None:
 
     path.insert(0, abspath(join(dirname(argv[0]), "..")))
     path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
-    
+
     del path, argv, dirname, abspath, join
 
 from Core import GenExcite
@@ -39,7 +39,7 @@ numCycles = 1
 freqMinDes_rps = (numCycles/timeDur_s) * hz2rps * np.ones(numChan)
 #freqMaxDes_rps = (freqRate_hz/2) * hz2rps *  np.ones(numChan)
 freqMaxDes_rps = 10 * hz2rps *  np.ones(numChan)
-freqStepDes_rps = (1 / freqRate_hz) * hz2rps
+freqStepDes_rps = (10 / freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 ## Generate MultiSine Frequencies
@@ -81,7 +81,7 @@ if True:
 #%% Plot the Excitation Spectrum
 
 ## Compute Spectrum of each channel
-optFFT = FreqTrans.OptSpect(freqRate = freqRate_hz * hz2rps, winType = ('tukey', 0.2), smooth = ('box', 3))
+optFFT = FreqTrans.OptSpect(freqRate = freqRate_hz * hz2rps, winType = ('tukey', 0.0), smooth = ('box', 1))
 optCZT = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, winType = ('tukey', 0.0), smooth = ('box', 1))
 
 freq_fft = []
@@ -93,12 +93,12 @@ for iChan, sig in enumerate(sigList):
     freq_rps_fft, _, P_fft  = FreqTrans.Spectrum(sig, optFFT)
     freq_fft.append(freq_rps_fft * rps2hz)
     P_dB_fft.append(20*np.log10(P_fft))
-    
+
     optCZT.freq = freqElem_rps[sigIndx[iChan]]
     freq_rps_czt, _, P_czt  = FreqTrans.Spectrum(sig, optCZT)
     freq_czt.append(freq_rps_czt * rps2hz)
     P_dB_czt.append(20*np.log10(P_czt))
-    
+
 nChan = len(P_dB_fft)
 
 plt.figure()
@@ -123,7 +123,7 @@ timeStart_s = time_s[0]
 jsonMulti = {}
 for iChan in range(0, numChan):
     iElem = sigIndx[iChan]
-    
+
     dictChan = {}
     dictChan['Type'] = 'MultiSine'
     dictChan['Duration'] = timeDur_s
@@ -132,7 +132,7 @@ for iChan in range(0, numChan):
     dictChan['Amplitude'] = list(ampElem_nd[iElem])
 
     nameChan = 'OMS_' + str(iChan+1)
-    
+
     jsonMulti[nameChan] = dictChan
 
 import json
