@@ -34,6 +34,10 @@ sensorBW_rps = 1/dt * 2*pi;
 sensorAirspeedBW_rps = 2 * 2*pi;
 sensorHeightBW_rps = 2 * 2*pi;
 
+sysSensPhi = tf(1, [1/sensorBW_rps, 1], 'inputn', 'phi', 'outputn', 'sensPhi', 'OutputDelay', timeDelaySensor_s);
+sysSensTheta = tf(1, [1/sensorBW_rps, 1], 'inputn', 'theta', 'outputn', 'sensTheta', 'OutputDelay', timeDelaySensor_s);
+sysSensPsi = tf(1, [1/sensorHeightBW_rps, 1], 'inputn', 'psi', 'outputn', 'sensPsi', 'OutputDelay', timeDelaySensor_s);
+
 sysSensP = tf(1, [1/sensorBW_rps, 1], 'inputn', 'p', 'outputn', 'sensP', 'OutputDelay', timeDelaySensor_s);
 sysSensQ = tf(1, [1/sensorBW_rps, 1], 'inputn', 'q', 'outputn', 'sensQ', 'OutputDelay', timeDelaySensor_s);
 sysSensR = tf(1, [1/sensorBW_rps, 1], 'inputn', 'r', 'outputn', 'sensR', 'OutputDelay', timeDelaySensor_s);
@@ -42,14 +46,11 @@ sysSensAx = tf(1, [1/sensorBW_rps, 1], 'inputn', 'ax', 'outputn', 'sensAx', 'Out
 sysSensAy = tf(1, [1/sensorBW_rps, 1], 'inputn', 'ay', 'outputn', 'sensAy', 'OutputDelay', timeDelaySensor_s);
 sysSensAz = tf(1, [1/sensorBW_rps, 1], 'inputn', 'az', 'outputn', 'sensAz', 'OutputDelay', timeDelaySensor_s);
 
-sysSensPhi = tf(1, [1/sensorBW_rps, 1], 'inputn', 'phi', 'outputn', 'sensPhi', 'OutputDelay', timeDelaySensor_s);
-sysSensTheta = tf(1, [1/sensorBW_rps, 1], 'inputn', 'theta', 'outputn', 'sensTheta', 'OutputDelay', timeDelaySensor_s);
-sysSensPsi = tf(1, [1/sensorBW_rps, 1], 'inputn', 'psi', 'outputn', 'sensPsi', 'OutputDelay', timeDelaySensor_s);
-
 sysSensSpeed = tf(1, [1/sensorAirspeedBW_rps, 1], 'inputn', 'V', 'outputn', 'sensV', 'OutputDelay', timeDelaySensor_s);
 sysSensHeight = tf(1, [1/sensorHeightBW_rps, 1], 'inputn', 'h', 'outputn', 'sensH', 'OutputDelay', timeDelaySensor_s);
+sysSensTrack = tf(1, [1/sensorHeightBW_rps, 1], 'inputn', 'psi', 'outputn', 'sensTrack', 'OutputDelay', timeDelaySensor_s);
 
-sysSens = ss(append(sysSensAx, sysSensAy, sysSensAz, sysSensP, sysSensQ, sysSensR, sysSensPhi, sysSensTheta, sysSensPsi, sysSensSpeed, sysSensHeight));
+sysSens = ss(append(sysSensAx, sysSensAy, sysSensAz, sysSensP, sysSensQ, sysSensR, sysSensPhi, sysSensTheta, sysSensPsi, sysSensSpeed, sysSensHeight, sysSensTrack));
 
 % Pade approximation
 % ordPade = 2;
@@ -172,13 +173,13 @@ timeStep_s = 5;
 opt = stepDataOptions;
 
 opt.StepAmplitude = 10 *d2r;
-figure(1); step(sysCtrlCL([7,4,12,18], 1), timeStep_s, opt);
+figure(1); step(sysCtrlCL([7,4,13,19], 1), timeStep_s, opt);
 
 opt.StepAmplitude = 2 *d2r;
-figure(2); step(sysCtrlCL([8,5,13,16], 2), timeStep_s, opt);
+figure(2); step(sysCtrlCL([8,5,14,17], 2), timeStep_s, opt);
 
 opt.StepAmplitude = 5 *d2r;
-figure(3); step(sysCtrlCL([9,6,14,17], 3), timeStep_s, opt);
+figure(3); step(sysCtrlCL([9,6,15,18], 3), timeStep_s, opt);
 
 
 %%

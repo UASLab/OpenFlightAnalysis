@@ -71,7 +71,7 @@ u = [ref; excCtrl; excSurf; dist];
 y = lsim(sysCtrlCL, u, t)';
 
 iExcList = 4:6;
-iOutList = 10:12;
+iOutList = 13:15;
 
 e = u(iExcList, :);
 fb = y(iOutList, :);
@@ -82,6 +82,11 @@ v = (ff - fb) + e;
 % [R,P] = corrcoef([e;v]');
 
 %%
+% Linear Model Response
+sysLin_frd = frd(sysCtrlCL(iOutList, iExcList), linspace(0.4, 120, 500), 'rad/s');
+[T, w_rps] = freqresp(sysLin_frd);
+[Gain_mag, Phase_deg] = bode(sysLin_frd); Gain_dB = Mag2DB(Gain_mag);
+
 % FR Estimation
 FRF.Opt = [];
 FRF.Opt.DftType = 'ChirpZ';

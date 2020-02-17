@@ -80,6 +80,10 @@ v = y(iOutList, :);
 % [R,P] = corrcoef([e;v]');
 
 %%
+% Linear Model Response
+sysLin_frd = frd(sysOL(iOutList, iExcList), linspace(0.4, 120, 500), 'rad/s');
+[T, w_rps] = freqresp(sysLin_frd);
+[Gain_mag, Phase_deg] = bode(sysLin_frd); Gain_dB = Mag2DB(Gain_mag);
 
 % FR Estimation
 FRF.Opt = [];
