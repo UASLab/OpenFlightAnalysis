@@ -1,4 +1,4 @@
-% Test Optimal MultiSine Generation
+% Test UltraStick25e FRD estimation - closed-loop model
 %
 % Notes:
 %
@@ -25,7 +25,7 @@ rps2hz = 1/hz2rps;
 structMultiSine.numChan = 3;
 structMultiSine.timeRate_s = 1/50;
 structMultiSine.timeDur_s = 10.0;
-structMultiSine.numCycles = 3;
+structMultiSine.numCycles = 5;
 
 freqMinDes_hz = 1.0 / structMultiSine.timeDur_s;
 freqMaxDes_hz = 10.2;
@@ -56,27 +56,32 @@ forceZeroSW = true;
 %% Simulate the Excitation in the Linear CL model
 t = structMultiSine.time_s;
 
-exc = structMultiSine.signals;
-ref = zeros(size(exc));
-u = [ref; exc];
+numRef = 3;
+numExcCntrl = numRef;
+numExcSurf = 7;
+numDist = 6;
+numTime = length(t);
+
+ref = zeros(numRef, numTime);
+excCtrl = structMultiSine.signals;
+excSurf = zeros(numExcSurf, numTime);
+dist = zeros(numDist, numTime);
+u = [ref; excCtrl; excSurf; dist];
 
 y = lsim(sysCtrlCL, u, t)';
 
 iExcList = 4:6;
-iOutList = 7:9;
+iOutList = 10:12;
 
 e = u(iExcList, :);
-v = y(iOutList, :);
+fb = y(iOutList, :);
+ff = zeros(numExcCntrl, numTime);
+v = (ff - fb) + e;
 
 % Check Correlation
 % [R,P] = corrcoef([e;v]');
 
 %%
-% Linear Model Response
-sysLin_frd = frd(sysCtrlCL(iOutList, iExcList), linspace(0.4, 120, 500), 'rad/s');
-[T, w_rps] = freqresp(sysLin_frd);
-[Gain_mag, Phase_deg] = bode(sysLin_frd); Gain_dB = Mag2DB(Gain_mag);
-
 % FR Estimation
 FRF.Opt = [];
 FRF.Opt.DftType = 'ChirpZ';
@@ -94,64 +99,61 @@ FRF.Opt.Interp.FreqInterp = sort(horzcat(FRF.Opt.Frequency{:}));
 FRF.Opt.Interp.Type = 'linear';
 FRF.Opt.MIMO = true;
 
-[evFrf, evFrf_MIMO] = FreqRespEst(exc, v, FRF);
-for iIn = 1:length(iExcList)
-    [evFrf{iIn}.Gain_mag, evFrf{iIn}.Phase_deg] = bode(evFrf{iIn}.FRD);
-    
-    evFrf{iIn}.Gain_dB = Mag2DB(evFrf{iIn}.Gain_mag);
-%     evFrf{iIn}.Phase_deg = unwrap(evFrf{iIn}.Phase_deg * d2r, [], 2) * r2d;
-    
-    [evFrf{iIn}.GainInterp_mag, evFrf{iIn}.PhaseInterp_deg] = bode(evFrf{iIn}.Interp.FRD);
-    
-    evFrf{iIn}.GainInterp_dB = Mag2DB(evFrf{iIn}.GainInterp_mag);
-%     evFrf{iIn}.PhaseInterp_deg = unwrap(evFrf{iIn}.PhaseInterp_deg * d2r, [], 2) * r2d;
-end
+[evFrf, evFrf_MIMO] = FreqRespEst(e, v, FRF);
+[ebFrf, ebFrf_MIMO] = FreqRespEst(e, fb, FRF);
+
+% Tvb = Teb * inv(Tev)
+vbFrf_MIMO.FRD = ebFrf_MIMO.FRD * inv(evFrf_MIMO.FRD);
+vbFrf_MIMO.Coherence = evFrf_MIMO.Coherence;
 
 
-[evFrf_MIMO.Gain_mag, evFrf_MIMO.Phase_deg] = bode(evFrf_MIMO.FRD);
-evFrf_MIMO.Gain_dB = Mag2DB(evFrf_MIMO.Gain_mag);
-% evFrf_MIMO.Phase_deg = unwrap(evFrf_MIMO.Phase_deg * d2r, [], 3) * r2d;
+[vbFrf_MIMO.Gain_mag, vbFrf_MIMO.Phase_deg] = bode(vbFrf_MIMO.FRD);
+vbFrf_MIMO.Gain_dB = Mag2DB(vbFrf_MIMO.Gain_mag);
+% vbFrf_MIMO.Phase_deg = unwrap(vbFrf_MIMO.Phase_deg * d2r, [], 3) * r2d;
+
+
+%%
+% Linear Model Response
+% sysL_Cntrl = getLoopTransfer(sysCtrlCL, sysCtrlExc.InputName(2:2:end), 1);
+
+% sysLin_frd = frd(sysCtrlL, linspace(0.4, 120, 500), 'rad/s');
+sysLin_frd = frd(sysL_Cntrl, linspace(0.4, 120, 500), 'rad/s');
+[T, w_rps] = freqresp(sysLin_frd);
+[Gain_mag, Phase_deg] = bode(sysLin_frd); Gain_dB = Mag2DB(Gain_mag);
+
 
 %%
 optPlot.FreqUnits = 'Hz';
 for iIn = 1:length(iExcList)
-    iExc = iExcList(iIn);
-
     for iOut = 1:length(iOutList)
         figure;
         subplot(3,1,1);
         semilogx(w_rps, squeeze(Gain_dB(iOut, iIn, :)), 'k'); hold on; grid on;
-        semilogx(evFrf{iIn}.FRD.Frequency, evFrf{iIn}.Gain_dB(iOut,:), '*b');
-        semilogx(evFrf{iIn}.Interp.FRD.Frequency, evFrf{iIn}.GainInterp_dB(iOut,:), '-r');
-        semilogx(evFrf_MIMO.FRD.Frequency, squeeze(evFrf_MIMO.Gain_dB(iOut,iIn,:)), '-.m');
+        semilogx(vbFrf_MIMO.FRD.Frequency, squeeze(vbFrf_MIMO.Gain_dB(iOut,iIn,:)), '-r');
         subplot(3,1,2);
         semilogx(w_rps, squeeze(Phase_deg(iOut, iIn, :)), 'k'); hold on; grid on;
-        semilogx(evFrf{iIn}.FRD.Frequency, evFrf{iIn}.Phase_deg(iOut,:), '*b');
-        semilogx(evFrf{iIn}.Interp.FRD.Frequency, evFrf{iIn}.PhaseInterp_deg(iOut,:), '-r');
-        semilogx(evFrf_MIMO.FRD.Frequency, squeeze(evFrf_MIMO.Phase_deg(iOut,iIn,:)), '-.m');
+        semilogx(vbFrf_MIMO.FRD.Frequency, squeeze(vbFrf_MIMO.Phase_deg(iOut,iIn,:)), '-r');
         subplot(3,1,3);
         semilogx(w_rps, ones(size(w_rps)), 'k'); hold on; grid on;
-        semilogx(evFrf{iIn}.FRD.Frequency, evFrf{iIn}.Coherence(iOut,:), '*b');
-        semilogx(evFrf{iIn}.Interp.FRD.Frequency, evFrf{iIn}.Interp.Coherence(iOut,:), '-r');
-        semilogx(evFrf_MIMO.FRD.Frequency, squeeze(evFrf_MIMO.Coherence(iOut,iIn,:)), '-.m');
+        semilogx(vbFrf_MIMO.FRD.Frequency, squeeze(vbFrf_MIMO.Coherence(iOut,iIn,:)), '-r');
         legend({'Linear Model', 'Excited/Estimated System', 'Interpolated', 'MIMO'});
         
         subplot(3,1,1);
-        title(['Bode Plot: ', sysCtrlCL.InputName{iIn}, ' to ', sysCtrlCL.OutputName{iOut}]);
+        title(['Bode Plot: ', sysLin_frd.InputName{iIn}, ' to ', sysLin_frd.OutputName{iOut}]);
     end
 end
 
 %%
 figure();
 hBode = bodeplot(sysLin_frd); hold on; grid on;
-bodeplot(evFrf_MIMO.FRD);
+bodeplot(vbFrf_MIMO.FRD);
 legend({'Linear Model', 'Excited/Estimated Interpolated MIMO'});
 setoptions(hBode, 'FreqUnits', 'Hz');
 % setoptions(hBode, 'IOGrouping', 'all');
 
 figure();
 hNyq = nyquistplot(sysLin_frd); hold on; grid on;
-nyquistplot(evFrf_MIMO.FRD);
+nyquistplot(vbFrf_MIMO.FRD);
 legend({'Linear Model', 'Excited/Estimated Interpolated MIMO'});
 setoptions(hNyq, 'FreqUnits', 'Hz');
 setoptions(hNyq, 'MagUnits', 'abs');
@@ -159,7 +161,7 @@ setoptions(hNyq, 'MagUnits', 'abs');
 
 figure();
 hSig = sigmaplot(sysLin_frd, [], 2); hold on; grid on;
-sigmaplot(evFrf_MIMO.FRD, [], 2);
+sigmaplot(vbFrf_MIMO.FRD, [], 2);
 legend({'Linear Model', 'Excited/Estimated Interpolated MIMO'});
 setoptions(hSig, 'FreqUnits', 'Hz');
 setoptions(hSig, 'MagUnits', 'abs');

@@ -1,4 +1,4 @@
-% Test UltraStick25e FRD estimation - open-loop plant model
+% Test MIMO FRD estimation
 %
 % Notes:
 %
@@ -14,15 +14,37 @@
 %% TODO: Add comments and convert to validation form
 clear all;
 
-run('UltraStick25e_System')
-
 % Constants
 hz2rps = 2*pi;
 rps2hz = 1/hz2rps;
 
 
+%% Define the plant system
+K = 1.0;
+wn = 2 * hz2rps;
+d = 0.1;
+sysPlant(1,1) = tf(K * wn^2, [1, 2.0*d*wn, wn^2]);
+
+K = 1.0;
+wn = 4 * hz2rps;
+d = 0.4;
+sysPlant(2,1) = tf(K * wn^2, [1,  2.0*d*wn, wn^2]);
+
+K = 0.25;
+wn = 6 * hz2rps;
+d = 0.6;
+sysPlant(1,2) = tf(K * wn^2, [1,  2.0*d*wn, wn^2]);
+
+K = 1.0;
+wn = 8 * hz2rps;
+d = 0.8;
+sysPlant(2,2) = tf(K * wn^2, [1,  2.0*d*wn, wn^2]);
+
+sysPlant.InputName = {'u1', 'u2'};
+sysPlant.OutputName = {'y1', 'y2'};
+
 %% Define the frequency selection and distribution of the frequencies into the signals
-structMultiSine.numChan = 3;
+structMultiSine.numChan = 2;
 structMultiSine.timeRate_s = 1/50;
 structMultiSine.timeDur_s = 10.0;
 structMultiSine.numCycles = 3;
@@ -52,34 +74,19 @@ forceZeroSW = true;
 
 [structMultiSine] = MultiSineSchroeder(structMultiSine, phaseComp1_rad, boundSW, normalSW, forceZeroSW);
 
-
 %% Simulate the Excitation in the Linear CL model
 t = structMultiSine.time_s;
 
-numRef = 3;
-numExcCntrl = numRef;
-numExcSurf = 7;
-numDist = 6;
-numTime = length(t);
+u = structMultiSine.signals;
 
-ref = zeros(numRef, numTime);
-excCtrl = structMultiSine.signals;
-excSurf = zeros(numExcSurf, numTime);
-dist = zeros(numDist, numTime);
-u = [ref; excCtrl; excSurf; dist];
+y = lsim(sysPlant, u, t)';
 
-y = lsim(sysOL, u, t)';
-
-iExcList = 4:6;
-iOutList = 4:6;
-
-e = u(iExcList, :);
-v = y(iOutList, :);
-
-% Check Correlation
-% [R,P] = corrcoef([e;v]');
 
 %%
+% Linear Model Response
+sysLin_frd = frd(sysPlant(:, :), linspace(0.4, 120, 500), 'rad/s');
+[T, w_rps] = freqresp(sysLin_frd);
+[Gain_mag, Phase_deg] = bode(sysLin_frd); Gain_dB = Mag2DB(Gain_mag);
 
 % FR Estimation
 FRF.Opt = [];
@@ -98,11 +105,8 @@ FRF.Opt.Interp.FreqInterp = sort(horzcat(FRF.Opt.Frequency{:}));
 FRF.Opt.Interp.Type = 'linear';
 FRF.Opt.MIMO = true;
 
-% [txy, f] = tfestimate(exc(1,:), v(1,:), [], [], FRF.Opt.Frequency{1}, 50*2*pi);
-% figure(); semilogx(f, unwrap(angle(txy)) * 180/pi);
-
-[evFrf, evFrf_MIMO] = FreqRespEst(excCtrl, v, FRF);
-for iIn = 1:length(iExcList)
+[evFrf, evFrf_MIMO] = FreqRespEst(u, y, FRF);
+for iIn = 1:2
     [evFrf{iIn}.Gain_mag, evFrf{iIn}.Phase_deg] = bode(evFrf{iIn}.FRD);
     
     evFrf{iIn}.Gain_dB = Mag2DB(evFrf{iIn}.Gain_mag);
@@ -121,16 +125,9 @@ evFrf_MIMO.Gain_dB = Mag2DB(evFrf_MIMO.Gain_mag);
 
 
 %%
-% Linear Model Response
-sysLin_frd = frd(sysOL(iOutList, iExcList), linspace(0.4, 120, 500), 'rad/s');
-[T, w_rps] = freqresp(sysLin_frd);
-[Gain_mag, Phase_deg] = bode(sysLin_frd); Gain_dB = Mag2DB(Gain_mag);
-
-
-%% Bode
 optPlot.FreqUnits = 'Hz';
-for iIn = 1:length(iExcList)
-    for iOut = 1:length(iOutList)
+for iIn = 1:2
+    for iOut = 1:2
         figure;
         subplot(3,1,1);
         semilogx(w_rps, squeeze(Gain_dB(iOut, iIn, :)), 'k'); hold on; grid on;
@@ -150,7 +147,7 @@ for iIn = 1:length(iExcList)
         legend({'Linear Model', 'Excited/Estimated System', 'Interpolated', 'MIMO'});
         
         subplot(3,1,1);
-        title(['Bode Plot: ', sysOL.InputName{iExcList(iIn)}, ' to ', sysOL.OutputName{iOutList(iOut)}]);
+        title(['Bode Plot: ', sysPlant.InputName{iIn}, ' to ', sysPlant.OutputName{iOut}]);
     end
 end
 
@@ -170,3 +167,4 @@ sigmaplot(evFrf_MIMO.FRD, [], 2);
 legend({'Linear Model', 'Excited/Estimated Interpolated MIMO'});
 setoptions(hSig, 'FreqUnits', 'Hz');
 setoptions(hSig, 'MagUnits', 'abs');
+

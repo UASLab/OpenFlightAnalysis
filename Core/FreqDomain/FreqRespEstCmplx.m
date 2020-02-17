@@ -38,5 +38,9 @@ end
 
 
 %% Compute complex transfer function approximation
-xyT = xyP ./ repmat(xxP, widthXY, 1);
+if lenXY == 1
+    xyT = xyP ./ xxP;
+else
+    xyT = xyP ./ repmat(xxP, widthXY, 1);
+end
 

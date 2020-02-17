@@ -65,7 +65,7 @@ numTime = length(t);
 ref = zeros(numRef, numTime);
 excCtrl = structMultiSine.signals;
 excSurf = zeros(numExcSurf, numTime);
-dist = zeros(numDist, numTime);
+dist = [0.1 * randn(numDist/2, numTime); zeros(numDist/2, numTime)];
 u = [ref; excCtrl; excSurf; dist];
 
 y = lsim(sysOL, u, t)';
@@ -98,10 +98,12 @@ FRF.Opt.Interp.FreqInterp = sort(horzcat(FRF.Opt.Frequency{:}));
 FRF.Opt.Interp.Type = 'linear';
 FRF.Opt.MIMO = true;
 
+FRF.Opt.FreqNull = FRF.Opt.Interp.FreqInterp(1:end-1) + diff(FRF.Opt.Interp.FreqInterp)/2;
+
 % [txy, f] = tfestimate(exc(1,:), v(1,:), [], [], FRF.Opt.Frequency{1}, 50*2*pi);
 % figure(); semilogx(f, unwrap(angle(txy)) * 180/pi);
 
-[evFrf, evFrf_MIMO] = FreqRespEst(excCtrl, v, FRF);
+[evFrf, evFrf_MIMO] = FreqRespNoiseEst(excCtrl, v, FRF);
 for iIn = 1:length(iExcList)
     [evFrf{iIn}.Gain_mag, evFrf{iIn}.Phase_deg] = bode(evFrf{iIn}.FRD);
     
