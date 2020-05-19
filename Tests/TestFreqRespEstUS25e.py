@@ -43,55 +43,45 @@ exec(open("US25e_Lin.py").read())
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 
-freqSys_hz = np.logspace(np.log10(0.01), np.log10(25), 800)
-freqSys_rps = freqSys_hz * hz2rps
+freqLin_hz = np.logspace(np.log10(0.01), np.log10(25), 800)
+freqLin_rps = freqLin_hz * hz2rps
 
 
 # OL : Mixer -> Plant -> SCAS_FB
-inNames = sysMixer_InputNames + sysPlant_InputNames + sysScas_InputNames
-outNames = sysMixer_OutputNames + sysPlant_OutputNames + sysScas_OutputNames
+connectNames = sysPlant.InputNames[:7] + sysScas.InputNames[1::3]
+inKeep = sysMixer.InputNames + sysPlant.InputNames[-7:]
+outKeep = sysScas.OutputNames[2::4]
 
-sysOL_ConnectNames = sysPlant_InputNames[:7] + sysScas_InputNames[1::3]
-sysOL_InputNames = sysMixer_InputNames + sysPlant_InputNames[-7:]
-sysOL_OutputNames = sysScas_OutputNames[2::4]
-
-sysOL = Systems.ConnectName(control.append(sysMixer, sysPlant, sysScas), inNames, outNames, sysOL_ConnectNames, sysOL_InputNames, sysOL_OutputNames)
+sysOL = Systems.ConnectName([sysMixer, sysPlant, sysScas], connectNames, inKeep, outKeep)
 
 
 # CL: Ctrl -> Plant
-inNames = sysCtrl_InputNames + sysPlant_InputNames
-outNames = sysCtrl_OutputNames + sysPlant_OutputNames
+inNames = sysCtrl.InputNames + sysPlant.InputNames
+outNames = sysCtrl.OutputNames + sysPlant.OutputNames
+connectNames = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
+inKeep = [inNames[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
+outKeep = [outNames[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
 
-sysCL_ConnectNames = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
-sysCL_InputNames = [inNames[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
-sysCL_OutputNames = [outNames[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
-
-sysCL = Systems.ConnectName(control.append(sysCtrl, sysPlant), inNames, outNames, sysCL_ConnectNames, sysCL_InputNames, sysCL_OutputNames)
-
+sysCL = Systems.ConnectName([sysCtrl, sysPlant], connectNames, inKeep, outKeep)
 
 # Look at only the in-out of the OL
-nFreq = len(freqSys_rps)
-sysSimOL_InputNames = ['cmdP',  'cmdQ', 'cmdR']; nIn = len(sysSimOL_InputNames)
-sysSimOL_OutputNames = ['fbP', 'fbQ', 'fbR']; nOut = len(sysSimOL_OutputNames)
+inList = [sysOL.InputNames.index(s) for s in ['cmdP',  'cmdQ', 'cmdR']]
+outList = [sysOL.OutputNames.index(s) for s in ['fbP', 'fbQ', 'fbR']]
 
-inList = [sysOL_InputNames.index(s) for s in sysSimOL_InputNames]
-outList = [sysOL_OutputNames.index(s) for s in sysSimOL_OutputNames]
-sysSimOL_gain_nd = np.zeros([nIn, nOut, nFreq])
-sysSimOL_phase_rad = np.zeros([nIn, nOut, nFreq])
-sysSimOL = np.zeros([nIn, nOut, nFreq], dtype=complex)
+sysSimOL = sysOL[outList, :]
+sysSimOL = sysOL[:, inList]
 
-for iOut, outEntry in enumerate(outList):
-    for iIn, inEntry in enumerate(inList):
-        sysSimOL_gain_nd[iOut, iIn], sysSimOL_phase_rad[iOut, iIn], _ = control.bode_plot(sysOL[outEntry, inEntry], omega = freqSys_rps, Plot = False)
-        Treal, Timag, _ = control.nyquist_plot(sysOL[outEntry, inEntry], omega = freqSys_rps, Plot = False)
-        sysSimOL[iOut, iIn, :] = Treal + 1j*Timag
 
-#sysSimOL_gain_nd[sysSimOL_gain_nd == 0] = 1e-6
-sysSimOL_gain_dB = 20*np.log10(sysSimOL_gain_nd)
-sysSimOL_phase_deg = sysSimOL_phase_rad * rad2deg
-sysSimOL_rCrit_mag = np.abs(sysSimOL - (-1 + 0j))
+# Linear System Response
+gainLin_mag, phaseLin_rad, _ = control.freqresp(sysSimOL, omega = freqLin_rps)
 
-sysSimOL_sigma, _ = FreqTrans.Sigma(sysSimOL, typeSigma = 2)
+TxyLin = gainLin_mag * np.exp(1j*phaseLin_rad)
+
+gainLin_dB = 20 * np.log10(gainLin_mag)
+phaseLin_deg = np.unwrap(phaseLin_rad) * rad2deg
+rCritLin_mag = np.abs(TxyLin - (-1 + 0j))
+
+sigmaLin_mag, _ = FreqTrans.Sigma(TxyLin, typeSigma = 2)
 
 
 #%% Excitation
@@ -119,7 +109,7 @@ pqrDist = np.random.normal(0, 0.25 * ampInit, size = (3, len(time_s)))
 angleDist = np.cumsum(pqrDist[[0,1],:], axis = -1)
 airDist = np.random.normal(0, 0.0, size = (2, len(time_s)))
 dist = np.concatenate((angleDist, pqrDist, airDist))
-dist = 1.0 * dist
+dist = 0.0 * dist
 
 # Reference Inputs
 ref_names = ['refPhi', 'refTheta', 'refYaw']
@@ -129,27 +119,22 @@ ref[1] = 2.0 * deg2rad + ref[1]
 ref = 0.0 * ref
 
 # Simulate the excitation through the system, with noise
-sysExc_InputNames = sysCL_InputNames
-sysExc_OutputNames = sysCL_OutputNames
-sysExc = control.StateSpace(sysCL.A, sysCL.B, sysCL.C, sysCL.D)
-
 u = np.concatenate((ref, exc, dist))
-_, out, stateSim = control.forced_response(sysExc, T = time_s, U = u, X0 = 0.0, transpose = False)
+_, out, stateSim = control.forced_response(sysCL, T = time_s, U = u, X0 = 0.0, transpose = False)
 
 # shift output time to represent the next frame, pad t=0 with 0.0
 #out = np.concatenate((np.zeros((out.shape[0],1)), out[:,1:-1]), axis=1) # this is handled by a time delay on sensors in the linear simulation
 
-fb_names = sysExc_OutputNames[:3]
+fbNames = sysCL.OutputNames[:3]
 fb = out[:3]
 
-v_names = sysExc_OutputNames[3:6]
+vNames = sysCL.OutputNames[3:6]
 v = out[3:6]
 
-sens_names = sysExc_OutputNames[-7:]
+sensNames = sysCL.OutputNames[-7:]
 sens = out[-7:]
 
 #plt.plot(time_s, exc[1], time_s, v[1], time_s, fb[1], time_s, pqrDist[1])
-
 
 
 #%% Estimate the frequency response function
@@ -175,13 +160,13 @@ C = np.zeros_like(Tev, dtype=float)
 for i in range(T.shape[-1]):
     T[...,i] = (Teb[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
 
-sNom, _ = FreqTrans.Sigma(T, typeSigma = 2) # Singular Value Decomp, U @ S @ Vh == T[...,i]
+sigmaNom_mag, _ = FreqTrans.Sigma(T, typeSigma = 2) # Singular Value Decomp, U @ S @ Vh == T[...,i]
 
 
 C = Ceb
 
 T_InputNames = exc_names
-T_OutputNames = fb_names
+T_OutputNames = fbNames
 
 gain_mag, phase_deg = FreqTrans.GainPhase(T, magUnit='mag', phaseUnit='deg', unwrap=True)
 rCritNom_mag, _, _ = FreqTrans.DistCrit(T, typeUnc = 'ellipse')
@@ -191,11 +176,11 @@ rCritNom_mag, _, _ = FreqTrans.DistCrit(T, typeUnc = 'ellipse')
 
 #%% Sigma Plot
 Cmin = np.min(np.min(C, axis = 0), axis = 0)
-sNomMin = np.min(sNom, axis=0)
+sigmaNom_magMin = np.min(sigmaNom_mag, axis=0)
 
 fig = 20
-fig = FreqTrans.PlotSigma(freqSys_hz.transpose(), sysSimOL_sigma.transpose(), coher_nd = np.ones_like(freqSys_hz), fig = fig, fmt = 'k', label='Linear')
-fig = FreqTrans.PlotSigma(freq_hz.transpose(), sNom.transpose(), coher_nd = Cmin, fmt = 'bo', fig = fig, label = 'Excitation Nominal')
+fig = FreqTrans.PlotSigma(freqLin_hz.transpose(), sigmaLin_mag.transpose(), coher_nd = np.ones_like(freqLin_hz), fig = fig, fmt = 'k', label='Linear')
+fig = FreqTrans.PlotSigma(freq_hz.transpose(), sigmaNom_mag.transpose(), coher_nd = Cmin, fmt = 'bo', fig = fig, label = 'Excitation Nominal')
 fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fmt = '--r', fig = fig, label = 'Critical Limit')
 ax = fig.get_axes()
 ax[0].set_xlim(0, 10)
@@ -204,14 +189,13 @@ ax[0].set_ylim(0, 5)
 
 #%% Disk Margin Plots
 inPlot = exc_names # Elements of exc_names
-outPlot = fb_names # Elements of fb_names
+outPlot = fbNames # Elements of fbNames
 
 if False:
-    #%%
     for iOut, outName in enumerate(outPlot):
         for iIn, inName in enumerate(inPlot):
             fig = 40 + 3*iOut + iIn
-            fig = FreqTrans.PlotSigma(freqSys_hz, sysSimOL_rCrit_mag[iOut, iIn], coher_nd = np.ones_like(freqSys_hz), fig = fig, fmt = 'k', label='Linear')
+            fig = FreqTrans.PlotSigma(freqLin_hz, rCritLin_mag[iOut, iIn], coher_nd = np.ones_like(freqLin_hz), fig = fig, fmt = 'k', label='Linear')
             fig = FreqTrans.PlotSigma(freq_hz[0, sigIndx[iIn]], rCritNom_mag[iOut, iIn, sigIndx[iIn]], coher_nd = C[iOut, iIn, sigIndx[iIn]], fmt = 'bo', fig = fig, label = 'Excitation')
             fig = FreqTrans.PlotSigma(freq_hz[0], rCritNom_mag[iOut, iIn], coher_nd = C[iOut, iIn], fmt = 'g.:', fig = fig, label = 'MIMO')
             fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fmt = '--r', fig = fig, label = 'Critical Limit')
@@ -222,12 +206,11 @@ if False:
 
 #%% Nyquist Plots
 if False:
-    #%%
     for iOut, outName in enumerate(outPlot):
         for iIn, inName in enumerate(inPlot):
             fig = 60 + 3*iOut + iIn
 
-            fig = FreqTrans.PlotNyquist(sysSimOL[iOut, iIn], fig = fig, fmt = 'k', label='Linear')
+            fig = FreqTrans.PlotNyquist(TxyLin[iOut, iIn], fig = fig, fmt = 'k', label='Linear')
             fig = FreqTrans.PlotNyquist(T[iOut, iIn, sigIndx[iIn]], fig = fig, fmt = 'bo', label='Excitation')
             fig = FreqTrans.PlotNyquist(T[iOut, iIn], fig = fig, fmt = 'g.:', label='MIMO')
 
@@ -239,12 +222,11 @@ if False:
             ax[0].set_ylim(-2, 2)
 
 #%% Bode Plots
-if False:
-    #%%
+if True:
     for iOut, outName in enumerate(outPlot):
         for iIn, inName in enumerate(inPlot):
             fig = 80 + 3*iOut + iIn
-            fig = FreqTrans.PlotBode(freqSys_hz, sysSimOL_gain_nd[iOut, iIn], sysSimOL_phase_deg[iOut, iIn], coher_nd = np.ones_like(freqSys_hz), fig = fig, fmt = 'k', label = 'Linear')
+            fig = FreqTrans.PlotBode(freqLin_hz, gainLin_mag[iOut, iIn], phaseLin_deg[iOut, iIn], coher_nd = np.ones_like(freqLin_hz), fig = fig, fmt = 'k', label = 'Linear')
             fig = FreqTrans.PlotBode(freq_hz[0, sigIndx[iIn]], gain_mag[iOut, iIn, sigIndx[iIn]], phase_deg[iOut, iIn, sigIndx[iIn]], C[iOut, iIn, sigIndx[iIn]], fig = fig, fmt = 'bo', label = 'Estimated SIMO')
             fig = FreqTrans.PlotBode(freq_hz[0], gain_mag[iOut, iIn], phase_deg[iOut, iIn], C[iOut, iIn], fig = fig, fmt = 'g.', label = 'Estimated MIMO')
             fig.suptitle(inName + ' to ' + outName, size=20)

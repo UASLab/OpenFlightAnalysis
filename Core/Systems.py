@@ -11,15 +11,31 @@ import numpy as np
 import control
 
 #%% Connect by strings
-def ConnectName(sys, inNames, outNames, connectNames, inKeep, outKeep):
+def ConnectName(sysList, connectNames, inKeep, outKeep):
+    
+    sys = []
+    for s in sysList:
+        if sys == []:
+            sys = s
+        else:
+            sys = control.append(sys, control.ss(s))
+        
+    inNames = []
+    outNames = []
+    for s in sysList:
+        inNames += s.InputNames
+        outNames += s.OutputNames
     
     Q = [[inNames.index(s)+1, outNames.index(s)+1]  for s in connectNames]
-
+    
     inputv = [inNames.index(s)+1 for s in inKeep]
     outputv = [outNames.index(s)+1 for s in outKeep]
 
     sysOut = control.connect(sys, Q, inputv, outputv)
-
+    
+    sysOut.InputNames = inKeep
+    sysOut.OutputNames = outKeep
+    
     return sysOut
 
 

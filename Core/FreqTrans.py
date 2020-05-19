@@ -556,7 +556,7 @@ def DistEllipseRot(pEllipse, a, b, a_deg, pCrit):
     return pCont, dist
 
 
-#%% Compute the Fast Fourrier Transform
+#%% Compute the Fast Fourier Transform
 def FFT(x, fs):
     '''
     Ripped and modified for limited scope from scipy _spectral_helper
@@ -582,70 +582,23 @@ def FFT(x, fs):
     return freq, xDft
 
 
-#%% Compute the DFT wia Matrix
-def DFTMat(x, freq, fs):
+#%% Compute the DFT via Matrix
+def DFTMat(x, freq, fs, N = None):
     '''
     x is real
     returns the onesided DFT
     '''
 
-    # Ensure x is an array
+    # Ensure x and freq is an array
     x = np.atleast_2d(x)
     freq = np.atleast_2d(freq)
 
-    # Length x should be even, remove the last data to make even
-    lenX = x.shape[-1]
-    if lenX % 2 is not True:
-        x = x[..., :-1]
-        lenX = x.shape[-1]
-
-    # This Chirp-Z algorithm is intended for fixed intervals
-    # The provided frequency vector will be pulled apart and later re-formed to ensure fixed intervals
-    freqMin = np.min(freq)
-    freqMax = np.max(freq)
-
-    mChirp = freq.shape[-1]
-    freqStep = (freqMax - freqMin) / (mChirp - 1)
-
-    # Ratio between points
-    wChirp = np.exp(-1j * (2*np.pi / fs) * freqStep);
-
-    # Starting point
-    aChirp = np.exp(1j * 2*np.pi * freqMin / fs)
-
-    # Compute the ChirpZ
-    n = -np.arange(lenX)
-    k = -np.arange(mChirp)
-    nk = np.outer(n, k)
-
-    xDft = np.inner((wChirp ** nk).transpose(), (aChirp ** n) * x).transpose()
-
-    # Re-form the frequency vector
-    freq = -k * freqStep + freqMin
-
-    return freq, xDft
-
-
-#%% Compute the Chirp-Z Fourrier Transform
-def CZT(x, freq, fs, N = None):
-    '''
-    x is real
-    '''
-
-    # Ensure x is an array
-    x = np.atleast_2d(x)
-    freq = np.atleast_2d(freq)
-
-    # Length x should be even, remove the last data to make even
+    # Length
     if N is None:
         N = x.shape[-1]
 
-    if N % 2 is not True:
-        x = x[..., :-1]
-        N = x.shape[-1]
-
-    # This Chirp-Z algorithm is intended for fixed intervals
-    # The provided frequency vector will be pulled apart and later re-formed to ensure fixed intervals
+    # Algorithm is intended for fixed intervals
+    # Provided frequency vector will be pulled apart and later re-formed to ensure fixed intervals
     freqMin = np.min(freq)
     freqMax = np.max(freq)
 
@@ -653,18 +606,65 @@ def CZT(x, freq, fs, N = None):
     freqStep = (freqMax - freqMin) / (M - 1)
 
     # Ratio between points
-    W = np.exp(-1j * (2*np.pi / fs) * freqStep);
+    W = np.exp(-1j * 2*np.pi * freqStep / fs)
 
     # Starting point
     A = np.exp(1j * 2*np.pi * freqMin / fs)
 
+    # Compute the DFT
+    k = np.arange(M)
+    n = np.arange(N, dtype=float)
+    
+    An = np.power(A, -n)
+    nk = np.outer(-n, -k)
+    Wnk = np.power(W, nk)
+    
+    # Compute the DFT
+    xDft = np.inner(Wnk.transpose(), (An * x)).transpose()
+
+    # Re-form the frequency vector
+    freq = k * freqStep + freqMin
+
+    return freq, xDft
+
+
+#%% Compute the Chirp-Z Fourier Transform
+def CZT(x, freq, fs, N = None):
+    '''
+    x is real
+    returns the onesided DFT
+    '''
+
+    # Ensure x and freq is an array
+    x = np.atleast_2d(x)
+    freq = np.atleast_2d(freq)
+
+    # Length
+    if N is None:
+        N = x.shape[-1]
+
+    # Algorithm is intended for fixed intervals
+    # Provided frequency vector will be pulled apart and later re-formed to ensure fixed intervals
+    freqMin = np.min(freq)
+    freqMax = np.max(freq)
+
+    M = freq.shape[-1]
+    freqStep = (freqMax - freqMin) / (M - 1)
+
+    # Ratio between points
+    W = np.exp(-1j * 2*np.pi * freqStep / fs)
+
+    # Starting point
+    A = np.exp(1j * 2*np.pi * freqMin / fs)
 
     # Indices
     k = np.arange(M)
     n = np.arange(N, dtype=float)
 
+    An = np.power(A, -n)
     Wk2 = np.power(W, k**2 / 2.)
-    AWn2 = np.power(A,-n) * np.power(W, n**2 / 2.)
+    Wn2 = np.power(W, n**2 / 2.)
+    AnWn2 = An * Wn2
 
     # Helper objects
     fft = np.fft.fft
@@ -676,17 +676,13 @@ def CZT(x, freq, fs, N = None):
     v = np.zeros(nfft, dtype=np.complex)
     v[:M] = np.power(W, -n[:M]**2/2.)
     v[nfft-N+1:] = np.power(W, -n[N-1:0:-1]**2/2.)
-    V = fft(v, nfft)
+    vFft = fft(v, nfft)
 
     # Compute the Chirp-Z
-    Y = fft(AWn2 * x, nfft)
-
-    xCzt = Wk2 * ifft(V*Y)[...,:M]
-
+    xCzt = Wk2 * ifft(vFft * fft(AnWn2 * x, nfft))[..., :M]
 
     # Re-form the frequency vector
     freq = k * freqStep + freqMin
-
 
     return freq, xCzt
 

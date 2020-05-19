@@ -42,8 +42,8 @@ D = np.array([[0, 0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0, 0],
 
 sysLin = control.ss(A, B, C, D)
 
-sysLin_InputNames = ['posMotor', 'posElev', 'posRud', 'posAilL', 'posAilR', 'posFlapL', 'posFlapR']
-sysLin_OutputNames = ['phi', 'theta', 'psi', 'p', 'q', 'r', 'ax', 'ay', 'az', 'V', 'beta', 'alpha', 'h', 'gamma']
+sysLin.InputNames = ['posMotor', 'posElev', 'posRud', 'posAilL', 'posAilR', 'posFlapL', 'posFlapR']
+sysLin.OutputNames = ['phi', 'theta', 'psi', 'p', 'q', 'r', 'ax', 'ay', 'az', 'V', 'beta', 'alpha', 'h', 'gamma']
 sysLin_StateNames = ['phi', 'theta', 'psi', 'p', 'q', 'r', 'u', 'v', 'w', 'Xe', 'Ye', 'Ze', 'velMotor']
 
 
@@ -65,18 +65,18 @@ servoDelay_s = 0.050
 servoDelay = (servoDelay_s, ordPade)
 
 
-sysMotor = Systems.ActuatorModel(motorBW_rps, motorDelay); sysMotor_InputNames = ['cmdMotor']; sysMotor_OutputNames = ['posMotor'];
-sysElev = Systems.ActuatorModel(servoBW_rps, servoDelay); sysElev_InputNames = ['cmdElev']; sysElev_OutputNames = ['posElev'];
-sysRud = Systems.ActuatorModel(servoBW_rps, servoDelay); sysRud_InputNames = ['cmdRud']; sysRud_OutputNames = ['posRud'];
-sysAilL = Systems.ActuatorModel(servoBW_rps, servoDelay); sysAilL_InputNames = ['cmdAilL']; sysAilL_OutputNames = ['posAilL'];
-sysAilR = Systems.ActuatorModel(servoBW_rps, servoDelay); sysAilR_InputNames = ['cmdAilR']; sysAilR_OutputNames = ['posAilR'];
-sysFlapL = Systems.ActuatorModel(servoBW_rps, servoDelay); sysFlapL_InputNames = ['cmdFlapL']; sysFlapL_OutputNames = ['posFlapL'];
-sysFlapR = Systems.ActuatorModel(servoBW_rps, servoDelay); sysFlapR_InputNames = ['cmdFlapR']; sysFlapR_OutputNames = ['posFlapR'];
+sysMotor = Systems.ActuatorModel(motorBW_rps, motorDelay); sysMotor.InputNames = ['cmdMotor']; sysMotor.OutputNames = ['posMotor'];
+sysElev = Systems.ActuatorModel(servoBW_rps, servoDelay); sysElev.InputNames = ['cmdElev']; sysElev.OutputNames = ['posElev'];
+sysRud = Systems.ActuatorModel(servoBW_rps, servoDelay); sysRud.InputNames = ['cmdRud']; sysRud.OutputNames = ['posRud'];
+sysAilL = Systems.ActuatorModel(servoBW_rps, servoDelay); sysAilL.InputNames = ['cmdAilL']; sysAilL.OutputNames = ['posAilL'];
+sysAilR = Systems.ActuatorModel(servoBW_rps, servoDelay); sysAilR.InputNames = ['cmdAilR']; sysAilR.OutputNames = ['posAilR'];
+sysFlapL = Systems.ActuatorModel(servoBW_rps, servoDelay); sysFlapL.InputNames = ['cmdFlapL']; sysFlapL.OutputNames = ['posFlapL'];
+sysFlapR = Systems.ActuatorModel(servoBW_rps, servoDelay); sysFlapR.InputNames = ['cmdFlapR']; sysFlapR.OutputNames = ['posFlapR'];
 
 # Combine Actuators
 sysAct = control.append(sysMotor, sysElev, sysRud, sysAilL, sysAilR, sysFlapL, sysFlapR)
-sysAct_InputNames = sysMotor_InputNames + sysElev_InputNames + sysRud_InputNames + sysAilL_InputNames + sysAilR_InputNames + sysFlapL_InputNames + sysFlapR_InputNames
-sysAct_OutputNames = sysMotor_OutputNames + sysElev_OutputNames + sysRud_OutputNames + sysAilL_OutputNames + sysAilR_OutputNames + sysFlapL_OutputNames + sysFlapR_OutputNames
+sysAct.InputNames = sysMotor.InputNames + sysElev.InputNames + sysRud.InputNames + sysAilL.InputNames + sysAilR.InputNames + sysFlapL.InputNames + sysFlapR.InputNames
+sysAct.OutputNames = sysMotor.OutputNames + sysElev.OutputNames + sysRud.OutputNames + sysAilL.OutputNames + sysAilR.OutputNames + sysFlapL.OutputNames + sysFlapR.OutputNames
 
 
 #%% Sensor models
@@ -87,15 +87,15 @@ sensorDelay_s = 1*dt
 # sensorDelay_s = sensorDelay_s + 4*dt; # Artificial added Delay
 sensorDelay = (sensorDelay_s, ordPade)
 
-sysSensPhi = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensPhi_InputNames = ['phi', 'phiDist']; sysSensPhi_OutputNames = ['sensPhi'];
-sysSensTheta = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensTheta_InputNames = ['theta', 'thetaDist']; sysSensTheta_OutputNames = ['sensTheta'];
+sysSensPhi = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensPhi.InputNames = ['phi', 'phiDist']; sysSensPhi.OutputNames = ['sensPhi'];
+sysSensTheta = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensTheta.InputNames = ['theta', 'thetaDist']; sysSensTheta.OutputNames = ['sensTheta'];
 
-sysSensP = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensP_InputNames = ['p', 'pDist']; sysSensP_OutputNames = ['sensP'];
-sysSensQ = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensQ_InputNames = ['q', 'qDist']; sysSensQ_OutputNames = ['sensQ'];
-sysSensR = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensR_InputNames = ['r', 'rDist']; sysSensR_OutputNames = ['sensR'];
+sysSensP = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensP.InputNames = ['p', 'pDist']; sysSensP.OutputNames = ['sensP'];
+sysSensQ = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensQ.InputNames = ['q', 'qDist']; sysSensQ.OutputNames = ['sensQ'];
+sysSensR = Systems.SensorModel(sensorBW_rps, sensorDelay); sysSensR.InputNames = ['r', 'rDist']; sysSensR.OutputNames = ['sensR'];
 
-sysSensSpeed = Systems.SensorModel(sensorAirBW_rps, sensorDelay); sysSensSpeed_InputNames = ['V', 'VDist']; sysSensSpeed_OutputNames = ['sensV'];
-sysSensHeight = Systems.SensorModel(sensorAirBW_rps, sensorDelay); sysSensHeight_InputNames = ['h', 'hDist']; sysSensHeight_OutputNames = ['sensH'];
+sysSensSpeed = Systems.SensorModel(sensorAirBW_rps, sensorDelay); sysSensSpeed.InputNames = ['V', 'VDist']; sysSensSpeed.OutputNames = ['sensV'];
+sysSensHeight = Systems.SensorModel(sensorAirBW_rps, sensorDelay); sysSensHeight.InputNames = ['h', 'hDist']; sysSensHeight.OutputNames = ['sensH'];
 
 # Combine Sensors
 sysSens = control.append(
@@ -107,44 +107,39 @@ sysSens = control.append(
          sysSensSpeed,
          sysSensHeight)
 
-sysSens_InputNames = sysSensPhi_InputNames + sysSensTheta_InputNames + sysSensP_InputNames + sysSensQ_InputNames + sysSensR_InputNames + sysSensSpeed_InputNames + sysSensHeight_InputNames
-sysSens_OutputNames = sysSensPhi_OutputNames + sysSensTheta_OutputNames + sysSensP_OutputNames + sysSensQ_OutputNames + sysSensR_OutputNames + sysSensSpeed_OutputNames + sysSensHeight_OutputNames
+sysSens.InputNames = sysSensPhi.InputNames + sysSensTheta.InputNames + sysSensP.InputNames + sysSensQ.InputNames + sysSensR.InputNames + sysSensSpeed.InputNames + sysSensHeight.InputNames
+sysSens.OutputNames = sysSensPhi.OutputNames + sysSensTheta.OutputNames + sysSensP.OutputNames + sysSensQ.OutputNames + sysSensR.OutputNames + sysSensSpeed.OutputNames + sysSensHeight.OutputNames
 
 
 #%% Assemble Plant model
-inNames = sysAct_InputNames + sysLin_InputNames + sysSens_InputNames
-outNames = sysAct_OutputNames + sysLin_OutputNames + sysSens_OutputNames
+connectNames = sysAct.OutputNames + sysSens.InputNames[0::2]
+inKeep = sysAct.InputNames + sysSens.InputNames[1::2]
+outKeep = sysSens.OutputNames
 
-sysPlant_ConnectNames = sysAct_OutputNames + sysSens_InputNames[0::2]
-sysPlant_InputNames = sysAct_InputNames + sysSens_InputNames[1::2]
-sysPlant_OutputNames = sysSens_OutputNames
-
-sysPlant = Systems.ConnectName(control.append(sysAct, sysLin, sysSens), 
-                      inNames, outNames, 
-                      sysPlant_ConnectNames, sysPlant_InputNames, sysPlant_OutputNames)
+sysPlant = Systems.ConnectName([sysAct, sysLin, sysSens], connectNames, inKeep, outKeep)
 
 #%% Guidance Controller Models
 sysV = Systems.PID2(0.20, Ki = 0.075, Kd = 0.0, b = 1, c = 0, Tf = dt)
-sysV_InputNames = ['refV', 'sensV', 'excV']
-sysV_OutputNames = ['cmdV', 'ffV', 'fbV', 'excV']
+sysV.InputNames = ['refV', 'sensV', 'excV']
+sysV.OutputNames = ['cmdV', 'ffV', 'fbV', 'excV']
 
 sysH = Systems.PID2(0.11, Ki = 0.1, Kd = 0.01, b = 1, c = 0, Tf = dt)
-sysH_InputNames = ['refH', 'sensH', 'excH']
-sysH_OutputNames = ['refTheta', 'ffH', 'fbH', 'excH']
+sysH.InputNames = ['refH', 'sensH', 'excH']
+sysH.OutputNames = ['refTheta', 'ffH', 'fbH', 'excH']
 
 sysGuid = control.append(sysV, sysH)
-sysGuid_InputNames = sysV_InputNames + sysH_InputNames
-sysGuid_OutputNames = sysV_OutputNames + sysH_OutputNames
+sysGuid.InputNames = sysV.InputNames + sysH.InputNames
+sysGuid.OutputNames = sysV.OutputNames + sysH.OutputNames
 
 
 #%% SCAS Controller Models
 sysPhi = Systems.PID2(0.64, Ki = 0.20, Kd = 0.07, b = 1, c = 0, Tf = dt)
-sysPhi_InputNames = ['refPhi', 'sensPhi', 'excP']
-sysPhi_OutputNames = ['cmdP', 'ffP', 'fbP', 'excP']
+sysPhi.InputNames = ['refPhi', 'sensPhi', 'excP']
+sysPhi.OutputNames = ['cmdP', 'ffP', 'fbP', 'excP']
 
 sysTheta = Systems.PID2(0.90, Ki = 0.30, Kd = 0.08, b = 1, c = 0, Tf = dt)
-sysTheta_InputNames = ['refTheta', 'sensTheta', 'excQ']
-sysTheta_OutputNames = ['cmdQ', 'ffQ', 'fbQ', 'excQ']
+sysTheta.InputNames = ['refTheta', 'sensTheta', 'excQ']
+sysTheta.OutputNames = ['cmdQ', 'ffQ', 'fbQ', 'excQ']
 
 tauYaw = 5.72
 sysYaw = control.append(control.tf2ss(control.tf([0.5],[1.0])), control.tf2ss(control.tf([0.03, 0.0],[1.0, tauYaw])), control.tf2ss(control.tf(1,1)))
@@ -153,14 +148,14 @@ sysYaw.C = np.concatenate((sysYaw.C[0,:] - sysYaw.C[1,:] + sysYaw.C[2,:], sysYaw
 sysYaw.D = np.concatenate((sysYaw.D[0,:] - sysYaw.D[1,:] + sysYaw.D[2,:], sysYaw.D))
     
 sysYaw.outputs = 4
-sysYaw_InputNames = ['refYaw', 'sensR', 'excR']
-sysYaw_OutputNames = ['cmdR', 'ffR', 'fbR', 'excR']
+sysYaw.InputNames = ['refYaw', 'sensR', 'excR']
+sysYaw.OutputNames = ['cmdR', 'ffR', 'fbR', 'excR']
 
 
 # Append SCAS Feedback systems
 sysScas = control.append(sysPhi, sysTheta, sysYaw)
-sysScas_InputNames = sysPhi_InputNames + sysTheta_InputNames + sysYaw_InputNames
-sysScas_OutputNames = sysPhi_OutputNames + sysTheta_OutputNames + sysYaw_OutputNames
+sysScas.InputNames = sysPhi.InputNames + sysTheta.InputNames + sysYaw.InputNames
+sysScas.OutputNames = sysPhi.OutputNames + sysTheta.OutputNames + sysYaw.OutputNames
 
 
 #%% Mixer
@@ -168,8 +163,8 @@ sysScas_OutputNames = sysPhi_OutputNames + sysTheta_OutputNames + sysYaw_OutputN
 outNames = ['p', 'q', 'r']
 surfNames = ['posElev', 'posRud', 'posAilL', 'posAilR', 'posFlapL', 'posFlapR']
 
-indxOut = [sysLin_OutputNames.index(s) for s in outNames]
-indxSurf = [sysLin_InputNames.index(s) for s in surfNames]
+indxOut = [sysLin.OutputNames.index(s) for s in outNames]
+indxSurf = [sysLin.InputNames.index(s) for s in surfNames]
 sysLinD = control.c2d(sysLin, dt, 'zoh')
 ctrlEff = (sysLinD.C @ sysLinD.B)[indxOut,][:,indxSurf] + sysLinD.D[indxOut,][:,indxSurf]
 ctrlEff [abs(ctrlEff) / np.max(abs(ctrlEff)) < 0.05] = 0.0
@@ -178,40 +173,34 @@ mixSurf = np.linalg.pinv(ctrlEff)
 mixSurf [abs(mixSurf) / np.max(abs(mixSurf)) < 0.05] = 0.0
 nSurf, nCntrl = mixSurf.shape
 sysMixerSurf = control.ss(np.zeros((1,1)), np.zeros((1,nCntrl)), np.zeros((nSurf,1)), mixSurf)
-sysMixerSurf_InputNames = ['cmd' + s.upper() for s in outNames]
-sysMixerSurf_OutputNames = [s.replace('pos', 'cmd') for s in surfNames]
+sysMixerSurf.InputNames = ['cmd' + s.upper() for s in outNames]
+sysMixerSurf.OutputNames = [s.replace('pos', 'cmd') for s in surfNames]
 
 # Motor Mix
 sysMixerMotor = control.tf2ss(control.tf(1,1))
-sysMixerMotor_InputNames = ['cmdV']
-sysMixerMotor_OutputNames = ['cmdMotor']
+sysMixerMotor.InputNames = ['cmdV']
+sysMixerMotor.OutputNames = ['cmdMotor']
 
 sysMixer = control.append(sysMixerMotor, sysMixerSurf)
-sysMixer_InputNames = sysMixerMotor_InputNames + sysMixerSurf_InputNames
-sysMixer_OutputNames = sysMixerMotor_OutputNames + sysMixerSurf_OutputNames
+sysMixer.InputNames = sysMixerMotor.InputNames + sysMixerSurf.InputNames
+sysMixer.OutputNames = sysMixerMotor.OutputNames + sysMixerSurf.OutputNames
 
 #%% Combine Controller and Mixer
-inNames = sysScas_InputNames + sysMixer_InputNames
-outNames = sysScas_OutputNames + sysMixer_OutputNames
+inNames = sysScas.InputNames + sysMixer.InputNames
+outNames = sysScas.OutputNames + sysMixer.OutputNames
+connectNames = sysMixer.InputNames[1:]
+inKeep = [inNames[i-1] for i in [1, 4, 7, 2, 5, 8, 3, 6, 9]]
+outKeep = [outNames[i-1] for i in [13, 14, 15, 16, 17, 18, 19, 3, 7, 11, 1, 5, 9]]
 
-sysCtrl_ConnectNames = sysMixer_InputNames[1:]
-sysCtrl_InputNames = [inNames[i-1] for i in [1, 4, 7, 2, 5, 8, 3, 6, 9]]
-sysCtrl_OutputNames = [outNames[i-1] for i in [13, 14, 15, 16, 17, 18, 19, 3, 7, 11, 1, 5, 9]]
-
-sysCtrl = Systems.ConnectName(control.append(sysScas, sysMixer), 
-                      inNames, outNames, 
-                      sysCtrl_ConnectNames, sysCtrl_InputNames, sysCtrl_OutputNames)
+sysCtrl = Systems.ConnectName([sysScas, sysMixer], connectNames, inKeep, outKeep)
 
 
 #%% Create the Open-Loop System
-inNames = sysCtrl_InputNames + sysPlant_InputNames
-outNames = sysCtrl_OutputNames + sysPlant_OutputNames
+connectNames = sysPlant.InputNames[:7]
+inKeep = sysCtrl.InputNames + sysPlant.InputNames[-7:]
+outKeep = sysSens.OutputNames + sysCtrl.OutputNames[-6:]
 
-sysOL_ConnectNames = sysPlant_InputNames[:7]
-sysOL_InputNames = sysCtrl_InputNames + sysPlant_InputNames[-7:]
-sysOL_OutputNames = sysSens_OutputNames + sysCtrl_OutputNames[-6:]
-
-sysOL = Systems.ConnectName(control.append(sysCtrl, sysPlant), inNames, outNames, sysOL_ConnectNames, sysOL_InputNames, sysOL_OutputNames)
+sysOL = Systems.ConnectName([sysCtrl, sysPlant], connectNames, inKeep, outKeep)
 
 
 # Bode Plots
@@ -223,14 +212,13 @@ if plotFlag:
 
 
 #%% Closed-Loop System
-inNames = sysCtrl_InputNames + sysPlant_InputNames
-outNames = sysCtrl_OutputNames + sysPlant_OutputNames
+inNames = sysCtrl.InputNames + sysPlant.InputNames
+outNames = sysCtrl.OutputNames + sysPlant.OutputNames
+connectNames = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
+inKeep = [inNames[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
+outKeep = [outNames[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
 
-sysCL_ConnectNames = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
-sysCL_InputNames = [inNames[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
-sysCL_OutputNames = [outNames[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
-
-sysCL = Systems.ConnectName(control.append(sysCtrl, sysPlant), inNames, outNames, sysCL_ConnectNames, sysCL_InputNames, sysCL_OutputNames)
+sysCL = Systems.ConnectName([sysCtrl, sysPlant], connectNames, inKeep, outKeep)
 
 
 # Steps
