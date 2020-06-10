@@ -12,7 +12,7 @@ from distutils.core import setup
 setup(
     name = 'OpenFlightAnalysis',
     author = 'Chris Regan',
-    packages = ['Test', 'Utilities'],
+    packages = ['Test', 'Core'],
     license = 'LICENSE.md',
     long_description = open('README.md').read(),
 )

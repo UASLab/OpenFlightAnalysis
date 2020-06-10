@@ -1,10 +1,7 @@
 MIT License
 
-<<<<<<< HEAD
 Copyright (c) Copyright 2019 Regents of the University of Minnesota.
 
-=======
->>>>>>> 29dd8cb60bd60f7d7b81a63a41c5f7a72d28ffe6
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights

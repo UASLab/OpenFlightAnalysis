@@ -83,10 +83,13 @@ if True:
 
 ## Compute Spectrum of each channel
 optFFT = FreqTrans.OptSpect(freqRate = freqRate_hz * hz2rps)
+optMAT = FreqTrans.OptSpect(dftType = 'dftmat', freqRate = freqRate_hz * hz2rps)
 optCZT = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps)
 
 freq_fft = []
 P_dB_fft = []
+freq_mat = []
+P_dB_mat = []
 freq_czt = []
 P_dB_czt = []
 
@@ -94,6 +97,11 @@ for iChan, sig in enumerate(sigList):
     freq_rps_fft, _, P_fft  = FreqTrans.Spectrum(sig, optFFT)
     freq_fft.append(freq_rps_fft * rps2hz)
     P_dB_fft.append(20*np.log10(P_fft))
+
+    optMAT.freq = freqElem_rps[sigIndx[iChan]]
+    freq_rps_mat, _, P_mat  = FreqTrans.Spectrum(sig, optMAT)
+    freq_mat.append(freq_rps_mat * rps2hz)
+    P_dB_mat.append(20*np.log10(P_mat))
 
     optCZT.freq = freqElem_rps[sigIndx[iChan]]
     freq_rps_czt, _, P_czt  = FreqTrans.Spectrum(sig, optCZT)
@@ -106,6 +114,7 @@ plt.figure()
 for iChan in range(0, nChan):
     plt.subplot(nChan, 1, iChan+1)
     plt.plot(freq_fft[iChan].T, P_dB_fft[iChan].T, '-k', label='FFT Pxx')
+    plt.plot(freq_mat[iChan].T, P_dB_mat[iChan].T, '*b--', label='MAT Pxx')
     plt.plot(freq_czt[iChan].T, P_dB_czt[iChan].T, '.r-', label='CZT Pxx')
     plt.grid()
     plt.ylabel('Spectrum (dB)');

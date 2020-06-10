@@ -88,7 +88,7 @@ binList = []
 for numSamp in numSampList:
     numSamp = int(numSamp)
     
-    theta, _, P_mag  = FreqTrans.Spectrum(sig[0:numSamp], optSpec)
+    theta, sigDft, P_mag  = FreqTrans.Spectrum(sig[0:numSamp], optSpec)
     P_dB = 20*np.log10(P_mag[0]) / 2 - 3
     
     bins = theta[0] * len(optSpec.freq[0]) / (2*np.pi)

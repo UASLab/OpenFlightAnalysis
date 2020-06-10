@@ -12,6 +12,7 @@ Example script for testing Frequency Response Estimation - SISO.
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as signal
+import control
 
 # Hack to allow loading the Core package
 if __name__ == "__main__" and __package__ is None:
@@ -31,6 +32,12 @@ from Core import FreqTrans
 hz2rps = 2*np.pi
 rps2hz = 1/hz2rps
 
+rad2deg = 180/np.pi
+deg2rad = 1/rad2deg
+
+mag2db = control.mag2db
+db2mag = control.db2mag
+
 
 #%% Define a linear system
 freqRate_hz = 50.0
@@ -40,11 +47,11 @@ wn = 3 * hz2rps
 d = 0.2
 
 sys = signal.TransferFunction([wn**2], [1, 2*d*wn, wn**2])
-freqSys_rps = np.fft.rfftfreq(1000, 1/freqRate_rps)
+freqLin_rps = np.fft.rfftfreq(1000, 1/freqRate_rps)
 
-freqSys_rps, Txy = signal.freqresp(sys, w=freqSys_rps)
-freqSys_rps, gainSys_dB, phaseSys_deg = signal.bode(sys, w=freqSys_rps)
-freqSys_hz = freqSys_rps * rps2hz
+freqLin_rps, Txy = signal.freqresp(sys, w=freqLin_rps)
+freqLin_rps, gainLin_dB, phaseLin_deg = signal.bode(sys, w=freqLin_rps)
+freqLin_hz = freqLin_rps * rps2hz
 
 
 #%% Chirp signal with FFT
@@ -71,19 +78,8 @@ freq_hz = freq_rps * rps2hz
 
 freq_hz = np.squeeze(freq_hz)
 gain_dB = np.squeeze(gain_dB)
-phase_deg = np.squeeze(phase_deg)
+phase_deg = np.unwrap(np.squeeze(phase_deg) * deg2rad) * rad2deg
 Cxy = np.squeeze(Cxy)
-
-plt.figure(1)
-ax1 = plt.subplot(3,1,1); plt.grid
-ax1.semilogx(freqSys_hz, gainSys_dB) 
-ax1.semilogx(freq_hz, gain_dB, '--')
-ax2 = plt.subplot(3,1,2); plt.grid
-ax2.semilogx(freqSys_hz, phaseSys_deg)
-ax2.semilogx(freq_hz, phase_deg, '--'); plt.ylim([-180, 180]);
-ax3 = plt.subplot(3,1,3); plt.grid
-ax3.semilogx(freqSys_hz, np.ones_like(freqSys_hz))
-ax3.semilogx(freq_hz, Cxy, '--'); plt.ylim([0, 1.2])
 
 
 #%% Multisine signal with CZT
@@ -109,17 +105,32 @@ y = np.atleast_2d(y)
 
 # Estimate the transfer function
 optSpectCzt = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, freq = freqElem_rps, smooth = ('box', 1), winType=('tukey', 0.0))
-freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(x, y, optSpectCzt)
-gain_dB, phase_deg = FreqTrans.GainPhase(Txy)
-freq_hz = freq_rps * rps2hz
+freq_czt_rps, Txy_czt, Cxy_czt, Pxx_czt, Pyy_czt, Pxy_czt = FreqTrans.FreqRespFuncEst(x, y, optSpectCzt)
+gain_czt_dB, phase_czt_deg = FreqTrans.GainPhase(Txy_czt)
+freq_czt_hz = freq_czt_rps * rps2hz
 
 # Plot
-freq_hz = np.squeeze(freq_hz)
-gain_dB = np.squeeze(gain_dB)
-phase_deg = np.squeeze(phase_deg)
-Cxy = np.squeeze(Cxy)
+freq_czt_hz = np.squeeze(freq_czt_hz)
+gain_czt_dB = np.squeeze(gain_czt_dB)
+phase_czt_deg = np.squeeze(phase_czt_deg)
+Cxy_czt = np.squeeze(Cxy_czt)
 
-ax1.semilogx(freq_hz, gain_dB, '.')
-ax2.semilogx(freq_hz, phase_deg, '.')
-ax3.semilogx(freq_hz, Cxy, '.')
+
+#%%
+plt.figure(1)
+ax1 = plt.subplot(3,1,1); plt.grid(True)
+ax1.semilogx(freqLin_hz, gainLin_dB, 'b-') 
+ax1.semilogx(freq_hz, gain_dB, '.g--')
+ax1.semilogx(freq_czt_hz, gain_czt_dB, '*r')
+ax2 = plt.subplot(3,1,2); plt.grid(True)
+ax2.semilogx(freqLin_hz, phaseLin_deg, 'b-'); plt.ylim([-180, 180]);
+ax2.semilogx(freq_hz, phase_deg, '.g--')
+ax2.semilogx(freq_czt_hz, phase_czt_deg, '*r')
+ax3 = plt.subplot(3,1,3); plt.grid(True)
+ax3.semilogx(freqLin_hz, np.ones_like(freqLin_hz), 'b-', label = 'Linear Model'); plt.ylim([0, 1.2])
+ax3.semilogx(freq_hz, Cxy, '.g--', label = 'FFT Estimate')
+ax3.semilogx(freq_czt_hz, Cxy_czt, '*r', label = 'CZT Estimate')
+
+ax3.legend()
+
 

@@ -178,33 +178,51 @@ optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = 
 
 # Excited Frequencies per input channel
 optSpec.freq = np.asarray(freqExc_rps)
+optSpec.freqInterp = np.sort(optSpec.freq.flatten())
+
+# Null Frequencies
+freqNull_rps = optSpec.freqInterp[0:-1] + 0.5 * np.diff(optSpec.freqInterp)
+optSpec.freqNull = freqNull_rps
+optSpec.freqNullInterp = True
 
 # FRF Estimate
 T = []
+TUnc = []
+TSens = []
 C = []
 sNom = []
+sUnc = []
 for iSeg, seg in enumerate(oDataSegs):
 
-    freq_rps, Teb, Ceb, Pee, Pbb, Peb = FreqTrans.FreqRespFuncEst(vExcList[iSeg], vFbList[iSeg], optSpec)
-    _       , Tev, Cev, _  , Pvv, Pev = FreqTrans.FreqRespFuncEst(vExcList[iSeg], vCmdList[iSeg], optSpec)
+    freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc, Pee_N, Pbb_N = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vFbList[iSeg], optSpec)
+    _       , Tev, Cev, _  , Pvv, Pev, TevUnc, _    , Pvv_N = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vCmdList[iSeg], optSpec)
+
+    _       , Tey, Cey, _  , Pyy, Pey, TeyUnc, _    , Pyy_N = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], ySensList[iSeg], optSpec) # Just for Turbulence
 
     freq_hz = freq_rps * rps2hz
 
     # Form the Frequency Response
     T_seg = np.empty_like(Tev)
+    TUnc_seg = np.empty_like(Tev)
     TSens_seg = np.empty_like(Tev)
 
     for i in range(T_seg.shape[-1]):
-        T_seg[...,i] = (Teb[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
+        T_seg[...,i] = (Teb[...,i] @ np.linalg.inv(Tev[...,i]))
+        TUnc_seg[...,i] = (TebUnc[...,i] @ np.linalg.inv(Tev[...,i]))
+
+        TSens_seg[...,i] = (TeyUnc[...,i] @ np.linalg.inv(Tev[...,i]))
 
 
     T.append( T_seg )
+    TUnc.append( np.abs(TUnc_seg) )
+    TSens.append( np.abs(TSens_seg) )
 
 #    C.append(Cev)
     C.append(Ceb)
 
-    sNom_seg, _ = FreqTrans.Sigma(T_seg) # Singular Value Decomp, U @ S @ Vh == T[...,i]
+    sNom_seg, sUnc_seg = FreqTrans.Sigma(T_seg, TUnc_seg) # Singular Value Decomp, U @ S @ Vh == T[...,i]
     sNom.append(sNom_seg)
+    sUnc.append(sUnc_seg)
 
 
 T_InputNames = sigExcList
@@ -212,20 +230,26 @@ T_OutputNames = sigFbList
 
 # Compute Gain, Phase, Crit Distance
 gain_mag = []
+gainUnc_mag = []
 phase_deg = []
 rCritNom_mag = []
+rCritUnc_mag = []
 rCrit_mag = []
 for iSeg in range(0, len(oDataSegs)):
 
-    gainElem_mag, _, _ = FreqTrans.DistCritCirc(T[iSeg])
+    gainElem_mag, gainElemUnc_mag, gainElemDiff_mag = FreqTrans.DistCritCirc(T[iSeg], TUnc[iSeg])
+
     gain_mag.append(gainElem_mag)
+    gainUnc_mag.append(gainElemUnc_mag)
 
     phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = True))
 
-#    nom_mag, _, _ = FreqTrans.DistCrit(T[iSeg], typeUnc = 'ellipse')
-    nom_mag, _, _ = FreqTrans.DistCritCirc(T[iSeg])
+#    nom_mag, unc_mag, diff_mag = FreqTrans.DistCrit(T[iSeg], TUnc[iSeg], typeUnc = 'ellipse')
+    nom_mag, unc_mag, diff_mag = FreqTrans.DistCritCirc(T[iSeg], TUnc[iSeg])
 
     rCritNom_mag.append(nom_mag)
+    rCritUnc_mag.append(unc_mag)
+    rCrit_mag.append(diff_mag)
 
 
 #%% Sigma Plot
@@ -233,8 +257,13 @@ fig = None
 for iSeg in range(0, len(oDataSegs)):
     Cmin = np.min(np.min(C[iSeg], axis = 0), axis = 0)
     sNomMin = np.min(sNom[iSeg], axis=0)
+    sCritMin = np.min(sUnc[iSeg], axis=0)
+    sNomMinErr = sNomMin - sCritMin
 
-    fig = FreqTrans.PlotSigma(freq_hz[0], sNomMin, coher_nd = Cmin, fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+    fig = FreqTrans.PlotSigma(freq_hz[0], sNomMin, err = sNomMinErr, coher_nd = Cmin, fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+#    fig = FreqTrans.PlotSigma(freq_hz[0], sNomMin, coher_nd = Cmin, fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+#    fig = FreqTrans.PlotSigma(freq_hz[0], sCritMin, coher_nd = Cmin, fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + 'o', label = oDataSegs[iSeg]['Desc'])
+    fig = FreqTrans.PlotSigma(freq_hz[0], sNomMinErr, coher_nd = Cmin, fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + ':', label = oDataSegs[iSeg]['Desc'])
 
 fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fmt = '--r', fig = fig)
 
@@ -254,7 +283,7 @@ if False:
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotSigma(freq_hz[0], rCritNom_mag[iSeg][iOut, iIn], coher_nd = C[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotSigma(freq_hz[0], rCritNom_mag[iSeg][iOut, iIn], err = rCritUnc_mag[iSeg][iOut, iIn], coher_nd = C[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
 
             fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fig = fig, fmt = 'r--')
             fig.suptitle(inName + ' to ' + outName, size=20)
@@ -271,7 +300,7 @@ if False:
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotNyquist(T[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotNyquist(T[iSeg][iOut, iIn], TUnc[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*', label = oDataSegs[iSeg]['Desc'])
 
             fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, fmt = '*r', label = 'Critical Region')
             fig.suptitle(inName + ' to ' + outName, size=20)
@@ -289,6 +318,94 @@ if False:
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotBode(freq_hz[0], gain_mag[iSeg][iOut, iIn], phase_deg[iSeg][iOut, iIn], C[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotBode(freq_hz[0], gain_mag[iSeg][iOut, iIn], phase_deg[iSeg][iOut, iIn], C[iSeg][iOut, iIn], gainUnc_mag = gainUnc_mag[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
 
             fig.suptitle(inName + ' to ' + outName, size=20)
+
+
+#%% Noise Estimation
+if False:
+    #%%
+    for iOut, outName in enumerate(outPlot):
+        for iIn, inName in enumerate(inPlot):
+
+            fig = None
+            for iSeg in range(0, len(oDataSegs)):
+                fig = FreqTrans.PlotBodeMag(freq_hz[0], gain_mag[iSeg][iOut, iIn], C[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotBodeMag(freq_hz[0], gainUnc_mag[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + ':', label = oDataSegs[iSeg]['Desc'] + '_Noise')
+
+            fig.suptitle(inName + ' to ' + outName, size=20)
+
+
+#%% Turbulence
+from Core import Environment
+
+ft2m = 0.3049
+m2ft = 1/ft2m
+
+b_ft = 4
+levelList = ['light', 'moderate', 'severe']
+freqTurb_rps = np.sort(freqNull_rps)
+
+
+if False:
+    #%%
+    for iOut, outName in enumerate(outPlot):
+        plt.figure()
+
+        for iSeg in range(0, len(oDataSegs)):
+            plt.loglog(freq_hz[0], TSens[iSeg][iOut, 0], '*', label = oDataSegs[iSeg]['Desc'])
+
+            V_mps = np.mean(seg['vIas_mps'])
+            V_fps = V_mps * m2ft
+
+            h_m = np.mean(seg['altBaro_m'])
+            h_ft = h_m * m2ft
+
+        for iLevel, level in enumerate(levelList):
+            sigma = Environment.TurbIntensity(h_ft, level = level)
+            L_ft = Environment.TurbLengthScale(h_ft)
+
+            Puvw_VonKarman =  Environment.TurbSpectVonKarman(sigma, L_ft, freqTurb_rps / V_fps) * V_fps
+            Ppqr_VonKarman =  Environment.TurbSpectRate(Puvw_VonKarman, sigma, L_ft, freqTurb_rps, V_fps, b_ft)
+
+            plt.loglog(freqTurb_rps*rps2hz, np.abs(Ppqr_VonKarman[iOut]), label = "VonKarman - Level: " + level)
+
+        plt.grid(True)
+        plt.xlim([0.397, 10])
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power Spectrum')
+        plt.legend()
+
+#%% Spectrograms of Output and Disturbances
+if False:
+#%%
+    iSgnlExc = 0
+    iSgnlOut = 0
+
+    freqRate_rps = 50 * hz2rps
+    optSpec = FreqTrans.OptSpect(dftType = 'dftmat', freq = freqExc_rps[iSgnlExc], freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+    optSpecN = FreqTrans.OptSpect(dftType = 'dftmat', freq = freqNull_rps, freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+
+
+    for iSeg in range(0, len(oDataSegs)):
+        t = oDataSegs[iSeg]['time_s']
+        x = vExcList[iSeg][iSgnlExc]
+        y = vFbList[iSeg][iSgnlOut]
+
+        # Number of time segments and length of overlap, units of samples
+        #lenSeg = 2**6 - 1
+        lenSeg = int(1.0 * optSpec.freqRate * rps2hz)
+        lenOverlap = 1
+
+        # Compute Spectrum over time
+        tSpecY_s, freqSpecY_rps, P_Y_mag = FreqTrans.SpectTime(t, y, lenSeg, lenOverlap, optSpec)
+        tSpecN_s, freqSpecN_rps, P_N_mag = FreqTrans.SpectTime(t, y, lenSeg, lenOverlap, optSpecN)
+
+        # Plot the Spectrogram
+        fig = FreqTrans.Spectogram(tSpecY_s, freqSpecY_rps * rps2hz, 20 * np.log10(P_Y_mag))
+        fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram - ' + sigFbList[iSgnlOut])
+
+        fig = FreqTrans.Spectogram(tSpecN_s, freqSpecN_rps * rps2hz, 20 * np.log10(P_N_mag))
+        fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram Null - ' + sigFbList[iSgnlOut])
+

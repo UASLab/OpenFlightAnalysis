@@ -20,6 +20,7 @@ if __name__ == "__main__" and __package__ is None:
 import Environment
 
 hz2rps = 2 * np.pi
+rps2hz = 1/hz2rps
 
 #%%
 V_fps = 55
