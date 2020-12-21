@@ -21,7 +21,7 @@ if __name__ == "__main__" and __package__ is None:
 
     path.insert(0, abspath(join(dirname(argv[0]), "..")))
     path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
-    
+
     del path, argv, dirname, abspath, join
 
 from Core import GenExcite
@@ -119,7 +119,7 @@ Cxy_czt = np.squeeze(Cxy_czt)
 #%%
 plt.figure(1)
 ax1 = plt.subplot(3,1,1); plt.grid(True)
-ax1.semilogx(freqLin_hz, gainLin_dB, 'b-') 
+ax1.semilogx(freqLin_hz, gainLin_dB, 'b-')
 ax1.semilogx(freq_hz, gain_dB, '.g--')
 ax1.semilogx(freq_czt_hz, gain_czt_dB, '*r')
 ax2 = plt.subplot(3,1,2); plt.grid(True)
@@ -132,5 +132,3 @@ ax3.semilogx(freq_hz, Cxy, '.g--', label = 'FFT Estimate')
 ax3.semilogx(freq_czt_hz, Cxy_czt, '*r', label = 'CZT Estimate')
 
 ax3.legend()
-
-

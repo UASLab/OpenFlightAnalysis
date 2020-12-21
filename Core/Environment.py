@@ -204,7 +204,7 @@ def TurbIntensity(h_ft = None, U20_fps = None, level = 0):
         sigma_u = sigma_w / (0.177 + 0.000823 * h_ft)**0.4
         sigma_v = sigma_u
 
-        if h_ft is 'terrain':
+        if h_ft == 'terrain':
 
             probExceedBrk = np.array([2e-1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
             sigmaTableV_fps = np.array([4.0, 5.1, 8.0, 10.2, 12.1, 14.0, 23.1])

@@ -27,6 +27,13 @@ from Core import GenExcite
 from Core import FreqTrans
 
 
+# plt.rcParams.update({
+#     "text.usetex": True,
+#     "font.family": "serif",
+#     "font.serif": ["Palatino"],
+#     "font.size": 10
+# })
+
 # Constants
 pi = np.pi
 
@@ -44,34 +51,33 @@ db2mag = control.db2mag
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 
-freqLin_rps = np.fft.rfftfreq(1500, 1/freqRate_rps)
-freqLin_hz = freqLin_rps * rps2hz
+freqLin_hz = np.linspace(1e-1, 1e1, 400)
+freqLin_rps = freqLin_hz * hz2rps
 
-plantK11 = 1.0 ; plantWn11 = 1 * hz2rps   ; plantD11 = 0.2;
-plantK21 = 0.25; plantWn21 = 2 * plantWn11; plantD21 = 0.1;
-plantK12 = 0.5 ; plantWn12 = 3 * plantWn11; plantD12 = 0.3;
-plantK22 = 1.0 ; plantWn22 = 4 * plantWn11; plantD22 = 0.4;
+plantK11 = 1.0 ; plantWn11 = 3 * hz2rps; plantD11 = 0.2;
+plantK21 = 0.25; plantWn21 = 4 * hz2rps; plantD21 = 0.1;
+plantK12 = 0.5 ; plantWn12 = 5 * hz2rps; plantD12 = 0.3;
+plantK22 = 1.0 ; plantWn22 = 6 * hz2rps; plantD22 = 0.4;
+
 
 sysPlant = control.tf([[[0, 0, plantK11 * plantWn11**2], [0, 0, plantK21 * plantWn21**2]],
-                       [[0, 0, plantK12 * plantWn12**2], [0, 0, plantK22 * plantWn22**2]]], 
-                      [[[1, 2.0*plantD11*plantWn11, plantWn11**2], [1, 2.0*plantD21*plantWn21, plantWn21**2]], 
+                       [[0, 0, plantK12 * plantWn12**2], [0, 0, plantK22 * plantWn22**2]]],
+                      [[[1, 2.0*plantD11*plantWn11, plantWn11**2], [1, 2.0*plantD21*plantWn21, plantWn21**2]],
                        [[1, 2.0*plantD12*plantWn12, plantWn12**2], [1, 2.0*plantD22*plantWn22, plantWn22**2]]])
 
 # Plant Response
-gainLin_mag, phaseLin_rad, _ = control.freqresp(sysPlant, omega = freqLin_rps)
-gainLin_dB = mag2db(gainLin_mag)
-phaseLin_deg = np.unwrap(phaseLin_rad) * rad2deg
+gainTLinNom_mag, phaseTLinNom_rad, _ = control.freqresp(sysPlant, omega = freqLin_rps)
+TLinNom = gainTLinNom_mag * np.exp(1j * phaseTLinNom_rad)
 
-TLin = gainLin_mag * np.exp(1j*phaseLin_rad)
 
-#%%
+#%% Excitation
 numExc = 2
 numCycles = 3
 ampInit = 1
 ampFinal = 1
 freqMinDes_rps = 0.1 * hz2rps * np.ones(numExc)
-freqMaxDes_rps = 10 * hz2rps *  np.ones(numExc)
-freqStepDes_rps = (20/freqRate_hz) * hz2rps
+freqMaxDes_rps = 10.1 * hz2rps *  np.ones(numExc)
+freqStepDes_rps = (10/freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 # Generate MultiSine Frequencies
@@ -80,39 +86,47 @@ freqGap_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 # Generate Schroeder MultiSine Signal
 ampExcit_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(freqExc_rps))
-uExc, _, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
+uExc, phaseElem_rad, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
+uExc = uExc / np.std(uExc)
+uPeak = np.mean(GenExcite.PeakFactor(uExc) * np.std(uExc))**2
 
 # Excited Frequencies per input channel
 freqChan_rps = freqExc_rps[sigIndx]
+freqChan_hz = freqChan_rps * rps2hz
 
 # Simulate the excitation through the system
 _, y, _ = control.forced_response(sysPlant, T = time_s, U = uExc)
 
-# Plant-Output Noise
-noiseK11 = 0.25 * plantK11; noiseWn11 = 6 * hz2rps; noiseD11 = 0.1;
-noiseK21 = 0.25 * plantK11; noiseWn21 = 6 * hz2rps; noiseD21 = 0.1;
-noiseK12 = 0.25 * plantK11; noiseWn12 = 4 * hz2rps; noiseD12 = 0.7;
-noiseK22 = 0.25 * plantK11; noiseWn22 = 2 * hz2rps; noiseD22 = 0.1;
 
-sysNoise = control.tf([[[-noiseK11, 0, noiseK11 * noiseWn11**2], [-noiseK21, 0, noiseK21 * noiseWn21**2]],
-                       [[-noiseK12, 0, noiseK12 * noiseWn12**2], [-noiseK22, 0, noiseK22 * noiseWn22**2]]],
-                      [[[1, 2.0*noiseD11*noiseWn11, noiseWn11**2], [1, 2.0*noiseD21*noiseWn21, noiseWn21**2]], 
-                       [[1, 2.0*noiseD12*noiseWn12, noiseWn12**2], [1, 2.0*noiseD22*noiseWn22, noiseWn22**2]]])
+# Plant-Output Noise
+noiseK11 = (1/8) * np.abs(sysPlant.dcgain())[0, 0]; noiseWn11 = 6 * hz2rps; noiseD11 = 0.1;
+noiseK12 = (1/8) * np.abs(sysPlant.dcgain())[0, 1]; noiseWn12 = 6 * hz2rps; noiseD12 = 0.1;
+noiseK21 = (4/8) * np.abs(sysPlant.dcgain())[1, 0]; noiseWn21 = 4 * hz2rps; noiseD21 = 1.0;
+noiseK22 = (4/8) * np.abs(sysPlant.dcgain())[1, 1]; noiseWn22 = 4 * hz2rps; noiseD22 = 1.0;
+
+sysN = control.tf([[[-noiseK11, 0, noiseK11 * noiseWn11**2], [-noiseK12, 0, noiseK12 * noiseWn12**2]],
+                   [[-noiseK21, 0, noiseK21 * noiseWn21**2], [-noiseK22, 0, noiseK22 * noiseWn22**2]]],
+                  [[[1, 2.0*noiseD11*noiseWn11, noiseWn11**2], [1, 2.0*noiseD12*noiseWn12, noiseWn12**2]],
+                   [[1, 2.0*noiseD21*noiseWn21, noiseWn21**2], [1, 2.0*noiseD22*noiseWn22, noiseWn22**2]]])
 
 
 np.random.seed(0)
-m = np.random.normal(0.0, 1.0, size = uExc.shape)
-_, n, _ = control.forced_response(sysNoise, T = time_s, U = m)
+mSigma = 1.0
+m = np.random.normal([0.0], [mSigma], size = uExc.shape)
+_, n, _ = control.forced_response(sysN, T = time_s, U = m)
 
 # Output with Noise
 z = y + n
 
 # Linear Noise response
-gainNoise_mag, _, _ = control.freqresp(sysNoise, omega = freqLin_rps)
-gainNoise_dB = mag2db(gainNoise_mag)
+gainNoise_mag, phaseNoise_deg, _ = control.freqresp(sysN * (mSigma / uPeak), omega = freqLin_rps)
+gainNoise_dB = 20 * np.log10(gainNoise_mag)
+
+TLinUnc = gainNoise_mag * np.exp(1j * phaseNoise_deg)
+
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'spectrum', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = freqChan_rps
@@ -123,137 +137,205 @@ optSpec.freqNull = freqGap_rps
 optSpec.freqNullInterp = True
 
 # FRF Estimate
-#freq_rps, Txy, Cxy, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(uExc, z, optSpec)
-freq_rps, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, Pxx_N, Pyy_N = FreqTrans.FreqRespFuncEstNoise(uExc, z, optSpec)
+#freq_rps, Tuz, Cuz, Suu, Szz, Suz = FreqTrans.FreqRespFuncEst(uExc, z, optSpec)
+freq_rps, Tuz, Cuz, Suu, Szz, Suz, Tun, SuuNull, Snn = FreqTrans.FreqRespFuncEstNoise(uExc, z, optSpec)
 freq_hz = freq_rps * rps2hz
 
-T = Txy
-TUnc = TxyUnc
+print(1/np.sum(SuuNull, axis = -1))
+
+TEstNom = Tuz
+TEstUnc = Tun
+TEstCoh = Cuz
 
 # Nominal Response
-gain_dB, phase_deg = FreqTrans.GainPhase(T)
-phase_deg = np.unwrap(phase_deg * deg2rad) * rad2deg
+gainTEstNom_dB, phaseTEstNom_deg = FreqTrans.GainPhase(TEstNom)
+phaseTEstNom_deg = np.unwrap(phaseTEstNom_deg * deg2rad) * rad2deg
 
 # Uncertain Response
-gainUnc_dB = FreqTrans.Gain(TUnc)
+gainTEstUnc_mag = np.abs(TEstUnc)
+gainTEstUnc_dB, _ = FreqTrans.GainPhase(TEstUnc)
+
+ampU = (1.0 / 1.0) * np.ones_like(freqLin_hz) / len(freqLin_rps)
+SuuLin = np.sqrt(ampU)
+
+ampM = mSigma * np.ones_like(freqLin_hz) / len(freqLin_rps)
+SmmLin = np.sqrt(ampM)
+
+SnnLin = np.abs(TLinUnc)**2 * SmmLin
+SyyLin = np.abs(TLinNom)**2 * SuuLin
+
+SzzLin = SyyLin + SnnLin
 
 
-#%% Plot
-plt.figure(1)
-plt.tight_layout()
+#%% Sigma Plot
+# Linear Model SVD magnitude
+svTLinNom_mag = FreqTrans.Sigma(TLinNom)
+svTLinUnc_mag = FreqTrans.Sigma(TLinUnc)
 
-iIn = 0; iOut = 0
-ax1 = plt.subplot(4,2,1); ax1.grid()
-ax1.semilogx(freqLin_hz, gainLin_dB[iOut, iIn], label='Sys')
-ax1.semilogx(freq_hz[iIn], gain_dB[iOut, iIn], '.', label='Sys Estimate')
-ax1.semilogx(freqLin_hz, gainNoise_dB[iOut, iIn] - 6, label='Noise') # Power from noise is split between channels
-ax1.semilogx(freq_hz[0], gainUnc_dB[iOut,iIn], '.', label='Noise Estimate')
-ax1.set_ylabel('Gain (dB)')
-ax1.legend()
+# Estimate SVD magnitude
+I2 = np.repeat([np.eye(2)], TEstNom.shape[-1], axis=0).T
+svTEstNom_mag = FreqTrans.Sigma(I2 + TEstNom) # sigma(I + Li) = 1 / sigma(Si)
+# svTEstNom_mag = 1 / FreqTrans.Sigma(SiEstNom)
+svTEstUnc_mag = FreqTrans.Sigma(TEstUnc) # Uncertain SVD magnitude
 
-ax3 = plt.subplot(4,2,3, sharex = ax1); ax3.grid()
-ax3.semilogx(freqLin_hz, phaseLin_deg[iOut, iIn])
-ax3.semilogx(freq_hz[iIn], phase_deg[iOut, iIn], '.')
-#ax3.set_ylim(-270, 90); ax3.set_yticks([-270,-180,-90,0,90])
-#ax3.set_xlabel('Frequency (Hz)')
-ax3.set_ylabel('Phase (deg)')
+# Estimation Coherence
+cohEstMin = np.mean(TEstCoh, axis = (0, 1))
 
-iIn = 0; iOut = 1
-ax2 = plt.subplot(4,2,2); ax2.grid()
-ax2.semilogx(freqLin_hz, gainLin_dB[iOut, iIn])
-ax2.semilogx(freq_hz[iIn], gain_dB[iOut, iIn], '.')
-ax2.semilogx(freqLin_hz, gainNoise_dB[iOut, iIn] - 6, label='Noise')
-ax2.semilogx(freq_hz[0], gainUnc_dB[iOut,iIn], '.')
-#ax2.set_ylabel('Gain (dB)')
+svTLinNomMin_mag = np.min(svTLinNom_mag, axis=0)
+svTEstNomMin_mag = np.min(svTEstNom_mag, axis=0)
 
-ax4 = plt.subplot(4,2,4, sharex = ax2); ax4.grid()
-ax4.semilogx(freqLin_hz, phaseLin_deg[iOut, iIn])
-ax4.semilogx(freq_hz[iIn], phase_deg[iOut, iIn], '.')
-#ax4.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
-#ax4.set_xlabel('Frequency (Hz)')
-#ax4.set_ylabel('Phase (deg)')
+svTLinUncMax_mag = np.max(svTLinUnc_mag, axis=0) # Overly Conservative
+svTEstUncMax_mag = np.max(svTEstUnc_mag, axis=0) # Overly Conservative
 
-iIn = 1; iOut = 0
-ax5 = plt.subplot(4,2,5); ax5.grid()
-ax5.semilogx(freqLin_hz, gainLin_dB[iOut, iIn])
-ax5.semilogx(freq_hz[iIn], gain_dB[iOut, iIn], '.')
-ax5.semilogx(freqLin_hz, gainNoise_dB[iOut, iIn] - 6, label='Noise')
-ax5.semilogx(freq_hz[0], gainUnc_dB[iOut,iIn], '.')
-ax5.set_ylabel('Gain (dB)')
+svTLinLower_mag = svTLinNomMin_mag - svTLinUncMax_mag
+svTEstLower_mag = svTEstNomMin_mag - svTEstUncMax_mag
 
-ax7 = plt.subplot(4,2,7, sharex = ax5); ax7.grid()
-ax7.semilogx(freqLin_hz, phaseLin_deg[iOut, iIn])
-ax7.semilogx(freq_hz[iIn], phase_deg[iOut, iIn], '.')
-#ax7.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
-ax7.set_xlabel('Frequency (Hz)')
-ax7.set_ylabel('Phase (deg)')
+if False:
+    fig = 10
+    fig = FreqTrans.PlotSigma(freqLin_hz, svTLinNomMin_mag, lower = svTLinLower_mag, coher_nd = np.ones_like(freqLin_hz), fig = fig, color = 'k', label = 'Linear')
+    # fig = FreqTrans.PlotSigma(freq_hz, svTEstNomMin_mag, coher_nd = cohTEstMin, color = 'b', fig = fig, label = 'Estimate')
+    fig = FreqTrans.PlotSigma(freq_hz[0], svTEstNomMin_mag, lower = svTEstLower_mag, coher_nd = cohTEstMin, color = 'b', fig = fig, label = 'Estimate')
+    fig = FreqTrans.PlotSigma(freqLin_hz, (0.4) * np.ones_like(freqLin_hz), linestyle = '--', color = 'r', fig = fig, label = 'Critical Limit')
+    ax = fig.get_axes()
+    # ax[0].set_xlim(0, 10)
+    # ax[0].set_yscale('log')
 
-iIn = 1; iOut = 1
-ax6 = plt.subplot(4,2,6); ax6.grid()
-ax6.semilogx(freqLin_hz, gainLin_dB[iOut, iIn])
-ax6.semilogx(freq_hz[iIn], gain_dB[iOut, iIn], '.')
-ax6.semilogx(freqLin_hz, gainNoise_dB[iOut, iIn] - 6, label='Noise')
-ax6.semilogx(freq_hz[0], gainUnc_dB[iOut,iIn], '.')
-#ax6.set_ylabel('Gain (dB)')
+    # ax[0].set_ylim(0, 2)
+    # ax[0].set_title(r' ')
+    ax[0].legend()
+    # ax[0].set_ylabel(r'$\mathbf{\underbar\!\!\!\sigma } (I + L_i ( \omega ))$')
 
-ax8 = plt.subplot(4,2,8, sharex = ax6); ax8.grid()
-ax8.semilogx(freqLin_hz, phaseLin_deg[iOut, iIn])
-ax8.semilogx(freq_hz[iIn], phase_deg[iOut, iIn], '.')
-#ax8.set_ylim(-270, 90); ax4.set_yticks([-270,-180,-90,0,90])
-ax8.set_xlabel('Frequency (Hz)')
-#ax8.set_ylabel('Phase (deg)')
+    ax[1].legend('')
+    # ax[1].set_ylabel(r'$\gamma^2 (\omega) $')
+    # ax[1].set_xlabel(r'$\omega [Hz] $')
 
 
-#%%
-import matplotlib.patches as patch
-plt.figure(2)
-plt.tight_layout()
+#%% Vector Margin Plots
+rCritTLinNom_mag, rCritTLinUnc_mag, rCritTLinMin_mag = FreqTrans.DistCrit(TLinNom, TLinUnc, typeUnc = 'circle')
+rCritTEstNom_mag, rCritTEstUnc_mag, rCritTEstMin_mag = FreqTrans.DistCrit(TEstNom, TEstUnc, typeUnc = 'circle')
 
-iIn = 0; iOut = 0
-ax1 = plt.subplot(2,2,1); ax1.grid()
-ax1.plot(TLin[iOut, iIn].real, TLin[iOut, iIn].imag)
-ax1.plot(T[iOut, iIn].real, T[iOut, iIn].imag, '.')
-for iNom, nom in enumerate(T[iOut,iIn]):
-    unc = TUnc[iOut,iIn][iNom]
-    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
-    ax1.add_artist(uncPatch)
-ax1.plot(-1, 0, '+r')
-ax1.set_xlabel('Real')
-ax1.set_ylabel('Imag')
+if True:
+    numOut, numIn = TLinNom.shape[0:-1]
+    fig, ax = plt.subplots(num=11, ncols=numOut, nrows=numIn, sharex=True, sharey=True)
+    fig.tight_layout()
 
-iIn = 0; iOut = 1
-ax2 = plt.subplot(2,2,2, sharex = ax1, sharey = ax1); ax2.grid()
-ax2.plot(TLin[iOut, iIn].real, TLin[iOut, iIn].imag)
-ax2.plot(T[iOut, iIn].real, T[iOut, iIn].imag, '.')
-for iNom, nom in enumerate(T[iOut,iIn]):
-    unc = TUnc[iOut,iIn][iNom]
-    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
-    ax2.add_artist(uncPatch)
-ax2.plot(-1, 0, '+r')
-ax2.set_xlabel('Real')
-ax2.set_ylabel('Imag')
+    ioArray = np.array(np.meshgrid(np.arange(numOut), np.arange(numIn))).T.reshape(-1, 2)
 
-iIn = 1; iOut = 0
-ax3 = plt.subplot(2,2,3, sharex = ax1, sharey = ax1); ax3.grid()
-ax3.plot(TLin[iOut, iIn].real, TLin[iOut, iIn].imag)
-ax3.plot(T[iOut, iIn].real, T[iOut, iIn].imag, '.')
-for iNom, nom in enumerate(T[iOut,iIn]):
-    unc = TUnc[iOut,iIn][iNom]
-    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
-    ax3.add_artist(uncPatch)
-ax3.plot(-1, 0, '+r')
-ax3.set_xlabel('Real')
-ax3.set_ylabel('Imag')
+    for io in ioArray:
+        [iOut, iIn] = io
 
-iIn = 1; iOut = 1
-ax4 = plt.subplot(2,2,4, sharex = ax1, sharey = ax1); ax4.grid(True)
-ax4.plot(TLin[iOut, iIn].real, TLin[iOut, iIn].imag)
-ax4.plot(T[iOut, iIn].real, T[iOut, iIn].imag, '.')
-for iNom, nom in enumerate(T[iOut,iIn]):
-    unc = TUnc[iOut,iIn][iNom]
-    uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color='b', alpha=0.25)
-    ax4.add_artist(uncPatch)
-ax4.plot(-1, 0, '+r')
-ax4.set_xlabel('Real')
-ax4.set_ylabel('Imag')
-ax4.legend(['Sys', 'Sys Estimate'])
+        ax[iOut, iIn].plot(freqLin_hz, rCritTLinNom_mag[iOut, iIn].T, color = 'k', label = 'Linear Nominal')
+        ax[iOut, iIn].fill_between(freqLin_hz, rCritTLinMin_mag[iOut, iIn].T, rCritTLinNom_mag[iOut, iIn].T, color = 'k', alpha = 0.25, label = 'Linear Uncertainty Lower')
+
+        ax[iOut, iIn].plot(freq_hz[iIn], rCritTEstNom_mag[iOut, iIn].T, color = 'b', label = 'Estimate Nominal (MIMO) Lower')
+        ax[iOut, iIn].fill_between(freq_hz[iIn], rCritTEstMin_mag[iOut, iIn].T, rCritTEstNom_mag[iOut, iIn].T, color = 'b', alpha = 0.25, label = 'Estimate Uncertainty (MIMO) Lower ')
+
+        ax[iOut, iIn].plot(freq_hz[iIn, sigIndx[iIn]], rCritTEstNom_mag[iOut, iIn, sigIndx[iIn]].T, color = 'g', label = 'Estimate Nominal (SIMO)')
+        ax[iOut, iIn].fill_between(freq_hz[iIn, sigIndx[iIn]], rCritTEstMin_mag[iOut, iIn, sigIndx[iIn]].T, rCritTEstNom_mag[iOut, iIn, sigIndx[iIn]].T, color = 'g', alpha = 0.25, label = 'Estimate Uncertainty (SIMO) Lower')
+
+        ax[iOut, iIn].grid(True)
+        ax[iOut, iIn].tick_params(axis = 'both')
+        ax[iOut, iIn].set_xlabel('Freq [Hz]')
+        ax[iOut, iIn].set_ylabel('Vector Margin [mag]')
+
+    ax[0, 0].legend()
+
+
+#%% Bode Plot
+# Linear Model Gain and Phase
+gainTLinNom_dB = mag2db(gainTLinNom_mag)
+phaseTLinNom_deg = np.unwrap(phaseTLinNom_rad) * rad2deg
+gainTLinUnc_dB, phaseTLinUnc_deg = FreqTrans.GainPhase(TLinUnc)
+
+gainTLinNom_dB = mag2db(gainTLinNom_mag)
+phaseTLinUnc_deg = np.unwrap(phaseTLinUnc_deg * deg2rad) * rad2deg
+
+
+# Estimated Nominal Response
+gainTEstNom_dB, phaseTEstNom_deg = FreqTrans.GainPhase(TEstNom)
+phaseTEstNom_deg = np.unwrap(phaseTEstNom_deg * deg2rad) * rad2deg
+
+# Estimation Uncertain Response
+gainTEstUnc_mag = np.abs(TEstUnc)
+gainTEstUnc_dB = FreqTrans.Gain(TEstUnc)
+
+
+if True:
+    numOut, numIn = TLinNom.shape[0:-1]
+    fig, ax = plt.subplots(num=12, ncols=numOut, nrows=2*numIn)
+    fig.tight_layout()
+
+    ioArray = np.array(np.meshgrid([0,1], [0,1])).T.reshape(-1, 2)
+    gainPlotArray = np.array(np.meshgrid([0,2], [0,1])).T.reshape(-1, 2)
+    phasePlotArray = np.array(np.meshgrid([1,3], [0,1])).T.reshape(-1, 2)
+
+    for iPlot, io in enumerate(ioArray):
+        [iOut, iIn] = io
+        gainPlot = gainPlotArray[iPlot]
+        phasePlot = phasePlotArray[iPlot]
+
+        [gOut, gIn] = gainPlot
+        [pOut, pIn] = phasePlot
+
+        ax[gOut, gIn].semilogx(freqLin_hz, gainTLinNom_dB[iOut, iIn], '-k', label='Linear Nominal')
+        ax[gOut, gIn].semilogx(freqLin_hz, gainTLinUnc_dB[iOut, iIn], '--r', label='Linear Uncertainty')
+
+        ax[gOut, gIn].semilogx(freq_hz[iIn], gainTEstNom_dB[iOut, iIn], '.b', label='Estimate Nominal [MIMO]')
+        ax[gOut, gIn].semilogx(freq_hz[iIn], gainTEstUnc_dB[iOut, iIn], '.b', label='Estimate Uncertainty [MIMO]')
+
+        ax[gOut, gIn].semilogx(freq_hz[iIn, sigIndx[iIn]], gainTEstNom_dB[iOut, iIn, sigIndx[iIn]], '.g', label='Estimate Nominal [SIMO]')
+        ax[gOut, gIn].semilogx(freq_hz[iIn, sigIndx[iIn]], gainTEstUnc_dB[iOut, iIn, sigIndx[iIn]], '.g', label='Estimate Uncertainty [SIMO]')
+
+        ax[pOut, pIn].semilogx(freqLin_hz, phaseTLinNom_deg[iOut, iIn], '-k', label='Linear Nominal')
+        ax[pOut, pIn].semilogx(freq_hz[iIn], phaseTEstNom_deg[iOut, iIn], '.b', label='Estimate Nominal [MIMO]')
+        ax[pOut, pIn].semilogx(freq_hz[iIn, sigIndx[iIn]], phaseTEstNom_deg[iOut, iIn, sigIndx[iIn]], '.g', label='Estimate Nominal [SIMO]')
+
+        ax[gOut, gIn].grid(True); ax[pOut, pIn].grid(True)
+        ax[gOut, gIn].tick_params(axis ='both'); ax[pOut, pIn].tick_params(axis ='both')
+
+        # ax[pOut, pIn].set_ylim(-270, 90); ax.set_yticks([-270,-180,-90,0,90])
+        ax[gOut, gIn].set_ylabel('Gain [dB]')
+        ax[pOut, pIn].set_xlabel('Frequency [Hz]')
+        ax[pOut, pIn].set_ylabel('Phase [deg]')
+
+        ax[0, 0].legend()
+
+
+#%% Nyquist Plot
+TLinUnc = np.abs(TLinUnc)
+
+# fig = 13
+# FreqTrans.PlotNyquistMimo(LiLinNom, TUnc = LiLinUnc, fig = fig, linestyle = '-', color = 'k', fillType = 'fill', label = '')
+
+if True:
+    numOut, numIn = TLinNom.shape[0:-1]
+    fig, ax = plt.subplots(num=13, ncols=numOut, nrows=numIn, sharex=True, sharey=True)
+    fig.tight_layout()
+
+    ioArray = np.array(np.meshgrid(np.arange(numOut), np.arange(numIn))).T.reshape(-1, 2)
+
+    for io in ioArray:
+        [iOut, iIn] = io
+
+        ax[iOut, iIn].plot(TLinNom[iOut, iIn].real, TLinNom[iOut, iIn].imag, '-k', label = 'Linear')
+        # FreqTrans.PlotUncPts(TLinNom[iOut, iIn], TLinUnc[iOut, iIn], ax[iOut, iIn], color='k')
+        FreqTrans.PlotUncFill(TLinNom[iOut, iIn], TLinUnc[iOut, iIn], ax[iOut, iIn], color = 'k')
+
+        ax[iOut, iIn].plot(TEstNom[iOut, iIn].real, TEstNom[iOut, iIn].imag, 'ob', label = 'Estimation Nominal (MIMO)')
+        FreqTrans.PlotUncPts(TEstNom[iOut, iIn], TEstUnc[iOut, iIn], ax[iOut, iIn], color='b')
+        # PlotFill(TEstNom[iOut, iIn], TEstUnc[iOut, iIn], ax[iOut, iIn], color = 'b')
+
+        ax[iOut, iIn].plot(TEstNom[iOut, iIn, sigIndx[iIn]].real, TEstNom[iOut, iIn, sigIndx[iIn]].imag, 'og', label = 'Estimation Nominal (SIMO)')
+        FreqTrans.PlotUncPts(TEstNom[iOut, iIn, sigIndx[iIn]], TEstUnc[iOut, iIn, sigIndx[iIn]], ax[iOut, iIn], color='g')
+        # PlotFill(TEstNom[iOut, iIn, sigIndx[iIn]], TEstUnc[iOut, iIn, sigIndx[iIn]], ax[iOut, iIn], color = 'g')
+
+        ax[iOut, iIn].grid(True)
+        ax[iOut, iIn].tick_params(axis = 'both')
+        # critPatch = patch.Ellipse((-1, 0), 2*0.4, 2*0.4, color='r', alpha=0.25)
+        # ax[iOut, iIn].add_artist(critPatch)
+        ax[iOut, iIn].plot(-1, 0, '+r')
+        ax[iOut, iIn].set_xlabel('Real')
+        ax[iOut, iIn].set_ylabel('Imag')
+
+    ax[0,0].legend()
+

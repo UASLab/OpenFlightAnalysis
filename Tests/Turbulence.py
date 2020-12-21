@@ -23,10 +23,10 @@ hz2rps = 2 * np.pi
 rps2hz = 1/hz2rps
 
 #%%
-V_fps = 55
+V_fps = 75
 h_ft = 300
-b_ft = 4
-level = 'Moderate'
+b_ft = 5
+level = 'Light'
 
 # Spatial Frequency
 omega = np.logspace(-4, 1, 300)
