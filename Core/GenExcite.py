@@ -268,6 +268,9 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
     if len(freqMinDes_rps) is not len(freqMaxDes_rps):
         print('MultiSineComponents - The min and max frequency inputs must be the same length')
 
+    # Number of channels
+    numChan = len(freqMinDes_rps)
+
     freqMaxLimit_rps = freqRate_hz / 2 * hz2rps
     if any(freqMaxDes_rps > freqMaxLimit_rps):
         print('MultiSineComponents - The maximum desired frequency is too high for the frame rate');
@@ -292,26 +295,20 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
     freqStepDes_hz = freqStepDes_rps * rps2hz
     freqStep_hz = round(freqStepDes_hz / freqStepMin_hz) * freqStepMin_hz
 
-    if freqStep_hz < freqStepMin_hz:
-        freqStep_hz = freqStepMin_hz
-
-    if freqStep_hz > freqStepMax_hz:
-        freqStep_hz = freqStepMax_hz
+    # Clip if required
+    freqStep_hz = np.clip(freqStep_hz, freqStepMin_hz, freqStepMax_hz)
 
     # Adjust the min frequency based on the max time
     freqMin_hz = numCycles / timeDur_s
-    freqMax_hz = np.ceil(np.max(freqMaxDes_hz) / freqStep_hz) * freqStep_hz
+    freqMax_hz = np.max(freqMaxDes_hz)
 
     # Frequencies of all the components
-    numElem = int(round((freqMax_hz - freqMin_hz) / freqStep_hz)) + 1
-    freqElem_hz = np.linspace(freqMin_hz, freqMax_hz, numElem)
+    freqElem_hz = np.arange(freqMin_hz, freqMax_hz, freqStep_hz)
+    freqMax_hz = np.max(freqElem_hz)
+    numElem = len(freqElem_hz)
     freqElem_rps = freqElem_hz * hz2rps
 
-
     ## Distribute the frequency components into the signals
-    # Number of channels
-    numChan = len(freqMinDes_rps)
-
     # Distribution methods
     if methodSW in ['zipper', 'zip']:
         # Zippered distribution

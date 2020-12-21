@@ -213,9 +213,9 @@ _, d, _ = control.forced_response(sysD, T = time_s, U = dIn)
 
 # Plant-Output Noise
 noiseK11 = 0.0     * plantK11; noiseWn11 = 6 * hz2rps; noiseD11 = 0.1;
-noiseK21 = noiseK21 * plantK21; noiseWn21 = 5 * hz2rps; noiseD21 = 0.1;
-noiseK12 = noiseK21 * plantK12; noiseWn12 = 4 * hz2rps; noiseD12 = 0.7;
-noiseK22 = noiseK21 * plantK22; noiseWn22 = 3 * hz2rps; noiseD22 = 0.1;
+noiseK21 = noiseK11 * plantK21; noiseWn21 = 5 * hz2rps; noiseD21 = 0.1;
+noiseK12 = noiseK11 * plantK12; noiseWn12 = 4 * hz2rps; noiseD12 = 0.7;
+noiseK22 = noiseK11 * plantK22; noiseWn22 = 3 * hz2rps; noiseD22 = 0.1;
 
 sysNoise = control.tf([[[-noiseK11, 0, noiseK11 * noiseWn11**2], [-noiseK21, 0, noiseK21 * noiseWn21**2]],
                        [[-noiseK12, 0, noiseK12 * noiseWn12**2], [-noiseK22, 0, noiseK22 * noiseWn22**2]]],
@@ -252,20 +252,33 @@ optSpec.freqNull = freqGap_rps
 optSpec.freqNullInterp = True
 
 # FRF Estimate
-#freq_rps, Txy, Cez, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(uExc, uRet, optSpec)
-freq_rps, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, PxxNull, PyyNull = FreqTrans.FreqRespFuncEstNoise(uExc, uRet, optSpec)
+#freq_rps, Txy, Cez, Pxx, Pyy, Pxy = FreqTrans.FreqRespFuncEst(uExc, uRet+uExc, optSpec)
+freq_rps, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, PxxNull, PyyNull = FreqTrans.FreqRespFuncEstNoise(uExc, uRet+uExc, optSpec)
 freq_hz = freq_rps * rps2hz
 
 optSpecN.freq = freqGap_rps
 _, _, PxxNull_N  = FreqTrans.Spectrum(uExc, optSpecN)
-freqN_rps, _, PuuNull_N  = FreqTrans.Spectrum(uRet, optSpecN)
+freqN_rps, _, PuuNull_N  = FreqTrans.Spectrum(uRet+uExc, optSpecN)
 
-# T = Txy * inv(Txy + I)
+# CP = inv((uRet+uExc) / uExc) - I = inv(Txy) - I
+
+#  = Txy * inv(Txy + I)
+CP = np.zeros_like(Txy, dtype = complex)
+Eo = np.zeros_like(Txy, dtype = complex)
+Mo = np.zeros_like(Txy, dtype = complex)
 T = np.zeros_like(Txy, dtype = complex)
 TUnc = np.zeros_like(Txy, dtype = float)
+To = np.zeros_like(Txy, dtype = complex)
 for i in range(T.shape[-1]):
+    CP[...,i] = np.linalg.inv(Txy[...,i]) - np.eye(2)
+    Eo[...,i] = TUnc[...,i] * np.linalg.inv(CP[...,i]) # Uncertainty as Output Multiplicative
+    Mo[...,i] = CP[...,i] @ np.linalg.inv(np.eye(2) + CP[...,i])
+
+    To[...,i] = TUnc[...,i] @ T[...,i]
+    
     T[...,i] = Txy[...,i] @ np.linalg.inv(Txy[...,i] + np.eye(2))
     TUnc[...,i] = np.abs(TxyUnc[...,i] @ np.linalg.inv(Txy[...,i] + np.eye(2)))
+    
 
 # Nominal Response
 gain_dB, phase_deg = FreqTrans.GainPhase(T)
@@ -277,6 +290,41 @@ sigmaNom_mag, sigmaUnc_mag = FreqTrans.Sigma(T, TUnc) # Singular Value Decomp
 sigmaCrit_mag = sigmaNom_mag + sigmaUnc_mag
 
 gainUnc_dB = FreqTrans.Gain(TUnc)
+
+
+
+from scipy import optimize
+
+
+def specrad(M):
+    return max(np.abs(np.linalg.eigvals(M)))
+
+def mu_ubound(M):
+    """ We use equation 8.87 and minimise directly
+    """
+    def objFunc(d, M):
+        scale = 1 / d[0] # scale d such that d1 == 1 as in SP note 10 of 8.8.3
+        D = np.diag(scale * d)
+        Dinv = np.diag(1/(scale * d))
+        M_scaled = D @ M @ Dinv
+        
+        s = np.linalg.svd(M_scaled, full_matrices=True, compute_uv = False)
+        sMax = np.max(s, axis = 0)
+        return sMax
+    
+    d = np.ones_like(M[0,...])
+    sMax = np.zeros(M.shape[-1])
+    for i in range(M.shape[-1]):
+        res = optimize.minimize(objFunc, d[...,i], args = M[...,i])
+        d[...,i] = res.x
+        sMax[i] = res.fun
+    
+    return sMax
+
+Mo = TUnc @ T.I
+s = mu_ubound(M)
+
+
 
 
 #%%

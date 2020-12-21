@@ -54,144 +54,148 @@ def FreqRespFuncEstSIMO(x, y, opt = OptSpect()):
 
     x has dimension (1, p) or (p,) at input and is expanded to (1, p)
     y has dimension (n, p) or (p,) at input and is expanded to (n, p)
-    Pxx has dimension (1, r) and is reduced to (1, r) or (r,) depending on input form of x
-    Pyy has dimension (n, r) and is reduced to (n, r) or (r,) depending on input form of x
-    Pxy, Cxy, and Txy has dimension (n, r) or (r,)
+    Sxx has dimension (1, r) and is reduced to (1, r) or (r,) depending on input form of x
+    Syy has dimension (n, r) and is reduced to (n, r) or (r,) depending on input form of x
+    Sxy, Cxy, and Txy has dimension (n, r) or (r,)
 
         m is the number of input signals
         n is the number of output signals
         p is the length of the each signal
         r is the length of the freq vector
 
-    fs and freq must have same units. (Puu and Pyy will only have correct power scale if units are rad/sec)
+    fs and freq must have same units. (Puu and Syy will only have correct power scale if units are rad/sec)
     '''
     x = np.atleast_2d(x)
     y = np.atleast_2d(y)
 
     # Compute the Power Spectrums
-    _   , xDft, Pxx = Spectrum(x, opt)
-    freq, yDft, Pyy = Spectrum(y, opt)
+    _   , xDft, Sxx = Spectrum(x, opt)
+    freq, yDft, Syy = Spectrum(y, opt)
 
     # Compute Cross Spectrum Power with scaling
     lenX = x.shape[-1]
     win = signal.get_window(opt.winType, lenX)
     scale = PowerScale(opt.scaleType, win, opt.freqRate * rps2hz)
 
-    Pxy = xDft.conj() * yDft * 2*scale # Scale is doubled because one-sided DFT
-    Pxy_smooth = SmoothPolar(Pxy, opt) # Smooth
+    Sxy = xDft.conj() * yDft * scale
+    Sxy_smooth = SmoothPolar(Sxy, opt) # Smooth
     
     # Interpolate Power Spectrums to the Desired Frequency Basis
     if opt.freqInterp is not None:
-        Pxx = InterpVal(Pxx, freq, opt.freqInterp, opt.interpType)
-        Pyy = InterpVal(Pyy, freq, opt.freqInterp, opt.interpType)
-        Pxy = InterpPolar(Pxy, freq, opt.freqInterp, opt.interpType)
-        Pxy_smooth = InterpPolar(Pxy_smooth, freq, opt.freqInterp, opt.interpType)
+        Sxx = InterpVal(Sxx, freq, opt.freqInterp, opt.interpType)
+        Syy = InterpVal(Syy, freq, opt.freqInterp, opt.interpType)
+        Sxy = InterpPolar(Sxy, freq, opt.freqInterp, opt.interpType)
+        Sxy_smooth = InterpPolar(Sxy_smooth, freq, opt.freqInterp, opt.interpType)
         freq = opt.freqInterp
 
     # Coherence, use the Smoothed Cross Spectrum
-    Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
+    Cxy = np.abs(Sxy_smooth)**2 / (Sxx * Syy)
     Cxy[Cxy > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
 
     # Compute complex transfer function approximation
-    Txy = Pxy / Pxx
+    Txy = Sxy / Sxx
 
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
     Txy = np.atleast_2d(Txy)
     Cxy = np.atleast_2d(Cxy)
-    Pxx = np.atleast_2d(Pxx)
-    Pyy = np.atleast_2d(Pyy)
-    Pxy = np.atleast_2d(Pxy)
+    Sxx = np.atleast_2d(Sxx)
+    Syy = np.atleast_2d(Syy)
+    Sxy = np.atleast_2d(Sxy)
 
-    return freq, Txy, Cxy, Pxx, Pyy, Pxy
+    return freq, Txy, Cxy, Sxx, Syy, Sxy
 
 
-def FreqRespFuncEstNoiseSIMO(x, y, opt = OptSpect()):
+def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
     '''
     _I - Input Frequency Basis
     _E - Interpolated Frequency Basis (_E is generally the set of all _I)
     _N - Null Frequency Basis (_N is generally the Gaps between _E)
+    z = y + n
     '''
     import copy
     
     x = np.atleast_2d(x)
-    y = np.atleast_2d(y)
+    z = np.atleast_2d(z)
 
     optN = copy.deepcopy(opt)
     optN.freq = optN.freqNull
 
     # Compute the Power Spectrums
-    _   , xDft, Pxx = Spectrum(x, opt)
-    freq, yDft, Pyy = Spectrum(y, opt)
-    _     , xDftNull_N, PxxNull_N = Spectrum(x, optN)
-    freq_N, yDftNull_N, PyyNull_N = Spectrum(y, optN)
+    _   , xDft, Sxx = Spectrum(x, opt)
+    freq, zDft, Szz = Spectrum(z, opt)
+    _     , xDftNull_N, SxxNull_N = Spectrum(x, optN)
+    freq_N, nDft_N, Snn_N = Spectrum(z, optN)
 
     # Compute Cross Spectrum Power with appropriate scaling (same as in Spectrum())
     lenX = x.shape[-1]
     win = signal.get_window(opt.winType, lenX)
     scale = PowerScale(opt.scaleType, win, opt.freqRate * rps2hz)
 
-    Pxy = xDft.conj() * yDft * 2*scale # Scale is doubled because one-sided DFT
-    Pxy_smooth = SmoothPolar(Pxy, opt) # Smooth
+    Sxz = xDft.conj() * zDft * scale
+    Sxz_smooth = SmoothPolar(Sxz, opt) # Smooth
     
     # Null Cross Spectrum at input frequencies
-    yDftNull = InterpPolar(yDftNull_N, freq_N, freq, opt.interpType)
-    PxyNull = xDft.conj() * yDftNull * 2*scale
+    nDft = InterpPolar(nDft_N, freq_N, freq, opt.interpType)
+    Sxn = xDft.conj() * nDft * scale
     
     # Null Cross Spectrum at Null frequencies
     xDft_N = InterpPolar(xDft, freq, freq_N, opt.interpType)
-    PxyNull_N = xDft_N.conj() * yDftNull_N * 2*scale
+    Sxn_N = xDft_N.conj() * nDft_N * scale
 
    
     # Interpolate to the Desired Frequency Basis
     if opt.freqInterp is not None:
-        Pxx = InterpVal  (Pxx, freq, opt.freqInterp, opt.interpType)
-        Pyy = InterpVal  (Pyy, freq, opt.freqInterp, opt.interpType)
-        Pxy = InterpPolar(Pxy, freq, opt.freqInterp, opt.interpType)
-        Pxy_smooth = InterpPolar(Pxy_smooth, freq, opt.freqInterp, opt.interpType)
-        PxyNull = InterpPolar(PxyNull, freq, opt.freqInterp, opt.interpType)
+        Sxx = InterpVal  (Sxx, freq, opt.freqInterp, opt.interpType)
+        Szz = InterpVal  (Szz, freq, opt.freqInterp, opt.interpType)
+        Sxz = InterpPolar(Sxz, freq, opt.freqInterp, opt.interpType)
+        Sxz_smooth = InterpPolar(Sxz_smooth, freq, opt.freqInterp, opt.interpType)
+        Sxn = InterpPolar(Sxn, freq, opt.freqInterp, opt.interpType)
         
         if opt.freqNullInterp is True: # Interp _N to _E         
-            PxxNull = InterpVal(PxxNull_N, freq_N, opt.freqInterp, opt.interpType)
-            PxyNull = InterpPolar(PxyNull_N, freq_N, opt.freqInterp, opt.interpType)
-            PyyNull = InterpVal(PyyNull_N, freq_N, opt.freqInterp, opt.interpType)
+            SxxNull = InterpVal(SxxNull_N, freq_N, opt.freqInterp, opt.interpType)
+            Sxn = InterpPolar(Sxn_N, freq_N, opt.freqInterp, opt.interpType)
+            Snn = InterpVal(Snn_N, freq_N, opt.freqInterp, opt.interpType)
         else:
-            PxxNull = InterpVal(PxxNull_N, freq_N, freq, opt.interpType)
-            PxyNull = InterpPolar(PxyNull_N, freq_N, freq, opt.interpType)
-            PyyNull = InterpVal(PyyNull_N, freq_N, freq, opt.interpType)
+            SxxNull = InterpVal(SxxNull_N, freq_N, freq, opt.interpType)
+            Sxn = InterpPolar(Sxn_N, freq_N, freq, opt.interpType)
+            Snn = InterpVal(Snn_N, freq_N, freq, opt.interpType)
             
         freq = opt.freqInterp
 
     else:
-        PxxNull = InterpVal(PxxNull_N, freq_N, freq, opt.interpType)
-        PxyNull = InterpPolar(PxyNull_N, freq_N, freq, opt.interpType)
-        PyyNull = InterpVal(PyyNull_N, freq_N, freq, opt.interpType)
+        SxxNull = InterpVal(SxxNull_N, freq_N, freq, opt.interpType)
+        Sxn = InterpPolar(Sxn_N, freq_N, freq, opt.interpType)
+        Snn = InterpVal(Snn_N, freq_N, freq, opt.interpType)
     
     # Compute complex transfer function approximation of the Null
-    # Pxy of Null / Pxx of Input
-    TxyNull = PxyNull / Pxx
-    TxyUnc = np.abs(TxyNull)
-
+    # Sxy of Null / Sxx of Input
+    Txn = Sxn / Sxx
+    TxzUnc = np.abs(Txn) # Additive Uncertainty (x to n)
+    
+#    Tyn = Syn / Syy
+#    TxzUnc = np.abs(Tyn) # Multiplicative Uncertainty (y to n)
+    
     # Coherence, use the Smoothed Cross Spectrum
-    Cxy = np.abs(Pxy_smooth)**2 / (Pxx * Pyy)
-    Cxy[Cxy > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
+    Cxz = np.abs(Sxz_smooth)**2 / (Sxx * Szz)
+    Cxz[Cxz > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
 
     # Compute complex transfer function approximation
-    Txy = Pxy / Pxx
-        
+    Txz = Sxz / Sxx
+    
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
-    Txy = np.atleast_2d(Txy)
-    Cxy = np.atleast_2d(Cxy)
-    Pxx = np.atleast_2d(Pxx)
-    Pyy = np.atleast_2d(Pyy)
-    Pxy = np.atleast_2d(Pxy)
+    Txy = np.atleast_2d(Txz)
+    Cxy = np.atleast_2d(Cxz)
+    Sxx = np.atleast_2d(Sxx)
+    Szz = np.atleast_2d(Szz)
+    Sxz = np.atleast_2d(Sxz)
     
-    TxyUnc = np.atleast_2d(TxyUnc)
-    PxxNull = np.atleast_2d(PxxNull)
-    PyyNull = np.atleast_2d(PyyNull)
+    TxzUnc = np.atleast_2d(TxzUnc)
+    SxxNull = np.atleast_2d(SxxNull)
+    Snn = np.atleast_2d(Snn)
 
-    return freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, PxxNull, PyyNull
+    return freq, Txy, Cxy, Sxx, Szz, Sxz, TxzUnc, SxxNull, Snn
 
 
 def FreqRespFuncEst(x, y, opt = OptSpect()):
@@ -224,10 +228,10 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
         numFreq = freqE.shape[-1]
 
         freq = np.zeros((numIn, numFreq))
-        Pxx = np.zeros((numIn, numFreq))
-        Pyy = np.zeros((numOut, numIn, numFreq))
+        Sxx = np.zeros((numIn, numFreq))
+        Syy = np.zeros((numOut, numIn, numFreq))
         Cxy = np.zeros((numOut, numIn, numFreq))
-        Pxy = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        Sxy = np.zeros((numOut, numIn, numFreq), dtype=complex)
         Txy = np.zeros((numOut, numIn, numFreq), dtype=complex)
 
         optIn = copy.deepcopy(opt)
@@ -243,33 +247,33 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
 
             optIn.freq = np.atleast_2d(freqOptIn)
             
-            freq[iInput, :], Txy[:, iInput, :], Cxy[:, iInput, :], Pxx[iInput, :], Pyy[:, iInput, :], Pxy[:, iInput, :] = FreqRespFuncEstSIMO(x[iInput], y, optIn)
+            freq[iInput, :], Txy[:, iInput, :], Cxy[:, iInput, :], Sxx[iInput, :], Syy[:, iInput, :], Sxy[:, iInput, :] = FreqRespFuncEstSIMO(x[iInput], y, optIn)
 
     else: # Single Input
         
-        freq, Txy, Cxy, Pxx, Pyy, Pxy = FreqRespFuncEstSIMO(x, y, opt)
+        freq, Txy, Cxy, Sxx, Syy, Sxy = FreqRespFuncEstSIMO(x, y, opt)
 
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
     Txy = np.atleast_2d(Txy)
     Cxy = np.atleast_2d(Cxy)
-    Pxx = np.atleast_2d(Pxx)
-    Pyy = np.atleast_2d(Pyy)
-    Pxy = np.atleast_2d(Pxy)
+    Sxx = np.atleast_2d(Sxx)
+    Syy = np.atleast_2d(Syy)
+    Sxy = np.atleast_2d(Sxy)
 
-    return freq, Txy, Cxy, Pxx, Pyy, Pxy
+    return freq, Txy, Cxy, Sxx, Syy, Sxy
 
 
-def FreqRespFuncEstNoise(x, y, opt = OptSpect()):
+def FreqRespFuncEstNoise(x, z, opt = OptSpect()):
 
     import copy
 
     x = np.atleast_2d(x)
-    y = np.atleast_2d(y)
+    z = np.atleast_2d(z)
 
     # If the input is multidimensional, recursively call
     numIn = x.shape[0]
-    numOut = y.shape[0]
+    numOut = z.shape[0]
     if numIn > 1: # Multi-Input
 
         freqOpt = np.atleast_2d(opt.freq)
@@ -287,15 +291,15 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect()):
         numFreqN = freqN.shape[-1]
 
         freq = np.zeros((numIn, numFreq))
-        Pxx = np.zeros((numIn, numFreq))
-        Pyy = np.zeros((numOut, numIn, numFreq))
-        Cxy = np.zeros((numOut, numIn, numFreq))
-        Pxy = np.zeros((numOut, numIn, numFreq), dtype=complex)
-        Txy = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        Sxx = np.zeros((numIn, numFreq))
+        Szz = np.zeros((numOut, numIn, numFreq))
+        Cxz = np.zeros((numOut, numIn, numFreq))
+        Sxz = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        Txz = np.zeros((numOut, numIn, numFreq), dtype=complex)
 
-        TxyUnc = np.zeros((numOut, numIn, numFreq))
-        PxxNull = np.zeros((numIn, numFreqN))
-        PyyNull = np.zeros((numOut, numIn, numFreqN))
+        TxzUnc = np.zeros((numOut, numIn, numFreq))
+        SxxNull = np.zeros((numIn, numFreqN))
+        Snn = np.zeros((numOut, numIn, numFreqN))
 
         optIn = copy.deepcopy(opt)
         
@@ -308,27 +312,26 @@ def FreqRespFuncEstNoise(x, y, opt = OptSpect()):
             optIn.freq = np.atleast_2d(freqOptIn)
 
             xIn = np.expand_dims(x[iInput], 0)
-            freq[iInput, :], Txy[:, iInput, :], Cxy[:, iInput, :], Pxx[iInput, :], Pyy[:, iInput, :], Pxy[:, iInput, :], TxyUnc[:, iInput, :], PxxNull[iInput, :], PyyNull[:, iInput, :] = FreqRespFuncEstNoiseSIMO(xIn, y, optIn)
+            freq[iInput, :], Txz[:, iInput, :], Cxz[:, iInput, :], Sxx[iInput, :], Szz[:, iInput, :], Sxz[:, iInput, :], TxzUnc[:, iInput, :], SxxNull[iInput, :], Snn[:, iInput, :] = FreqRespFuncEstNoiseSIMO(xIn, z, optIn)
 
     else: # Single-Input, Sigle-FreqVector
         
-        freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, PxxNull, PyyNull = FreqRespFuncEstNoiseSIMO(x, y, opt)
-        
+        freq, Txz, Cxz, Sxx, Szz, Sxz, TxzUnc, SxxNull, Snn = FreqRespFuncEstNoiseSIMO(x, z, opt)
         
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
-    Txy = np.atleast_2d(Txy)
-    Cxy = np.atleast_2d(Cxy)
-    Pxx = np.atleast_2d(Pxx)
-    Pyy = np.atleast_2d(Pyy)
-    Pxy = np.atleast_2d(Pxy)
+    Txz = np.atleast_2d(Txz)
+    Cxz = np.atleast_2d(Cxz)
+    Sxx = np.atleast_2d(Sxx)
+    Szz = np.atleast_2d(Szz)
+    Sxz = np.atleast_2d(Sxz)
     
-    TxyUnc = np.atleast_2d(TxyUnc)
-    PxxNull = np.atleast_2d(PxxNull)
-    PyyNull = np.atleast_2d(PyyNull)
+    TxzUnc = np.atleast_2d(TxzUnc)
+    SxxNull = np.atleast_2d(SxxNull)
+    Snn = np.atleast_2d(Snn)
         
 
-    return freq, Txy, Cxy, Pxx, Pyy, Pxy, TxyUnc, PxxNull, PyyNull
+    return freq, Txz, Cxz, Sxx, Szz, Sxz, TxzUnc, SxxNull, Snn
 
 
 # Interpolate freqN into freqE, in polar coordinates
@@ -386,29 +389,17 @@ def Spectrum(x, opt = OptSpect()):
     win = signal.get_window(opt.winType, lenX)
     xWin = win*x
 
-    # Compute Power scaling
-    scale = PowerScale(opt.scaleType, win, opt.freqRate * rps2hz)
 
     # Compute the Fourier Transforms
     if opt.dftType.lower() == 'fft':
         if opt.freq[0][0] is not None:
             raise ValueError('FFT frequencies vector must be None')
-        freq, xDft  = FFT(xWin, opt.freqRate)
-
-        # Compute Power
-        P = (xDft.conj() * xDft).real * 2*scale
-
-        if P.shape[-1] % 2:
-            P[..., 1:] *= 2
-        else:
-            # Last point is unpaired Nyquist freq point, don't double
-            P[..., 1:-1] *= 2
+        freq, xDft = FFT(xWin, opt.freqRate)
 
         # If the signal was detrended the zero frequency component is removed
         if opt.detrendType in ['constant', 'linear']:
             freq = freq[..., 1:]
             xDft = xDft[..., 1:]
-            P = P[..., 1:]
 
     if opt.dftType.lower() == 'dftmat':
         if opt.freq is None:
@@ -421,20 +412,14 @@ def Spectrum(x, opt = OptSpect()):
         # Compute the Chirp-Z Transform (Generalized DFT) via a Matrix
         xDft, xDftHist = CZTMat(xWin, zPts)
 
-        # xDftErr = xDftHist - xDft
-        # xDftVar = (1/ (lenX + 1)) * np.sum((xDftErr)**2, axis=0)
-        
-        # Compute Power, factor of 2 because DFT is one-sided
-        P = (xDft.conj() * xDft).real * 2*scale
-
-
     if opt.dftType.lower() == 'czt':
         if opt.freq is None:
             raise ValueError('CZT frequency vector must be provided')
         freq, xDft  = CZT(xWin, opt.freq, opt.freqRate)
 
-        # Compute Power, factor of 2 because CZT is one-sided
-        P = (xDft.conj() * xDft).real * 2*scale
+    # Compute Power
+    scale = PowerScale(opt.scaleType, win, opt.freqRate * rps2hz)
+    P = (xDft.conj() * xDft).real * scale
 
     # Smooth the Power
     P = Smooth(P, opt.smooth)
@@ -510,9 +495,9 @@ def PowerScale(scaleType, win, fs_hz = 1):
 
     # Compute the scaling for power
     if scaleType == 'density':
-        scale = 1.0 / (fs_hz * (win*win).sum())
+        scale = 1.0 / (fs_hz * (win*win).sum()) # if win = ones, scale = dt / N
     elif scaleType == 'spectrum':
-        scale = 1.0 / win.sum()**2
+        scale = 1.0 / win.sum()**2 # if win = ones, scale = 1 / N**2
     else:
         scale = 1
         raise ValueError('Unknown scaling: %r' % scaleType)
@@ -523,31 +508,27 @@ def PowerScale(scaleType, win, fs_hz = 1):
 #%%
 #
 def Gain(T, TUnc = None, magUnit = 'dB'):
-
     gain = np.abs(T)
 
-    if magUnit is 'dB':
+    if magUnit == 'dB':
         gain = 20.0 * np.log10(gain)
 
     return gain
 
-
 #
 def Phase(T, TUnc = None, phaseUnit = 'rad', unwrap = False):
-
     phase = np.angle(T)
 
     if unwrap:
         phase = np.unwrap(phase, axis=-1)
 
-    if phaseUnit is 'deg':
+    if phaseUnit == 'deg':
         phase = phase * rad2deg
 
     return phase
 
 #
 def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
-
     gain = Gain(T, TUnc, magUnit)
     phase = Phase(T, TUnc, phaseUnit, unwrap)
 
@@ -555,7 +536,6 @@ def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False)
 
 #
 def Sigma(T, TUnc = None):
-
     pCrit = -0 + 0j
     numOut, numIn, numFreq = T.shape
 
@@ -760,6 +740,12 @@ def FFT(x, fs):
     # Perform the fft
     xDft = np.fft.rfft(x, n = nfft)
 
+    # Symmetric about Nyquist
+    if xDft.shape[-1] % 2:
+        xDft[..., 1:] *= 2
+    else: # Last point is unpaired Nyquist freq point, don't double
+        xDft[..., 1:-1] *= 2
+
     # Output as 2D
     freq = np.atleast_2d(freq)
     xDft = np.atleast_2d(xDft)
@@ -798,7 +784,12 @@ def CZTMat(x, zk, N = None):
         # xCztHist = (x.T * cztMat).cumsum(axis = 0) # Inner product to get the full history
         xCztHist[iIn, ...] = (np.atleast_2d(x[iIn]).T * cztMat).T
         
+    # Computed one-sided, symmetric about Nyquist
+    xCztHist *= 2
+    
+    # Summation
     xCzt = xCztHist.sum(axis = -1)
+    
     
     return xCzt, xCztHist
 
@@ -851,7 +842,10 @@ def CZT(x, freq, fs, N = None):
 
     # Compute the Chirp-Z
     xCzt = Wk2 * ifft(vFft * fft(AnWn2 * x, nfft))[..., :M]
-
+    
+    # Computed one-sided, symmetric about Nyquist
+    xCzt *= 2
+    
     # Re-form the frequency vector
     freq = k * freqStep + freqMin
 
