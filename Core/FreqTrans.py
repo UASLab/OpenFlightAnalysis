@@ -35,12 +35,13 @@ class OptSpect:
     freqNull:np.ndarray(0) = None
     dftType:str = 'fft'
     winType:tuple = ('tukey', 0.0)
-    detrendType:str = 'constant'
+    detrendType:str = None
     interpType:str = 'linear'
     smooth:tuple = ('box', 1)
     scaleType:str = 'spectrum'
     freqInterp:np.ndarray(0) = None
     freqNullInterp:bool = False
+    asHist:bool = False
 
 
 #%% Estimate Transfer Function from Time history data
@@ -386,8 +387,11 @@ def Spectrum(x, opt = OptSpect()):
     # Detrend and Window
     lenX = x.shape[-1]
     win = signal.get_window(opt.winType, lenX)
-    xWin = win*x
 
+    if opt.detrendType != None:
+        xWin = win * signal.detrend(x, type = opt.detrendType)
+    else:
+        xWin = win * x
 
     # Compute the Fourier Transforms
     if opt.dftType.lower() == 'fft':
@@ -409,7 +413,9 @@ def Spectrum(x, opt = OptSpect()):
         zPts = np.exp(1j * 2*pi * freq / opt.freqRate)
 
         # Compute the Chirp-Z Transform (Generalized DFT) via a Matrix
-        xDft, xDftHist = CZTMat(xWin, zPts)
+        xDft, xDftHist = DftMat(xWin, zPts)
+        if opt.asHist == True:
+            xDft = xDftHist
 
     if opt.dftType.lower() == 'czt':
         if opt.freq is None:
@@ -431,8 +437,32 @@ def Spectrum(x, opt = OptSpect()):
     return freq, xDft, P
 
 
-#%% Spectrogram
-def SpectTime(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
+#%% Spectrogram Functions
+def SpectTime(t, x, lenStep = 1, opt = OptSpect()):
+    '''
+    x is real
+    returns the onesided DFT
+    fs in rps (required for correct power scale)
+    freq in rps (required for correct power scale)
+    '''
+
+    lenX = len(x)
+    lenFreq = opt.freq.shape[-1]
+
+    numSeg = int((lenX) / lenStep)
+    P_mag = np.zeros((numSeg, lenFreq))
+    tSpec_s = np.zeros((numSeg))
+    for iSeg in range(0, numSeg):
+
+        iSel = np.arange(0, iSeg+1)
+
+        tSpec_s[iSeg] = t[iSeg]
+        if len(iSel) > lenFreq:
+            freq, _, P_mag[iSeg, ] = Spectrum(x[iSel], opt)
+
+    return tSpec_s, freq, P_mag.T
+
+def SpectSlide(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
     '''
     x is real
     returns the onesided DFT
@@ -506,7 +536,7 @@ def PowerScale(scaleType, win, fs_hz = 1):
 
 #%%
 #
-def Gain(T, TUnc = None, magUnit = 'dB'):
+def Gain(T, magUnit = 'dB'):
     gain = np.abs(T)
 
     if magUnit == 'dB':
@@ -515,7 +545,7 @@ def Gain(T, TUnc = None, magUnit = 'dB'):
     return gain
 
 #
-def Phase(T, TUnc = None, phaseUnit = 'rad', unwrap = False):
+def Phase(T, phaseUnit = 'rad', unwrap = False):
     phase = np.angle(T)
 
     if unwrap:
@@ -527,11 +557,94 @@ def Phase(T, TUnc = None, phaseUnit = 'rad', unwrap = False):
     return phase
 
 #
-def GainPhase(T, TUnc = None, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
-    gain = Gain(T, TUnc, magUnit)
-    phase = Phase(T, TUnc, phaseUnit, unwrap)
+def GainPhase(T, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
+    gain = Gain(T, magUnit)
+    phase = Phase(T, phaseUnit, unwrap)
 
     return gain, phase
+
+# Transfer Complimentary Sensitivity to Sensitivity
+def TtoS(TNom, TUnc = None, TCoh = None):
+    
+    I = np.repeat([np.eye(TNom.shape[0])], TNom.shape[-1], axis=0).T
+    
+    SNom = I - TNom
+    
+    if TUnc is not None:
+        SUnc = -TUnc
+    else:
+        SUnc = None
+        
+    if TCoh is not None:
+        SCoh = TCoh #FIXIT - This is not the proper transform
+    else:
+        SCoh = None
+        
+    return SNom, SUnc, SCoh
+
+# Transfer Sensitivity to Complimentary Sensitivity
+def StoT(SNom, SUnc = None, SCoh = None):
+    
+    I = np.repeat([np.eye(SNom.shape[0])], SNom.shape[-1], axis=0).T
+    
+    TNom = I - SNom
+    
+    if SUnc is not None:
+        TUnc = -SUnc
+    else:
+        TUnc = None
+        
+    if SCoh is not None:
+        TCoh = SCoh #FIXIT - This is not the proper transform
+    else:
+        TCoh = None
+        
+    return TNom, TUnc, TCoh
+
+# Transfer Sensitivity to Loop Function
+def StoL(SNom, SUnc = None, SCoh = None):
+    # Li = inv(TNom + TUnc) - I = LNom + LUnc
+    # LNom = -I + TNom^-1
+    # LUnc = -(I + TNom^-1 * TUnc)^-1 * TNom^-1 * TUnc * TNom^-1
+    LNom = np.zeros_like(SNom, dtype = complex)
+    LUnc = np.zeros_like(SUnc, dtype = complex)
+    LCoh = np.zeros_like(SCoh)
+
+    inv = np.linalg.inv
+    I = np.eye(SNom.shape[0])
+    for i in range(SNom.shape[-1]):
+        SNomElem = SNom[...,i]
+        SUncElem = SUnc[...,i]
+        SNomInvElem = inv(SNomElem)
+
+        LNom[...,i] = -I + SNomInvElem
+        
+        if SCoh is not None:
+            # Sherman-Morrison-Woodbury Identity
+            LUnc[...,i] = -inv(I + SNomInvElem @ SUncElem) @ SNomInvElem @ SUncElem @ SNomInvElem
+            
+        if SCoh is not None:
+            LCoh[...,i] = SCoh[...,i] #FIXIT - This is not the proper transform
+    
+    return LNom, LUnc, LCoh
+
+
+# Return complex frequency response
+def FreqResp(sys, freq_rps):
+    gain_mag, phase_rad, _ = control.freqresp(sys, omega = freq_rps)
+    T = gain_mag * np.exp(1j * phase_rad)
+
+    return T
+
+def SigmaTemporal(THist):
+    numSec, numOut, numIn, numFreq = THist.shape
+    
+    sHist = np.zeros((numSec, numFreq))
+    
+    for iSec in range(numSec):
+        sHist[iSec, ...] = Sigma(THist[iSec, ...])
+    
+    return sHist
 
 #
 def Sigma(T):
@@ -556,55 +669,55 @@ def Sigma(T):
     return s
 
 #
-def DistCrit(T, TUnc = None, pCrit = -1 + 0j, typeUnc = 'ellipse'):
+def VectorMargin(T, TUnc = None, pCrit = -1 + 0j, typeUnc = 'ellipse'):
 
     if TUnc is None: # There is no Uncertainty estimate, just return the distance between T and pCrit
-        rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit)
+        vmNom, vmUnc, vm = VectorMarginCirc(T, TUnc, pCrit)
     else:
         if typeUnc == 'circle':
-            rCritNom, rCritUnc, rCrit = DistCritCirc(T, TUnc, pCrit)
+            vmNom, vmUnc, vm = VectorMarginCirc(T, TUnc, pCrit)
         elif typeUnc == 'ellipse':
-            rCritNom, rCritUnc, rCrit, pCont = DistCritEllipse(T, TUnc, pCrit)
+            vmNom, vmUnc, vm, vContact = VectorMarginEllipse(T, TUnc, pCrit)
 
-    return rCritNom, rCritUnc, rCrit
+    return vmNom, vmUnc, vm
 
 
 #
-def DistCritCirc(T, TUnc = None, pCrit = -1 + 0j, typeNorm = 'RSS'):
+def VectorMarginCirc(T, TUnc = None, pCrit = -1 + 0j, typeNorm = 'RSS'):
 
-    rCritNom = np.abs(T - pCrit)
-    rCrit = None
+    vmNom = np.abs(T - pCrit)
+    vm = None
 
     if TUnc is not None:
         if typeNorm.lower() == 'rms':
-            rCritUnc = np.sqrt(0.5) * np.abs(TUnc) # RMS
+            vmUnc = np.sqrt(0.5) * np.abs(TUnc) # RMS
         elif typeNorm.lower() == 'max':
-            rCritUnc = np.max([TUnc.real, TUnc.imag]) # Max
+            vmUnc = np.max([TUnc.real, TUnc.imag]) # Max
         elif typeNorm.lower() == 'mean':
-            rCritUnc = np.mean([TUnc.real, TUnc.imag]) # Mean
+            vmUnc = np.mean([TUnc.real, TUnc.imag]) # Mean
         elif typeNorm.lower() == 'rss':
-            rCritUnc = np.abs(TUnc) # RSS
+            vmUnc = np.abs(TUnc) # RSS
 
     else:
-        rCritUnc = 0.0
+        vmUnc = 0.0
 
-    # Uncertain Distance is the difference between Nominal and rCritUnc Distance
+    # Uncertain Distance is the difference between Nominal and vmUnc Distance
     # If the point is inside the circle return the distance as negative
-    rCrit = rCritNom - rCritUnc
+    vm = vmNom - vmUnc
 
-    return rCritNom, rCritUnc, rCrit
+    return vmNom, vmUnc, vm
 
 #
-def DistCritEllipse(T, TUnc, pCrit = -1 + 0j):
+def VectorMarginEllipse(T, TUnc, pCrit = -1 + 0j):
 
     # Transform coordinates so that T is shifted to [0,0]
     pCrit_new = T - pCrit
 
     # Nominal Distance
-    rCritNom = np.abs(pCrit_new)
+    vmNom = np.abs(pCrit_new)
 
     # Compute the Contact location in new coordinates
-    pCont_new = np.zeros_like(pCrit_new, dtype='complex')
+    vContact_new = np.zeros_like(pCrit_new, dtype='complex')
     inside = np.zeros_like(pCrit_new, dtype='bool')
 
     for indx in np.ndindex(pCrit_new.shape):
@@ -613,20 +726,20 @@ def DistCritEllipse(T, TUnc, pCrit = -1 + 0j):
         p = [pCrit_new[indx].real, pCrit_new[indx].imag]
         pC, i = EllipsePoint(a, b, p)
 
-        pCont_new[indx] = pC[0] + 1j*pC[1]
+        vContact_new[indx] = pC[0] + 1j*pC[1]
         inside[indx] = i
 
     # Transform back to original coordinates
-    pCont = T + pCont_new
+    vContact = T + vContact_new
 
     # Compute the distance to the contact point
-    rCrit = np.abs(pCont - pCrit)
-    rCrit[inside] = -rCrit[inside] # If the point is inside the ellipse return the distance as negative
+    vm = np.abs(vContact - pCrit)
+    vm[inside] = -vm[inside] # If the point is inside the ellipse return the distance as negative
 
-    # rCrit is the difference between Nominal and Uncertain Distance
-    rCritUnc = np.abs(pCont - T)
+    # vm is the difference between Nominal and Uncertain Distance
+    vmUnc = np.abs(vContact - T)
 
-    return rCritNom, rCritUnc, rCrit, pCont
+    return vmNom, vmUnc, vm, vContact
 
 
 # Find the closes point between a give location to edge of ellipse
@@ -667,9 +780,9 @@ def EllipsePoint(a, b, p):
         tx /= t
         ty /= t
 
-    pCont = (np.copysign(a*tx, p[0]), np.copysign(b*ty, p[1]))
+    vContact = (np.copysign(a*tx, p[0]), np.copysign(b*ty, p[1]))
 
-    return pCont, inside
+    return vContact, inside
 
 
 # Distance to Ellipse, with rotation
@@ -685,19 +798,19 @@ def DistEllipseRot(pEllipse, a, b, a_deg, pCrit):
     pCrit_new = R.T @ (pCrit - pEllipse)
 
     # Compute the Contact location in new coordinates
-    pCont_new, inside = EllipsePoint(a, b, pCrit_new)
+    vContact_new, inside = EllipsePoint(a, b, pCrit_new)
 
     # Transform back to original coordinates
-    pCont = R @ pCont_new + pEllipse
+    vContact = R @ vContact_new + pEllipse
 
     # Compute the distance to the contact point
-    dist = np.linalg.norm(pCont - pCrit, 2)
+    vDist = np.linalg.norm(vContact - pCrit, 2)
 
     # If the point is inside the ellipse return the distance as negative
     if inside:
-        dist = -abs(dist)
+        vDist = -abs(vDist)
 
-    return pCont, dist
+    return vContact, vDist
 
 from scipy import optimize
 def Sigma_SSV(M):
@@ -756,8 +869,8 @@ def FFT(x, fs):
     return freq, xDft
 
 
-#%% Compute the Chirp-Z Transform via Matrix
-def CZTMat(x, zk, N = None):
+#%% Compute the DFT Transform via Matrix
+def DftMat(x, zk, N = None):
     '''
     x is real
     returns the onesided DFT
@@ -774,27 +887,27 @@ def CZTMat(x, zk, N = None):
     # Index
     n = np.arange(N, dtype = float) # time indices
 
-    xCztHist = np.empty((x.shape[0], zk.shape[-1], N), dtype = complex)
+    xDftHist = np.empty((x.shape[0], zk.shape[-1], N), dtype = complex)
     for iIn in range(x.shape[0]):
 
         # Compute the Chirp-Z Matrix
-        # cztMat = np.power(zk.T, -n).T
-        cztMat = np.power(np.atleast_2d(zk[iIn]).T, -n).T
+        # DftMat = np.power(zk.T, -n).T
+        DftMat = np.power(np.atleast_2d(zk[iIn]).T, -n).T
 
         # Compute the Chirp-Z Transform
-        # xCzt = x @ cztMat # This works... but doesn't provide history
+        # xDft = x @ DftMat # This works... but doesn't provide history
 
-        # xCztHist = (x.T * cztMat).cumsum(axis = 0) # Inner product to get the full history
-        xCztHist[iIn, ...] = (np.atleast_2d(x[iIn]).T * cztMat).T
+        # xDftHist = (x.T * DftMat).cumsum(axis = 0) # Inner product to get the full history
+        xDftHist[iIn, ...] = (np.atleast_2d(x[iIn]).T * DftMat).T
 
     # Computed one-sided, symmetric about Nyquist
-    xCztHist *= 2
+    xDftHist *= 2
 
     # Summation
-    xCzt = xCztHist.sum(axis = -1)
+    xDft = xDftHist.sum(axis = -1)
 
 
-    return xCzt, xCztHist
+    return xDft, xDftHist
 
 
 #%% Compute the Chirp-Z Transform via Blustein Algorithm
@@ -888,107 +1001,51 @@ def Smooth(x, kern = ('box', 1), padMode = 'edge', convMode = 'valid'):
     return xSmooth
 
 #%% Plotting
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as plticker
 import matplotlib.figure
 # import matplotlib.gridspec as gridspec
 import matplotlib.patches as patch
 
+# For print pretty to latex
+mpl.rcParams.update({
+    "pgf.texsystem": "pdflatex",
+    'font.family': 'serif',
+    "font.serif": ["Palatino"],
+    'text.usetex': True,
+    'pgf.rcfonts': False,
+})
 
-# SISO Bode Plot
-def PlotBode(freq, gain_mag, phase_deg, coher_nd = None, gainUnc_mag = None, fig = None, linestyle = '-', color = 'k', label = '', dB = True):
+# Bode/VM/Sigma uncertainty points, as Circles
+def PlotGainUncPts(freq, gain_mag, gainUnc_mag, ax = None, **pltArgs):
+    for iFreq, f in enumerate(freq):
+        gNom = gain_mag[iFreq]
+        gUnc = gainUnc_mag[iFreq]
+        
+        uncPatch = patch.Ellipse((f, gNom), 2*gUnc, 2*gUnc, alpha = 0.25, **pltArgs)
+        ax.add_artist(uncPatch)
 
-    plotCohere = True
-    if coher_nd is None:
-        plotCohere = False
+    return ax
 
-    if isinstance(fig, matplotlib.figure.Figure):
-        ax = fig.get_axes()
+# Bode/VM/Sigma uncertainty points, as Fill
+def PlotGainUncFill(freq, gainMin, gainMax, ax = None, **pltArgs):
+    ax.fill_between(freq, gainMin, gainMax, alpha = 0.25, **pltArgs)
+        
+    return ax
 
-    elif isinstance(fig, int) and plt.fignum_exists(fig):
-        fig = plt.figure(fig) # Get the figure handle by label
-        ax = fig.get_axes()
-    else:
-        fig = plt.figure(constrained_layout = True, num = fig)
 
-        if plotCohere:
-            spec = fig.add_gridspec(ncols=1, nrows=3, height_ratios=[1,1,1])
-        else:
-            spec = fig.add_gridspec(ncols=1, nrows=2, height_ratios=[1,1])
+# SISO Bode/VM/Sigma Plot
+def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag = None, fig = None, dB = True, UncSide = None, **pltArgs):
 
-        ax = []
-        ax.append(fig.add_subplot(spec[0,0]))
-        ax.append(fig.add_subplot(spec[1,0], sharex=ax[0]))
-        plt.setp(ax[0].get_xticklabels(), visible=False)
-
-        if plotCohere:
-            plt.setp(ax[1].get_xticklabels(), visible=False)
-            ax.append(fig.add_subplot(spec[2,0], sharex=ax[0]))
-
-    # Coherence
-    if coher_nd is None:
-        coher_nd = np.ones_like(freq)
-
-    # Make the plots
-    if gainUnc_mag is None:
-        if dB:
-            ax[0].semilogx(freq, mag2db(gain_mag), linestyle + color, label = label)
-            ax[0].set_ylabel('Gain [dB]')
-        else:
-            ax[0].semilogx(freq, gain_mag, linestyle + color, label = label)
-            ax[0].set_ylabel('Gain [mag]')
-    else:
-        ax[0].set_xscale("log", nonposx='clip')
-
-        if dB:
-            # Uncertainty in dB needs some work...
-            gainUncRatio = gainUnc_mag / gain_mag
-            gainUncMin = 1 - gainUncRatio
-            gainUncMin[gainUncMin < 0] = np.finfo(float).tiny
-            gainUncMin_db = -mag2db(gainUncMin)
-
-            gainUncMax = 1 + gainUncRatio
-            gainUncMax_db = mag2db(gainUncMax)
-
-            # ax[0].errorbar(freq, mag2db(gain_mag),  yerr = gainUnc_dB, fmt = linestyle + color, elinewidth = 0, capsize = 2, label = label)
-            ax[0].plot(freq, mag2db(gain_mag), linestyle + color, label = label)
-            ax[0].fill_between(freq, gainUncMin_db, gainUncMax_db, alpha = 0.25, color = color, linestyle = linestyle, label = label)
-
-            ax[0].set_ylabel('Gain [dB]')
-            ax[0].set_ylim(bottom = mag2db(0.8*np.min(gain_mag)), top = 1.2*mag2db(0.8*np.max(gain_mag)))
-        else:
-            # ax[0].errorbar(freq, gain_mag,  yerr = gainUnc_mag, fmt = linestyle + color, elinewidth = 0, capsize = 2, label = label)
-            ax[0].plot(freq, gain_mag, linestyle + color, label = label)
-            ax[0].fill_between(freq, gain_mag - gainUnc_mag, gain_mag + gainUnc_mag, alpha = 0.25, color = color, linestyle = linestyle, label = label)
-
-            ax[0].set_ylabel('Gain [mag]')
-
-    ax[0].grid(True)
-
-    ax[1].semilogx(freq, phase_deg, linestyle + color, label = label)
-    ax[1].yaxis.set_major_locator(plticker.MultipleLocator(180))
-    ax[1].grid(True)
-    ax[1].set_ylabel('Phase [deg]')
-
-    # Plot the Coherence
+    plotCohere = False
     if coher_nd is not None:
-        ax[-1].semilogx(freq, coher_nd, linestyle + color, label = label)
-        ax[-1].grid(True)
-        ax[-1].set_ylabel('Coherence [mag]')
-        ax[-1].set_ylim(0, 1)
+        plotCohere = True
 
-    ax[-1].set_xlabel('Freq [Hz]')
-    ax[0].legend(loc = 'right')
-
-    return fig
-
-# SISO BodeMag Plot
-def PlotBodeMag(freq, gain_mag, coher_nd = None, gainUnc_mag = None, fig = None, linestyle = '-', color = 'k', label='', dB = True):
-
-    plotCohere = True
-    if coher_nd is None:
-        plotCohere = False
-
+    plotPhase = False
+    if phase_deg is not None:
+        plotPhase = True
+    
     if isinstance(fig, matplotlib.figure.Figure):
         ax = fig.get_axes()
 
@@ -997,151 +1054,177 @@ def PlotBodeMag(freq, gain_mag, coher_nd = None, gainUnc_mag = None, fig = None,
         ax = fig.get_axes()
     else:
         fig = plt.figure(constrained_layout = True, num = fig)
+        ax = []
 
-        if plotCohere:
+        if plotCohere and plotPhase: # Gain, Phase, and Coherence
+            spec = fig.add_gridspec(ncols=1, nrows=3, height_ratios=[1,1,1])
+        elif plotCohere: # Gain and Coherence
             spec = fig.add_gridspec(ncols=1, nrows=2, height_ratios=[2,1])
+        elif plotPhase: # Gain and Phase
+            spec = fig.add_gridspec(ncols=1, nrows=2, height_ratios=[1,1])
         else:
             spec = fig.add_gridspec(ncols=1, nrows=1, height_ratios=[1])
-
-        ax = []
-        ax.append(fig.add_subplot(spec[0,0]))
-
-        if plotCohere:
-            plt.setp(ax[0].get_xticklabels(), visible=False)
-            ax.append(fig.add_subplot(spec[1,0], sharex=ax[0]))
-
-    # Coherence
-    if coher_nd is None:
-        coher_nd = np.ones_like(freq)
-
-    # Make the plots
-    if gainUnc_mag is None:
-        if dB:
-            ax[0].semilogx(freq, mag2db(gain_mag), linestyle + color, label = label)
-            ax[0].set_ylabel('Gain [dB]')
-        else:
-            ax[0].semilogx(freq, gain_mag, linestyle + color, label = label)
-            ax[0].set_ylabel('Gain [mag]')
+        
+        for i, s in enumerate(spec):
+            if i == 0:
+                ax.append(fig.add_subplot(s)) # Gain
+            else:
+                ax.append(fig.add_subplot(s, sharex=ax[0]))
+        
+        for a in ax[:-1]:
+            plt.setp(a.get_xticklabels(), visible=False)
+    
+    # Plot the Gain
+    if dB:
+        ax[0].semilogx(freq, mag2db(gain_mag), **pltArgs)
+        ax[0].set_ylabel('Gain [dB]')
     else:
-        ax[0].set_xscale("log", nonposx='clip')
-
-        if dB:
-            # Uncertainty in dB needs some work...
-            gainUncRatio = gainUnc_mag / gain_mag
-            gainUncMin = 1 - gainUncRatio
-            gainUncMin[gainUncMin < 0] = np.finfo(float).tiny
-            gainUncMin_db = -mag2db(gainUncMin)
-
-            gainUncMax = 1 + gainUncRatio
-            gainUncMax_db = mag2db(gainUncMax)
-
-            gainUnc_dB = [gainUncMin_db, gainUncMax_db]
-
-            # ax[0].errorbar(freq, mag2db(gain_mag),  yerr = gainUnc_dB, fmt = linestyle + color, elinewidth = 0, capsize = 2, label = label)
-            ax[0].fill_between(freq, gainUncMin_db, gainUncMax_db, alpha = 0.25, color = color, linestyle = linestyle, label = label)
-            ax[0].set_ylabel('Gain [dB]')
-        else:
-            # ax[0].errorbar(freq, gain_mag,  yerr = gainUnc_mag, fmt = linestyle + color, elinewidth = 0, capsize = 2, label = label)
-            ax[0].fill_between(freq, gain_mag - gainUnc_mag, gain_mag + gainUnc_mag, alpha = 0.25, color = color, linestyle = linestyle, label = label)
-
-            ax[0].set_ylabel('Gain [mag]')
-
-    ax[0].grid(True)
+        ax[0].semilogx(freq, gain_mag, **pltArgs)
+        ax[0].set_ylabel('Gain [mag]')
+    
+    # Plot the Phase
+    if plotPhase:
+        ax[1].semilogx(freq, phase_deg, **pltArgs)
+        ax[1].yaxis.set_major_locator(plticker.MultipleLocator(90))
+        ax[1].grid(True)
+        ax[1].set_ylabel('Phase [deg]')
 
     # Plot the Coherence
-    if coher_nd is not None:
-        ax[-1].semilogx(freq, coher_nd, linestyle + color, label = label)
+    if plotCohere:
+        if coher_nd is None:
+            coher_nd = np.ones_like(freq)
+        
+        ax[-1].semilogx(freq, coher_nd, **pltArgs)
         ax[-1].grid(True)
         ax[-1].set_ylabel('Coherence [mag]')
         ax[-1].set_ylim(0, 1)
+    
+    # Plot the Uncertainty on the Gain plot
+    if gainUnc_mag is not None:
 
+        ax[0].set_xscale("log", nonposx='clip')
+                
+        if UncSide == 'Max':
+            gainUncMin_mag = gain_mag
+        else:
+            gainUncMin_mag = gain_mag - 0.5 * np.abs(gainUnc_mag)
+            
+        if UncSide == 'Min':
+            gainUncMax_mag = gain_mag
+        else:
+            gainUncMax_mag = gain_mag + 0.5 * np.abs(gainUnc_mag)
+        
+        if 'marker' in pltArgs: pltArgs.pop('marker')
+        
+        if dB:
+            gainUncMax_dB = mag2db(gainUncMax_mag)
+            gainUncMin_dB = mag2db(gainUncMin_mag)
+            
+            ax[0] = PlotGainUncFill(freq, gainUncMin_dB, gainUncMax_dB, ax = ax[0], **pltArgs)
+            
+        else:
+            ax[0] = PlotGainUncFill(freq, gainUncMin_mag, gainUncMax_mag, ax = ax[0], **pltArgs)
+            
+
+    # Make prettier
+    ax[0].grid(True)
     ax[-1].set_xlabel('Freq [Hz]')
     ax[0].legend(loc = 'right')
 
     return fig
 
+# SISO Bode Plot
+def PlotBode(freq, gain_mag, phase_deg, coher_nd = None, gainUnc_mag = None, fig = None, dB = False, **pltArgs):
+    fig = PlotGainType(freq, gain_mag, phase_deg, coher_nd, gainUnc_mag, fig = fig, dB = dB, **pltArgs)
+    
+    ax = fig.get_axes()
+    ax[0].set_xscale("log")
+        
+    return fig
+
+# SISO Vector Margin Plot
+def PlotVectorMargin(freq, vm_mag, coher_nd = None, vmUnc_mag = None, fig = None, **pltArgs):
+    fig = PlotGainType(freq, vm_mag, None, coher_nd, vmUnc_mag, fig = fig, dB = False, UncSide='Min', **pltArgs)
+    
+    ax = fig.get_axes()
+    ax[0].set_xscale("linear")
+    ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Vector Margin'))
+    
+    return fig
+
+# SISO Sigma Plot
+def PlotSigma(freq, sv_mag, coher_nd = None, svUnc_mag = None, fig = None, **pltArgs):
+    fig = PlotGainType(freq, sv_mag, None, coher_nd, svUnc_mag, fig = fig, dB = False, UncSide='Min', **pltArgs)
+    
+    ax = fig.get_axes()
+    ax[0].set_xscale("linear")
+    ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Sigma'))
+    
+    return fig
+    
+# Bode/VM/Sigma Time History Plot
+def PlotGainTemporal(time_s, gain_mag, phase_deg, coher_nd = None, gainUnc_mag = None, fig = None, dB = True, UncSide = None, **pltArgs):
+    fig = PlotGainType(time_s, gain_mag, phase_deg, coher_nd, gainUnc_mag, fig = fig, dB = dB, UncSide = UncSide, **pltArgs)
+    
+    ax = fig.get_axes()
+    ax[0].set_xscale("linear")
+    ax[-1].set_xlabel("Time [s]")
+    
+    return fig
+    
+# SISO Vector Margin Plot - Temporal
+def PlotVectorMarginTemporal(time_s, vm_mag, coher_nd = None, vmUnc_mag = None, fig = None, dB = False, **pltArgs):
+    fig = PlotGainTemporal(time_s, vm_mag, None, coher_nd, vmUnc_mag, fig = fig, dB = dB, UncSide = 'Min', **pltArgs)
+    
+    ax = fig.get_axes()
+    ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Vector Margin'))
+    
+    return fig
+    
+# SISO Sigma Plot - Temporal
+def PlotSigmaTemporal(time_s, sv_mag, coher_nd = None, svUnc_mag = None, fig = None, dB = False, **pltArgs):
+    fig = PlotGainTemporal(time_s, sv_mag, None, coher_nd, svUnc_mag, fig = fig, dB = dB, UncSide = 'Min', **pltArgs)
+    
+    ax = fig.get_axes()
+    ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Sigma'))
+    
+    return fig
 
 
-# Nyquist uncertainty points, Circles
-def PlotUncPts(T, TUnc, ax = None, color = 'k'):
+# Nyquist uncertainty points, as Circles
+def PlotNyquistUncPts(T, TUnc, ax = None, **pltArgs):
+
     for iNom, nom in enumerate(T):
         unc = TUnc[iNom]
         if unc.imag == 0:
-            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, color=color, alpha = 0.25)
+            uncPatch = patch.Ellipse((nom.real, nom.imag), unc, unc, alpha = 0.25, **pltArgs)
         else:
-            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc.real, 2*unc.imag, color=color, alpha = 0.25)
+            uncPatch = patch.Ellipse((nom.real, nom.imag), unc.real, unc.imag, alpha = 0.25, **pltArgs)
+        
         ax.add_artist(uncPatch)
 
     return ax
 
 # Nyquist uncertainty points, Fill
-def PlotUncFill(T, TUnc, ax=None, color = 'k'):
+def PlotNyquistUncFill(T, TUnc, ax = None, **pltArgs):
 
     diffT = np.diff(T, append=0)
     pathVec = diffT / np.abs(diffT)
     perpVec = pathVec.imag - 1j * pathVec.real
-    TMin = T - perpVec * np.abs(TUnc)
-    TMax = T + perpVec * np.abs(TUnc)
+    TMin = T - perpVec * 0.5 * np.abs(TUnc)
+    TMax = T + perpVec * 0.5 * np.abs(TUnc)
 
     re = np.hstack((TMin.real, np.flip(TMax.real)))
     im = np.hstack((TMin.imag, np.flip(TMax.imag)))
 
-    ax.fill(re, im, color, alpha = 0.25)
+    ax.fill(re, im, alpha = 0.25, **pltArgs)
 
     return ax
 
-
-# MIMO Nyqiost Plot
-def PlotNyquistMimo(T, TUnc = None, fig = None, linestyle = '-', color = 'k', fillType = 'circle', label = ''):
-
-    ncols, nrows = T.shape[0:-1]
-    plotArray = np.array(np.meshgrid(np.arange(ncols), np.arange(nrows))).T.reshape(-1, 2)
-
-    if isinstance(fig, matplotlib.figure.Figure):
-        ax = fig.get_axes()
-
-    elif isinstance(fig, int) and plt.fignum_exists(fig):
-        fig = plt.figure(fig) # Get the figure handle by label
-        ax = fig.get_axes()
-
-    else:
-        fig = plt.figure(constrained_layout = True, num = fig)
-        spec = fig.add_gridspec(ncols = ncols, nrows = nrows)
-        ax = []
-        ax.append(fig.add_subplot(spec))
-
-
-    for iPlot in plotArray:
-        [iOut, iIn] = iPlot
-
-        ax[iOut, iIn].plot(T[iOut, iIn].real, T[iOut, iIn].imag, linestyle + color, label = label)
-
-
-        if fillType == 'circle':
-            PlotUncPts(T[iOut, iIn], np.abs(TUnc[iOut, iIn]), ax[iOut, iIn], color=color)
-        elif fillType == 'ellipse':
-            PlotUncPts(T[iOut, iIn], TUnc[iOut, iIn], ax[iOut, iIn], color=color)
-        elif fillType == 'solid':
-            PlotUncFill(T[iOut, iIn], TUnc[iOut, iIn], ax[iOut, iIn], color=color)
-
-
-        ax[iOut, iIn].grid(True)
-        ax[iOut, iIn].tick_params(axis = 'both')
-        # critPatch = patch.Ellipse((-1, 0), 2*0.4, 2*0.4, color='r', alpha=0.25)
-        # ax[iOut, iIn].add_artist(critPatch)
-        # ax[iOut, iIn].plot(-1, 0, '+r')
-        ax[iOut, iIn].set_xlabel('Real')
-        ax[iOut, iIn].set_ylabel('Imag')
-
-    ax[0, 0].legend()
-
-    return
-
-
 # SISO Nyquist Plot
-def PlotNyquist(T, TUnc = None, fig = None, linestyle = '-', color = 'k', label=''):
+def PlotNyquist(T, TUnc = None, fig = None, fillType = 'circle', **pltArgs):
 
-    if isinstance(fig, matplotlib.figure.Figure):
+    if isinstance(fig, mpl.figure.Figure):
         ax = fig.get_axes()
 
     elif isinstance(fig, int) and plt.fignum_exists(fig):
@@ -1154,12 +1237,17 @@ def PlotNyquist(T, TUnc = None, fig = None, linestyle = '-', color = 'k', label=
         ax.append(fig.add_subplot(spec[0,0]))
 
     # Make the plots
-    p = ax[0].plot(T.real, T.imag, linestyle + color, label = label)
+    ax[0].plot(T.real, T.imag, **pltArgs)
 
+    if 'marker' in pltArgs: pltArgs.pop('marker')
+                
     if TUnc is not None:
-        ax[0] = PlotUncPts(T, TUnc, ax = ax[0], color = p[-1].get_color())
-        #ax[0].set_label(label)
-
+        if fillType == 'circle':
+            ax[0] = PlotNyquistUncPts(T, np.abs(TUnc), ax = ax[0], **pltArgs)
+        elif fillType == 'elipse':
+            ax[0] = PlotNyquistUncPts(T, TUnc, ax = ax[0], **pltArgs)
+        elif fillType == 'fill':
+            ax[0] = PlotNyquistUncFill(T, TUnc, ax = ax[0], **pltArgs)
 
     ax[0].grid(True)
     ax[0].set_xlabel('Real [mag]')
@@ -1169,55 +1257,63 @@ def PlotNyquist(T, TUnc = None, fig = None, linestyle = '-', color = 'k', label=
     return fig
 
 
-# Singular Value / Critical Distance Plot
-def PlotSigma(freq, sigma, lower = None, coher_nd = None, fig = None, color = 'k', linestyle = '-', label=''):
-
-    plotCohere = True
-    if coher_nd is None:
-        plotCohere = False
-
-    if isinstance(fig, matplotlib.figure.Figure):
-        ax = fig.get_axes()
-
+def PlotGetExist(ioArray, fig = None):
+    
+    ncols, nrows = ioArray.shape[0:-1]
+    if isinstance(fig, mpl.figure.Figure):
+        fig
+        
     elif isinstance(fig, int) and plt.fignum_exists(fig):
         fig = plt.figure(fig) # Get the figure handle by label
-        ax = fig.get_axes()
+
     else:
         fig = plt.figure(constrained_layout = True, num = fig)
-        if plotCohere:
-            spec = fig.add_gridspec(ncols=1, nrows=2, height_ratios=[2,1])
+        spec = fig.add_gridspec(ncols = ncols, nrows = nrows)
+        ioArray = np.reshape(ioArray, (ncols*nrows,-1))
+                
+        for iPlot in ioArray:
+            [iOut, iIn] = iPlot
+            fig.add_subplot(spec[iOut, iIn])
+    
+    # Get the fig axes
+    ax = fig.get_axes()
+    
+    ax = np.asarray(ax)
+    ax = ax.reshape(ncols, nrows).T
+    
+    return fig, ax
+
+# Fix the Legends to that the Nominal and Uncertainty use the same label
+def FixLegend(ax):
+    handles, labels = ax.get_legend_handles_labels()
+    lNew = []
+    hNew = []
+    
+    for iHandle, handle in enumerate(handles):
+        label = labels[iHandle]
+        if label in labels[iHandle+1:]:
+            iMatch = labels[iHandle+1:].index(label)+1
+            hNew.append((handle, handles[iMatch]))
+            
+            labels[iMatch] = None
+            handles[iMatch] = None
         else:
-            spec = fig.add_gridspec(ncols=1, nrows=1, height_ratios=[1])
+            hNew.append(handle)
+    
+        lNew.append(label)
+        
+        ax.legend(hNew, lNew)
+    
+    return ax
 
-        ax = []
-        ax.append(fig.add_subplot(spec[0,0]))
 
-        if plotCohere:
-            ax.append(fig.add_subplot(spec[1,0], sharex=ax[0]))
-            plt.setp(ax[0].get_xticklabels(), visible=False)
-
-
-    # Make the plots, # Plot the uncertainty as errorbars
-    if lower is None:
-        ax[0].plot(freq.T, sigma.T, linestyle + color, label = label)
-    else:
-        # ax[0].errorbar(freq.T, sigma.T, yerr = err, fmt = linestyle + color, elinewidth = 0, capsize = 2, label = label, uplims = True)
-        ax[0].plot(freq.T, sigma.T, linestyle + color, label = label)
-        ax[0].fill_between(freq.T, lower.T, sigma.T, alpha = 0.25, color = color, linestyle = linestyle, label = label)
-
-    ax[0].grid(True)
-    ax[0].set_xlim(left = 0.0)
-    ax[0].set_ylim(bottom = 0.0)
-    ax[0].set_ylabel('Singular Value [mag]')
-
-    # Plot the Coherence
-    if coher_nd is not None:
-        ax[-1].plot(freq.T, coher_nd.T, linestyle + color, label = label)
-        ax[-1].grid(True)
-        ax[-1].set_ylabel('Coherence [mag]')
-        ax[-1].set_ylim(0, 1)
-
-    ax[0].legend(loc = 'right')
-    ax[-1].set_xlabel('Freq [Hz]')
-
-    return fig
+def PrintPrettyFig(fig, fileName, backend='pgf', size_inches = None):
+    backend_bak = mpl.get_backend()
+    if size_inches is None:
+        size_inches = fig.get_size_inches()
+    
+    mpl.use(backend)
+    fig.set_size_inches(size_inches)
+    fig.savefig(fileName)
+    
+    mpl.use(backend_bak)

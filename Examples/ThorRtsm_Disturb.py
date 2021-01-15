@@ -28,12 +28,12 @@ from Core import Loader
 from Core import OpenData
 
 
-# plt.rcParams.update({
-#     "text.usetex": True,
-#     "font.family": "serif",
-#     "font.serif": ["Palatino"],
-#     "font.size": 10
-# })
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Palatino"],
+    "font.size": 10
+})
 
 # Constants
 hz2rps = 2 * np.pi
@@ -43,8 +43,8 @@ rps2hz = 1 / hz2rps
 #%% File Lists
 import os.path as path
 
-# pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Thor')
-pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Thor')
+pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Thor')
+#pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Thor')
 
 fileList = {}
 flt = 'FLT126'
@@ -192,93 +192,58 @@ optSpec.freqNull = freqNull_rps
 optSpec.freqNullInterp = True
 
 # FRF Estimate
+TaEstNomList = []
+TaEstUncList = []
+TaEstCohList = []
 SaEstNomList = []
+SaEstUncList = []
+SaEstCohList = []
 LaEstNomList = []
 LaEstUncList = []
 LaEstCohList = []
 
-
 for iSeg, seg in enumerate(oDataSegs):
 
-    freq_rps, Teb, Ceb, Pee, Pbb, Peb, TebUnc, Pee_N, Pbb_N = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vFbList[iSeg] + vExcList[iSeg], optSpec)
-    # _       , Tev, Cev, _  , Pvv, Pev, TevUnc, _    , Pvv_N = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vCmdList[iSeg], optSpec)
+    freq_rps, Txy, Cxy, Sxx, Syy, Sxy, TxyUnc, SxxNull, Snn = FreqTrans.FreqRespFuncEstNoise(vExcList[iSeg], vFbList[iSeg], optSpec)
     freq_hz = freq_rps * rps2hz
 
-    print(np.sum(Pee_N, axis = -1))
+    TaEstNom = -Txy # Sa = I - Ta
+    TaEstUnc = TxyUnc # TxuUnc = np.abs(Sxu / Sxx)
+    TaEstCoh = Cxy # Cxy = np.abs(Sxu)**2 / (Sxx * Suu)
 
-    SaEstNom = Teb # Txy = Sxy / Sxx
-    SaEstUnc = TebUnc # TxyUnc = np.abs(Sxn / Sxx)
-    SaEstCoh = Ceb # Cxy = np.abs(Sxy)**2 / (Sxx * Syy) = (np.abs(Sxy) / Sxx) * (np.abs(Sxy) / Syy)
+    SaEstNom, SaEstUnc, SaEstCoh = FreqTrans.TtoS(TaEstNom, TaEstUnc, TaEstCoh)
+    LaEstNom, LaEstUnc, LaEstCoh = FreqTrans.StoL(SaEstNom, SaEstUnc, SaEstCoh)
 
-    SaEstSNR = np.abs(SaEstNom / SaEstUnc)**2
-    SaEstMeanSNR = np.mean(SaEstSNR, axis = -1)
-
-    # T = TNom + TUnc = (uCtrl + uExc) / uExc - uNull / uExc
-    # Li = inv(TNom + TUnc) - I = LaEstNom + LaEstUnc
-    # LaEstNom = -I + TNom^-1
-    # LaEstUnc = -(I + TNom^-1 * TUnc)^-1 * TNom^-1 * TUnc * TNom^-1
-    LaEstNom = np.zeros_like(SaEstNom, dtype = complex)
-    LaEstUnc = np.zeros_like(SaEstUnc, dtype = complex)
-    LaEstCoh = np.zeros_like(SaEstCoh)
-
-    inv = np.linalg.inv
-
-    for i in range(SaEstNom.shape[-1]):
-        SaEstNomElem = SaEstNom[...,i]
-        SaEstUncElem = SaEstUnc[...,i]
-        SaEstNomInvElem = inv(SaEstNomElem)
-
-        LaEstNom[...,i] = -np.eye(3) + SaEstNomInvElem
-        LaEstUnc[...,i] = -inv(np.eye(3) + SaEstNomInvElem * SaEstUncElem) * SaEstNomInvElem * SaEstUncElem * SaEstNomInvElem
-        # LaEstCoh[...,i] = -np.eye(3) + inv(SaEstCoh[...,i])
-        LaEstCoh[...,i] = SaEstCoh[...,i]
-
-    LaEstSNR = np.abs(LaEstNom / LaEstUnc)**2
-    LaEstMeanSNR = np.mean(LaEstSNR, axis = -1)
-
+    TaEstNomList.append( TaEstNom )
+    TaEstUncList.append( TaEstUnc )
+    TaEstCohList.append( TaEstCoh )
     SaEstNomList.append( SaEstNom )
+    SaEstUncList.append( SaEstUnc )
+    SaEstCohList.append( SaEstCoh )
     LaEstNomList.append( LaEstNom )
     LaEstUncList.append( LaEstUnc )
     LaEstCohList.append( LaEstCoh )
 
-
+    print(np.sum(SxxNull, axis = -1) / np.sum(Sxx, axis = -1))
 
 T_InputNames = sigExcList
 T_OutputNames = sigFbList
 
 # Compute Gain, Phase, Crit Distance
-gainLaEstNomList_mag = []
-gainLaEstUncList_mag = []
-phaseLaEstNomList_deg = []
-svLaEstNomList = []
-svLaEstUncList = []
-rCritLaEstNomList_mag = []
-rCritLaEstUncList_mag = []
-
-for iSeg in range(0, len(oDataSegs)):
-
-    gain_mag, phase_deg = FreqTrans.GainPhase(LaEstNomList[iSeg], magUnit = 'mag', phaseUnit = 'deg', unwrap = True)
-
-    gainLaEstNomList_mag.append(gain_mag)
-    phaseLaEstNomList_deg.append(phase_deg)
-
-    I3 = np.repeat([np.eye(3)], Teb.shape[-1], axis=0).T
-    # sv_mag = FreqTrans.Sigma( I3 + LaEstNomList[iSeg] ) # Singular Value Decomp
-    sv_mag = 1 / FreqTrans.Sigma(SaEstNomList[iSeg]) # sv(I + La) = 1 / sv(Sa)
-    svLaEstNomList.append(sv_mag)
-
-    svUnc_mag = FreqTrans.Sigma( LaEstUncList[iSeg] ) # Singular Value Decomp
-    svLaEstUncList.append(svUnc_mag)
-
-#    rCrit_mag, rCritUnc_mag, diff_mag = FreqTrans.DistCrit(LaEstNomList[iSeg], LaEstUncList[iSeg], typeUnc = 'ellipse')
-    rCrit_mag, rCritUnc_mag, diff_mag = FreqTrans.DistCritCirc(LaEstNomList[iSeg], LaEstUncList[iSeg])
-
-    rCritLaEstNomList_mag.append(rCrit_mag)
-    rCritLaEstUncList_mag.append(rCritUnc_mag)
-    # rCrit_mag.append(diff_mag)
-
 
 #%% Sigma Plot
+svLaEstNomList = []
+svLaEstUncList = []
+
+for iSeg in range(0, len(oDataSegs)):
+    # I3 = np.repeat([np.eye(3)], SaEstNomList.shape[-1], axis=0).T
+    # svLaEstNom_mag = FreqTrans.Sigma( I3 + LaEstNomList[iSeg] ) # Singular Value Decomp
+    svLaEstNom_mag = 1 / FreqTrans.Sigma(SaEstNomList[iSeg]) # sv(I + La) = 1 / sv(Sa)
+    svLaEstUnc_mag = FreqTrans.Sigma( LaEstUncList[iSeg] ) # Singular Value Decomp
+    
+    svLaEstNomList.append(svLaEstNom_mag)
+    svLaEstUncList.append(svLaEstUnc_mag)
+    
 if True:
     fig = None
     for iSeg in range(0, len(oDataSegs)):
@@ -292,12 +257,9 @@ if True:
         svUncMax = np.max(svUnc, axis=0)
 
         svUncLower = svNomMin - svUncMax
+        svUncLower[svUncLower < 0] = svNomMin[svUncLower < 0]
 
-
-        # fig = FreqTrans.PlotSigma(freq_hz[0], svNom, err = svUnc, coher_nd = cohLaEstMin, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
-        fig = FreqTrans.PlotSigma(freq_hz[0], svNomMin, lower = svUncLower, coher_nd = cohLaEstMin, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
-        # fig = FreqTrans.PlotSigma(freq_hz[0], svUncMax, coher_nd = cohLaEstMin, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
-        # fig = FreqTrans.PlotSigma(freq_hz[0], svNomMinErr, coher_nd = cohLaEstMin, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = ':', label = oDataSegs[iSeg]['Desc'])
+        fig = FreqTrans.PlotSigma(freq_hz[0], svNomMin, svUnc_mag = svUncLower, coher_nd = cohLaEstMin, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
 
     fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), color = 'r', linestyle = '--', fig = fig)
 
@@ -307,90 +269,102 @@ if True:
 
 
 #%% Vector Margin Plots
-inPlot = sigExcList # Elements of sigExcList
-outPlot = sigFbList # Elements of sigFbList
+inPlot = ['$p_{ex}$', '$q_{ex}$', '$r_{ex}$'] # Elements of sigExcList
+outPlot = ['$p_{fb}$', '$q_{fb}$', '$r_{fb}$'] # Elements of sigFbList
 
-if True:
-    for iOut, outName in enumerate(outPlot):
-        for iIn, inName in enumerate(inPlot):
+vmLaEstNomList_mag = []
+vmLaEstUncList_mag = []
 
-            fig = None
-            for iSeg in range(0, len(oDataSegs)):
+for iSeg in range(0, len(oDataSegs)):
 
-                rCritLaEstLowerList_mag = rCritLaEstNomList_mag[iSeg][iOut, iIn] - rCritLaEstUncList_mag[iSeg][iOut, iIn]
-                fig = FreqTrans.PlotSigma(freq_hz[0], rCritLaEstNomList_mag[iSeg][iOut, iIn], lower = rCritLaEstLowerList_mag, coher_nd = LaEstCohList[iSeg][iOut, iIn], fig = fig, color = rtsmSegList[iSeg]['color'], label = oDataSegs[iSeg]['Desc'])
+    vm_mag, vmUnc_mag, vmMin_mag = FreqTrans.VectorMargin(LaEstNomList[iSeg], LaEstUncList[iSeg], typeUnc = 'circle')
 
-            fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fig = fig, color = 'r', linestyle = '--')
-            fig.suptitle(inName + ' to ' + outName, size=20)
+    vmLaEstNomList_mag.append(vm_mag)
+    vmLaEstUncList_mag.append(vmUnc_mag)
+    # vm_mag.append(vmMin_mag)
 
-            ax = fig.get_axes()
-            ax[0].set_ylabel('Vector Margin [mag]')
-            ax[0].set_ylim(0, 2)
+numOut = len(outPlot); numIn = len(inPlot)
+ioArray = np.array(np.meshgrid(np.arange(numOut), np.arange(numIn))).T.reshape(-1, 2)
+
+if False:
+    for iPlot, [iOut, iIn] in enumerate(ioArray):
+        fig = 10 + iPlot
+        for iSeg in range(0, len(oDataSegs)):
+            
+            vm_mag = vmLaEstNomList_mag[iSeg][iOut, iIn]
+            vmUnc_mag = vmLaEstUncList_mag[iSeg][iOut, iIn]
+            
+            fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], vm_mag, vmUnc_mag = vmUnc_mag, coher_nd = LaEstCohList[iSeg][iOut, iIn], fig = fig, color = rtsmSegList[iSeg]['color'], label = oDataSegs[iSeg]['Desc'])
+
+        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], 0.4 * np.ones_like(freq_hz[iIn]), fig = fig, color = 'r', linestyle = '--', label = 'Critical')
+        fig.suptitle(inPlot[iIn] + ' to ' + outPlot[iOut])
+
+        ax = fig.get_axes()
+        ax[0].set_ylim(0, 2)
 
 
 #%% Nyquist Plots
 if False:
-    #%%
-    for iOut, outName in enumerate(outPlot):
-        for iIn, inName in enumerate(inPlot):
+    for iPlot, [iOut, iIn] in enumerate(ioArray):
+        fig = 20 + iPlot
+        for iSeg in range(0, len(oDataSegs)):
+            Tnom = LaEstNomList[iSeg][iOut, iIn]
+            Tunc = np.abs(LaEstUncList[iSeg][iOut, iIn])
+            fig = FreqTrans.PlotNyquist(Tnom, Tunc, fig = fig, color = rtsmSegList[iSeg]['color'], marker = '.', label = oDataSegs[iSeg]['Desc'])
 
-            fig = None
-            for iSeg in range(0, len(oDataSegs)):
-                LiNom = LaEstNomList[iSeg][iOut, iIn]
-                LiUnc = np.abs(LaEstUncList[iSeg][iOut, iIn])
-                fig = FreqTrans.PlotNyquist(LiNom, LiUnc, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '*', label = oDataSegs[iSeg]['Desc'])
+        fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, color = 'r', marker = '+', label = 'Critical Region')
+        fig.suptitle(inPlot[iIn] + ' to ' + outPlot[iOut])
 
-            fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, color = 'r', linestyle = '*', label = 'Critical Region')
-            fig.suptitle(inName + ' to ' + outName, size=20)
-
-            ax = fig.get_axes()
-            ax[0].set_xlim(-3, 1)
-            ax[0].set_ylim(-2, 2)
+        ax = fig.get_axes()
+        ax[0].set_xlim(-3, 1)
+        ax[0].set_ylim(-2, 2)
 
 
 #%% Bode Plots
+gainLaEstNomList_mag = []
+gainLaEstUncList_mag = []
+phaseLaEstNomList_deg = []
+for iSeg in range(0, len(oDataSegs)):
+    gainLaEstNom_mag, phaseLaEstNom_deg = FreqTrans.GainPhase(LaEstNomList[iSeg], magUnit = 'mag', phaseUnit = 'deg', unwrap = True)
+    gainLaEstUnc_mag = FreqTrans.Gain(LaEstNomList[iSeg], magUnit = 'mag')
+
+    gainLaEstNomList_mag.append(gainLaEstNom_mag)
+    phaseLaEstNomList_deg.append(phaseLaEstNom_deg)
+    gainLaEstUncList_mag.append(gainLaEstUnc_mag)
+    
 if False:
-    for iOut, outName in enumerate(outPlot):
-        for iIn, inName in enumerate(inPlot):
+    
+    for iPlot, [iOut, iIn] in enumerate(ioArray):
+        fig = 20 + iPlot
+        for iSeg in range(0, len(oDataSegs)):
+            gain_mag = gainLaEstNomList_mag[iSeg][iOut, iIn]
+            phase_deg = phaseLaEstNomList_deg[iSeg][iOut, iIn]
+            coher_nd = LaEstCohList[iSeg][iOut, iIn]
+            gainUnc_mag = gainLaEstUncList_mag[iSeg][iOut, iIn]
 
-            fig = None
-            for iSeg in range(0, len(oDataSegs)):
-                gain_mag = gainLaEstNomList_mag[iSeg][iOut, iIn]
-                phase_deg = phaseLaEstNomList_deg[iSeg][iOut, iIn]
-                coher_nd = LaEstCohList[iSeg][iOut, iIn]
-                gainUnc_mag = np.abs(LaEstUncList[iSeg][iOut, iIn])
+            fig = FreqTrans.PlotBode(freq_hz[iIn], gain_mag, phase_deg, coher_nd, gainUnc_mag, fig = fig, dB = True, color = rtsmSegList[iSeg]['color'], label = oDataSegs[iSeg]['Desc'])
 
-                fig = FreqTrans.PlotBode(freq_hz[0], gain_mag, phase_deg, coher_nd, gainUnc_mag = gainUnc_mag, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
-
-            fig.suptitle(inName + ' to ' + outName, size=20)
-
-
-#%% Bode Mag - Noise Estimation Validation
-if False:
-    for iOut, outName in enumerate(outPlot):
-        for iIn, inName in enumerate(inPlot):
-
-            fig = None
-            for iSeg in range(0, len(oDataSegs)):
-                gain_mag = gainLaEstNomList_mag[iSeg][iOut, iIn]
-                phase_deg = phaseLaEstNomList_deg[iSeg][iOut, iIn]
-                coher_nd = LaEstCohList[iSeg][iOut, iIn]
-                gainUnc_mag = np.abs(LaEstUncList[iSeg][iOut, iIn])
-
-                fig = FreqTrans.PlotBodeMag(freq_hz[0], gain_mag, coher_nd, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
-                fig = FreqTrans.PlotBodeMag(freq_hz[0], gainUnc_mag, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = ':', label = oDataSegs[iSeg]['Desc'] + '_Noise')
-
-            fig.suptitle(inName + ' to ' + outName, size=20)
+#        fig.suptitle(inName + ' to ' + outName, size=20)
 
 
 #%% Turbulence
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType=('tukey', 1.0))
+optSpecE = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 7), winType=('tukey', 0.0))
+optSpecE.freq = np.asarray(freqExc_rps)
+optSpecE.freqInterp = np.sort(optSpecE.freq.flatten())
+
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 7), winType=('tukey', 0.0))
 optSpecN.freq = freqNull_rps
 
-PyyList = []
+
+SyyList = []
 for iSeg in range(0, len(oDataSegs)):
-    _, _, Pyy_N = FreqTrans.Spectrum(ySensList[iSeg], optSpecN)
-    PyyList.append(Pyy_N)
+    _, _, SyyNull = FreqTrans.Spectrum(ySensList[iSeg], optSpecN)
+    SyyList.append(SyyNull)
+    
+    _, _, Sxx = FreqTrans.Spectrum(vExcList[iSeg], optSpec)
+    _, _, SxxNull = FreqTrans.Spectrum(vExcList[iSeg], optSpecN)
+    
+    print(np.sum(SxxNull, axis = -1) / np.sum(Sxx, axis = -1))
 
 
 from Core import Environment
@@ -404,13 +378,13 @@ levelList = ['light', 'moderate']
 freqTurb_rps = np.sort(freqNull_rps)
 
 
-if True:
+if False:
     # for iOut, outName in enumerate(outPlot):
-    for iOut, outName in enumerate(outPlot[0:2]):
+    for iOut, outName in enumerate(outPlot[0:1]):
         plt.figure()
 
         for iSeg in range(0, len(oDataSegs)):
-            plt.loglog(freqTurb_rps*rps2hz, PyyList[iSeg][iOut], '*', label = oDataSegs[iSeg]['Desc'])
+            plt.loglog(freqTurb_rps*rps2hz, SyyList[iSeg][iOut], marker='.', linestyle='None', color = rtsmSegList[iSeg]['color'], label = oDataSegs[iSeg]['Desc'])
 
             V_mps = np.mean(seg['vIas_mps'])
             V_fps = V_mps * m2ft
@@ -425,7 +399,7 @@ if True:
             Puvw_Dryden =  Environment.TurbSpectDryden(sigma, L_ft, freqTurb_rps / V_fps) * V_fps
             Ppqr_Dryden =  Environment.TurbSpectRate(Puvw_Dryden, sigma, L_ft, freqTurb_rps, V_fps, b_ft)
 
-            plt.loglog(freqTurb_rps*rps2hz, np.abs(Ppqr_Dryden[iOut]), label = "Dryden - Level: " + level)
+#            plt.loglog(freqTurb_rps*rps2hz, np.abs(Ppqr_Dryden[iOut]), label = "Dryden - Level: " + level)
 
             Puvw_VonKarman =  Environment.TurbSpectVonKarman(sigma, L_ft, freqTurb_rps / V_fps) * V_fps
             Ppqr_VonKarman =  Environment.TurbSpectRate(Puvw_VonKarman, sigma, L_ft, freqTurb_rps, V_fps, b_ft)
@@ -434,7 +408,7 @@ if True:
 
         plt.grid(True)
         plt.xlim([0.1, 10])
-        plt.title('Disturbance Estimate - ' + outName)
+#        plt.title('Disturbance Estimate - ' + outName)
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Power Spectrum (dB)')
         plt.legend()
@@ -471,3 +445,209 @@ if False:
         fig = FreqTrans.Spectogram(tSpecN_s, freqSpecN_rps * rps2hz, 20 * np.log10(P_N_mag))
         fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram Null - ' + sigFbList[iSgnlOut])
 
+      
+        
+#%% Estimate the frequency response function time history
+iSeg = 3
+        
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
+
+# Excited Frequencies per input channel
+optSpec.freq = np.asarray(freqExc_rps)
+optSpec.freqInterp = np.sort(optSpec.freq.flatten())
+
+# Null Frequencies
+freqNull_rps = optSpec.freqInterp[0:-1] + 0.5 * np.diff(optSpec.freqInterp)
+optSpec.freqNull = freqNull_rps
+optSpec.freqNullInterp = True
+
+# FRF Estimate
+time_s = seg['time_s']
+lenX = len(time_s)
+lenFreq = optSpec.freqInterp.shape[-1]
+lenStep = 1
+
+numSec = int((lenX) / lenStep)
+numOut = 3
+numIn = 3
+
+
+TaEstNomHist = np.zeros((numSec, numOut, numIn, lenFreq), dtype=complex)
+TaEstUncHist = np.zeros((numSec, numOut, numIn, lenFreq), dtype=complex)
+TaEstCohHist = np.zeros((numSec, numOut, numIn, lenFreq))
+SaEstNomHist = np.zeros((numSec, numOut, numIn, lenFreq), dtype=complex)
+SaEstUncHist = np.zeros((numSec, numOut, numIn, lenFreq), dtype=complex)
+SaEstCohHist = np.zeros((numSec, numOut, numIn, lenFreq))
+LaEstNomHist = np.zeros((numSec, numOut, numIn, lenFreq), dtype=complex)
+LaEstUncHist = np.zeros((numSec, numOut, numIn, lenFreq), dtype=complex)
+LaEstCohHist = np.zeros((numSec, numOut, numIn, lenFreq))
+SxxHist = np.zeros((numSec, numIn, lenFreq))
+SzzHist = np.zeros((numSec, numOut, numIn, lenFreq))
+SxxNullHist = np.zeros((numSec, numIn, lenFreq))
+SnnHist = np.zeros((numSec, numOut, numIn, lenFreq))
+
+
+iStart = 0
+#lenCyc = int(len(time_s) / 3)
+for iSec in range(0, numSec):
+    print(100 * iSec/numSec)
+    iEnd = iSec
+    
+    if iEnd > lenFreq-1:
+        
+        # Move the Start index once the End index has reached 2* cycle
+#        if iEnd > (2 * lenCyc):
+#            iStart = iEnd - lenCyc
+                
+        x =  vExcList[iSeg][:, iStart:iEnd+1]
+        z = vFbList[iSeg][:, iStart:iEnd+1]
+        
+        freq_rps, Txy, Cxy, Sxx, Szz, Suz, TxyUnc, SxxNull, Snn = FreqTrans.FreqRespFuncEstNoise(x, z, optSpec)
+        
+        TaEstNom = -Txy # Sa = I - Ta
+        TaEstUnc = TxyUnc # TxuUnc = np.abs(Sxu / Sxx)
+        TaEstCoh = Cxy # Cxy = np.abs(Sxu)**2 / (Sxx * Sxx)
+        
+        SaEstNom, SaEstUnc, SaEstCoh = FreqTrans.TtoS(TaEstNom, TaEstUnc, TaEstCoh)
+        LaEstNom, LaEstUnc, LaEstCoh = FreqTrans.StoL(SaEstNom, SaEstUnc, SaEstCoh)
+        
+        TaEstNomHist[iSec, ] = TaEstNom
+        TaEstUncHist[iSec, ] = TaEstUnc
+        TaEstCohHist[iSec, ] = TaEstCoh
+        SaEstNomHist[iSec, ] = SaEstNom
+        SaEstUncHist[iSec, ] = SaEstUnc
+        SaEstCohHist[iSec, ] = SaEstCoh
+        LaEstNomHist[iSec, ] = LaEstNom
+        LaEstUncHist[iSec, ] = LaEstUnc
+        LaEstCohHist[iSec, ] = LaEstCoh
+        SxxHist[iSec, ] = Sxx
+        SzzHist[iSec, ] = Szz
+        SxxNullHist[iSec, ] = SxxNull
+        SnnHist[iSec, ] = Snn
+    
+    
+    freq_hz = freq_rps * rps2hz
+    
+    
+#%%
+
+FreqTrans.Sigma(SaEstNomHist[100,...])
+
+
+def SigmaTemporal(THist):
+    numSec, numOut, numIn, numFreq = THist.shape
+    
+    sHist = np.zeros((numSec, numOut, numFreq))
+    
+    for iSec in range(numSec):
+        sHist[iSec, ...] = FreqTrans.Sigma(THist[iSec, ...])
+    
+    return sHist
+
+
+svLaEstNom_mag = 1 / SigmaTemporal(SaEstNomHist)
+svLaEstUnc_mag = SigmaTemporal(SaEstUncHist)
+
+svLaEstNomMin = np.min(svLaEstNom_mag, axis=1)
+svLaEstUncMax = np.max(svLaEstUnc_mag, axis=1)
+    
+if True:
+    svLaEstNomMean = np.mean(svLaEstNomMin, axis=-1)
+    svLaEstNomMin = np.min(svLaEstNomMin, axis=-1)
+    svLaEstNomDiff = svLaEstNomMean - svLaEstNomMin
+    
+    svLaEstUncMean = np.mean(svLaEstUncMax, axis=-1)
+    svLaEstUncMax = np.max(svLaEstUncMax, axis=-1)
+    
+    svLaEstLower = svLaEstNomMin - svLaEstUncMax
+    svLaEstLower[svLaEstLower < 0] = svLaEstNomMin[svLaEstLower < 0]
+    
+    cohEst = np.abs(LaEstCohHist)
+    cohEst[cohEst < 0] = 0
+    cohEst[cohEst > 1] = 1
+    cohEstMean = np.mean(cohEst, axis=(1,2,3))
+    cohEstStd = np.std(cohEst, axis=(1,2,3))
+    cohEstMin = np.min(cohEst, axis=(1,2,3))
+    
+    ones = np.ones_like(time_s)
+    
+    fig = None
+    fig = FreqTrans.PlotSigmaTemporal(time_s, svLaEstNomMin, svUnc_mag = svLaEstLower, coher_nd = cohEstMin, fig = fig, linestyle='-', color='b', label = 'Estimate - Lowest Singular Value')
+#    fig = FreqTrans.PlotSigmaTemporal(time_s, svLaEstUncMax, coher_nd = cohEstMin, fig = fig, linestyle='-', color='r', label = 'Estimate - Maximum Uncertainty')
+
+#    fig = FreqTrans.PlotSigmaTemporal(time_s, svLaEstNomMean, coher_nd = cohEstMean, svUnc_mag = svLaEstNomDiff, fig = fig, linestyle='-', color='b', label = 'Estimate - Lowest Singular Value')
+#    fig = FreqTrans.PlotSigmaTemporal(time_s, svLaEstUncMean, coher_nd = cohEstMin, svUnc_mag = svLaEstUncMax, fig = fig, linestyle='-', color='r', label = 'Estimate - Maximum Uncertainty')
+
+    ax = fig.get_axes()
+#    ax[0].set_ylim(bottom = -1, top = 3)
+
+#        fig.suptitle('$u$[' + str(iIn) + '] to ' + '$z$[' + str(iOut) + ']')
+        
+#%%
+
+vmLaEstNom_mag, vmLaEstUnc_mag, vmLaEstMin_mag = FreqTrans.VectorMargin(LaEstNomHist, LaEstUncHist, typeUnc = 'circle')
+
+if True:
+    for iPlot, [iOut, iIn] in enumerate(ioArray):
+
+        vmLaEstNomMin = np.min(vmLaEstNom_mag[:,iOut,iIn,:], axis=-1)
+        vmLaEstUncMax = np.max(vmLaEstUnc_mag[:,iOut,iIn,:], axis=-1)
+        vmLaEstLower = vmLaEstNomMin - vmLaEstUncMax
+        vmLaEstLower[vmLaEstLower < 0] = vmLaEstNomMin[vmLaEstLower < 0]
+        
+        cohEst = np.abs(LaEstCohHist[:,iOut,iIn,:])
+        cohEst[cohEst < 0] = 0
+        cohEst[cohEst > 1] = 1
+        cohEstMean = np.mean(cohEst, axis=-1)
+        cohEstStd = np.std(cohEst, axis=-1)
+        cohEstMin = np.min(cohEst, axis=-1)
+        
+        ones = np.ones_like(time_s)
+        
+        fig = None
+        fig = FreqTrans.PlotVectorMarginTemporal(time_s, vmLaEstNomMin, coher_nd = cohEstMin, vmUnc_mag = vmLaEstLower, fig = fig, linestyle='-', color='r', label = 'Estimate')
+        
+        ax = fig.get_axes()
+        ax[0].set_ylim(bottom = 0, top = 1.5)
+
+        fig.suptitle('$u$[' + str(iIn) + '] to ' + '$z$[' + str(iOut) + ']')
+        
+#    handles, labels = ax[0, 0].get_legend_handles_labels()
+#    handles = [handles[0], handles[3], handles[1], handles[4], handles[5], handles[2]]
+#    labels = [labels[0], labels[3], labels[1], labels[4], labels[5], labels[2]]
+#    ax[0, 0].legend(handles, labels)
+
+#%%
+if True:
+    for iPlot, [iOut, iIn] in enumerate(ioArray):
+
+        # Best Case SNR can be estimated as the Null input to Excited input
+        uSNR = np.abs(SxxHist[:,iIn,:]) / np.abs(SxxNullHist[:,iIn,:])
+        uSNRMean = np.mean(uSNR, axis=-1)
+        uSNRMin = np.min(uSNR, axis=-1)
+        
+        zSNR = np.abs(SzzHist[:,iOut, iIn,:]) / np.abs(SnnHist[:,iOut, iIn,:])
+        zSNRMean = np.mean(zSNR, axis=-1)
+        zSNRMin = np.min(zSNR, axis=-1)
+#        zSNRMin[zSNRMin < 0] = 0
+        
+        cohEst = np.abs(TaEstCohHist[:,iOut,iIn,:])
+        cohEst[cohEst < 0] = 0
+        cohEst[cohEst > 1] = 1
+        cohEstMean = np.mean(cohEst, axis=-1)
+        cohEstMin = np.min(cohEst, axis=-1)
+        
+        fig = None
+        ones = np.ones_like(time_s)
+        fig = FreqTrans.PlotGainTemporal(time_s, zSNRMean, None, None, zSNRMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='r', label = 'Estimate of Output')
+        fig = FreqTrans.PlotGainTemporal(time_s, uSNRMean, None, None, uSNRMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='k', label = 'Estimate of Input')
+#        fig = FreqTrans.PlotGainTemporal(time_s, zSNRMean, None, cohEstMin, zSNRMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='r', label = 'Estimate of Output')
+#        fig = FreqTrans.PlotGainTemporal(time_s, uSNRMean, None, cohEstMean, uSNRMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='k', label = 'Estimate of Input')
+
+        ax = fig.get_axes()
+#        ax[0].set_ylim(bottom = 0, top = 3)
+        ax[0].set_ylabel("Signal/Noise [dB]")
+
+        fig.suptitle('$u$[' + str(iIn) + '] to ' + '$z$[' + str(iOut) + ']')
+        
+    

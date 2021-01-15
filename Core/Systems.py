@@ -40,6 +40,7 @@ def ConnectName(sysList, connectNames, inKeep, outKeep):
 
 
 #%% Controller Models
+# 2-DOF PID with excitation input
 def PID2(Kp = 1, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0):
     # Inputs: ['ref', 'sens', 'exc']
     # Outputs: ['cmd', 'ff', 'fb', 'exc']

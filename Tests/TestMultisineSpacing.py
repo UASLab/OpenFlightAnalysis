@@ -40,29 +40,35 @@ theta = np.linspace(0, 0.05*np.pi, numSampMin)
 theta = theta[1:]
 bins = theta * numSampMin / (2*np.pi)
 
-plt.figure(1)
+W_theshold_dB = -12
+
+plt.figure()
 binList = []
 for i, N in enumerate(numSampList):
-    W_mag = np.exp(-1j * theta * (N-1)/2) * np.sin(N * theta/2) / np.sin(theta/2)
+    W_mag = np.exp(-1j * theta * (N-1)/2) * np.sin(N * theta/2) / np.sin(theta/2) # Rectangular Window
     W_mag = np.abs(W_mag) / np.max(np.abs(W_mag))
     
     W_dB = 20 * np.log10(W_mag)
     plt.plot(bins, W_dB)
     
-    binList.append( 2 * np.interp(12, -W_dB, bins))
+    bin_theshold = 2 * np.interp(-W_theshold_dB, -W_dB, bins)
+    plt.plot(bin_theshold/2, W_theshold_dB, '*')
+    
+    
+    binList.append( bin_theshold)
 
 plt.grid('on')
-plt.xlabel('Bin (-)')
-plt.ylabel('Power Spectrum (dB)')
+plt.xlabel('Normalized Bin')
+plt.ylabel('Normalized Power (dB)')
 plt.ylim(bottom = -60, top = 10)
 plt.show
 
 #
-plt.figure(2)
-plt.title('12dB Bandwidth')
-overSamp = numSampList / numSampMin
-plt.loglog(overSamp, np.asarray(binList), '-*')
-plt.xlabel('Oversample (nSample/nBins)')
+plt.figure()
+plt.title(str(W_theshold_dB) + 'dB Bandwidth')
+#overSamp = numSampList / numSampMin
+plt.loglog(numSampList, np.asarray(binList), '-*')
+plt.xlabel('Number of Samples')
 plt.ylabel('Number of bins')
 plt.grid('on')
 plt.show
@@ -83,33 +89,38 @@ noiseSamples = np.random.randn(numSampMax)
 noiseLev = 0.0
 sig += noiseLev * noiseSamples
 
-plt.figure(1)
+P_theshold_dB = -12
+plt.figure()
 binList = []
 for numSamp in numSampList:
     numSamp = int(numSamp)
     
     theta, sigDft, P_mag  = FreqTrans.Spectrum(sig[0:numSamp], optSpec)
-    P_dB = 20*np.log10(P_mag[0]) / 2 - 3
+    P_mag = np.abs(P_mag / np.max(P_mag))
+    P_dB = 20*np.log10(P_mag[0])
     
     bins = theta[0] * len(optSpec.freq[0]) / (2*np.pi)
     plt.plot(bins, P_dB, '-', label = 'Window: ' + str(optSpec.winType) + ' Over Sample: ' + str(numSamp/numSampMin))
     
-    binList.append( 2 * np.interp(12, -P_dB, bins))
+    bin_theshold = 2 * np.interp(-P_theshold_dB, -P_dB, bins)
+    plt.plot(bin_theshold/2, P_theshold_dB, '*')
+    
+    binList.append( bin_theshold )
 
-plt.xlabel('Bins (-)')
-plt.ylabel('Power Spectrum (dB)')
+plt.xlabel('Normalized Bin')
+plt.ylabel('Normalized Power (dB)')
 plt.ylim(bottom = -60, top = 10)
 plt.xlim(left = 0.0)
 plt.grid(); plt.legend()
 plt.show
 
 #
-plt.figure(2)
-plt.title('12dB Bandwidth')
-plt.loglog(overSamp, np.asarray(binList), '-*')
-plt.xlabel('Oversample (nSample/nBins)')
+plt.figure(3)
+plt.loglog(numSampList, np.asarray(binList), '-*', label = str(P_theshold_dB) + 'dB Threshold')
+plt.xlabel('Number of Samples')
 plt.ylabel('Number of bins')
-plt.grid('on')
+plt.grid(True)
+plt.legend()
 plt.show
 
 
@@ -126,15 +137,16 @@ noiseList = np.linspace(0.0, 1.0, 5)
 winList = [('tukey', 0.0), ('tukey', 0.1), ('tukey', 0.5), 'hann', 'hamming', 'blackman', 'blackmanharris']
 #winList = [('tukey', 0.0), 'blackmanharris']
 
-if False:
+if True:
     for win in winList:
-        plt.figure()
+        plt.figure(4)
         for noiseLev in noiseList:
             noise = sig + noiseLev * noiseSamples
             
             optSpec.winType = win
             theta, _, P_mag  = FreqTrans.Spectrum(noise, optSpec)
-            P_dB = 20*np.log10(P_mag[0]) / 2 - 3
+            P_mag = np.abs(P_mag / np.max(P_mag))
+            P_dB = 20*np.log10(P_mag[0])
             
             bins = theta[0] * len(optSpec.freq[0]) / (2*np.pi)
             plt.plot(bins, P_dB, '-', label = 'Window: ' + str(optSpec.winType) + ' - Noise Mag: ' + str(noiseLev))
@@ -148,11 +160,12 @@ if True:
     for noiseLev in noiseList:
         noise = sig + noiseLev * noiseSamples
         
-        plt.figure()
+        plt.figure(5)
         for win in winList:
             optSpec.winType = win
             theta, _, P_mag  = FreqTrans.Spectrum(noise, optSpec)
-            P_dB = 20*np.log10(P_mag[0]) / 2 - 3
+            P_mag = np.abs(P_mag / np.max(P_mag))
+            P_dB = 20*np.log10(P_mag[0])
         
             bins = theta[0] * len(optSpec.freq[0]) / (2*np.pi)
             plt.plot(bins, P_dB, '-', label = 'Window: ' + str(optSpec.winType) + ' - Noise Mag: ' + str(noiseLev))
@@ -200,7 +213,7 @@ plt.show
 
 
 #%% Define the frequency selection and distribution of the frequencies into the signals
-numChan = 1
+numChan = 2
 freqRate_hz = 50;
 timeDur_s = 10.0
 numCycles = 1
@@ -223,18 +236,19 @@ sigList, phaseElem_rad, sigElem = GenExcite.MultiSine(freqElem_rps, ampElem_nd, 
 ## Results
 peakFactor = GenExcite.PeakFactor(sigList)
 peakFactorRel = peakFactor / np.sqrt(2)
+excStd = np.std(sigList, axis = -1)
 print(peakFactorRel)
 
 # Signal Power
 sigPowerRel = (ampElem_nd / max(ampElem_nd))**2 / len(ampElem_nd)
 
-if False:
-    fig, ax = plt.subplots(ncols=1, nrows=numChan, sharex=True)
+if True:
+    fig, ax = plt.subplots(ncols=1, nrows=1, sharex=True)
     for iChan in range(0, numChan):
-        ax[iChan].plot(time_s, sigList[iChan])
-        ax[iChan].set_ylabel('Amplitude (nd)')
-        ax[iChan].grid(True)
-    ax[iChan].set_xlabel('Time (s)')
+        plt.plot(time_s, sigList[iChan])
+        plt.ylabel('Amplitude (nd)')
+        plt.grid(True)
+    plt.xlabel('Time (s)')
 
 
 #%% Plot the Excitation Spectrum
@@ -246,9 +260,12 @@ dFreq_rps = np.mean(np.diff(freqElem_rps))
 freqNull_rps = freqElem_rps[0:-1] + 0.5 * dFreq_rps
 freqDense_rps = np.arange(freqElem_rps[0], freqElem_rps[-1], dFreq_rps/36)
 
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqElem_rps, smooth = ('box', 1), winType=('tukey', 0.0))
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqNull_rps, smooth = ('box', 1), winType=('tukey', 0.0))
-optSpecD = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqDense_rps, smooth = ('box', 1), winType=('tukey', 0.0))
+winType = ('tukey', 0.0)
+#winType = 'bartlett'
+smooth = ('box', 1)
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqElem_rps, smooth = smooth, winType = winType)
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqNull_rps, smooth = smooth, winType = winType)
+optSpecD = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqDense_rps, smooth = smooth, winType = winType)
 
 
 freq_rps, _, P_mag  = FreqTrans.Spectrum(sig, optSpec)
@@ -265,7 +282,7 @@ Pdens_dB = 20*np.log10(Pdens_mag)
 
     
 plt.figure(1)
-plt.plot(freqD_hz[0], Pdens_dB[0], '-', label = 'Dense Fill Set')
+plt.plot(freqD_hz[0], Pdens_dB[0], ':', label = 'Dense Fill Set')
 plt.plot(freq_hz[0], P_dB[0], '*', label = 'Excited Set')
 plt.plot(freqN_hz[0], Pnull_dB[0], '*', label = 'Null Set')
 plt.legend()

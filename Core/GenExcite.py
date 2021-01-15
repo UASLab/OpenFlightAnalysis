@@ -100,7 +100,7 @@ def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
     #
     # "Tailored Excitation for Multivariable Stability Margin Measurement
     # Applied to the X-31A Nonlinear Simulation"  NASA TM-113085
-    # John Bosworth and John Burken<<<<<<< HEAD
+    # John Bosworth and John Burken
 
     #
     # "Multiple Input Design for Real-Time Parameter Estimation"
@@ -289,11 +289,12 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
 
 
     # Frequency sequence step size
-    freqStepMin_hz = 1/freqRate_hz
-    freqStepMax_hz = min(freqMaxDes_hz - freqMinDes_hz)
+    freqStepMin_hz = 1/freqRate_hz # Absolute Minimum (closest) step size
+    freqStepMax_hz = min(freqMaxDes_hz - freqMinDes_hz) # Max - Min would be a huge step size
 
     freqStepDes_hz = freqStepDes_rps * rps2hz
-    freqStep_hz = round(freqStepDes_hz / freqStepMin_hz) * freqStepMin_hz
+    # freqStep_hz = round(freqStepDes_hz / freqStepMin_hz) * freqStepMin_hz
+    freqStep_hz = freqStepDes_hz
 
     # Clip if required
     freqStep_hz = np.clip(freqStep_hz, freqStepMin_hz, freqStepMax_hz)

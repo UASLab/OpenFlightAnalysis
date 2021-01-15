@@ -118,6 +118,7 @@ outKeep = sysSens.OutputName
 
 sysPlant = Systems.ConnectName([sysAct, sysLin, sysSens], connectName, inKeep, outKeep)
 
+
 #%% Guidance Controller Models
 sysV = Systems.PID2(0.20, Ki = 0.075, Kd = 0.0, b = 1, c = 0, Tf = dt)
 sysV.InputName = ['refV', 'sensV', 'excV']
@@ -186,12 +187,9 @@ sysMixer.InputName = sysMixerMotor.InputName + sysMixerSurf.InputName
 sysMixer.OutputName = sysMixerMotor.OutputName + sysMixerSurf.OutputName
 
 #%% Combine Controller and Mixer
-inName = sysScas.InputName + sysMixer.InputName
-outName = sysScas.OutputName + sysMixer.OutputName
 connectName = sysMixer.InputName[1:]
-inKeep = [inName[i-1] for i in [1, 4, 7, 2, 5, 8, 3, 6, 9]]
-outKeep = [outName[i-1] for i in [13, 14, 15, 16, 17, 18, 19, 3, 7, 11, 1, 5, 9]]
-
+inKeep = sysScas.InputName[0::3] + sysScas.InputName[1::3] + sysScas.InputName[2::3]
+outKeep = sysMixer.OutputName + sysScas.OutputName[2::4] + sysScas.OutputName[0::4]
 sysCtrl = Systems.ConnectName([sysScas, sysMixer], connectName, inKeep, outKeep)
 
 
@@ -199,10 +197,8 @@ sysCtrl = Systems.ConnectName([sysScas, sysMixer], connectName, inKeep, outKeep)
 connectName = sysPlant.InputName[:7]
 inKeep = sysCtrl.InputName + sysPlant.InputName[-7:]
 outKeep = sysSens.OutputName + sysCtrl.OutputName[-6:]
-
 sysOL = Systems.ConnectName([sysCtrl, sysPlant], connectName, inKeep, outKeep)
-sysOL.InputName = inKeep
-sysOL.OutputName = outKeep
+
 
 # Bode Plots
 if plotFlag:
@@ -213,15 +209,11 @@ if plotFlag:
 
 
 #%% Closed-Loop System
-connectName = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
-inName = sysCtrl.InputName + sysPlant.InputName
-inKeep = [inName[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
-outName = sysCtrl.OutputName + sysPlant.OutputName
-outKeep = [outName[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
-
+connectName = sysMixer.OutputName + sysPlant.OutputName[0:2] + sysPlant.OutputName[4:5] #['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
+inKeep = sysCtrl.InputName[0:3] + sysCtrl.InputName[6:9] + sysPlant.InputName[7:] #[inName[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
+outKeep = sysCtrl.OutputName[-6:] + sysSens.OutputName #[outName[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
 sysCL = Systems.ConnectName([sysCtrl, sysPlant], connectName, inKeep, outKeep)
-sysCL.InputName = inKeep
-sysCL.OutputName = outKeep
+
 
 # Steps
 timeStep_s = 5.0
