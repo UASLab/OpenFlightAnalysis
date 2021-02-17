@@ -565,40 +565,40 @@ def GainPhase(T, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
 
 # Transfer Complimentary Sensitivity to Sensitivity
 def TtoS(TNom, TUnc = None, TCoh = None):
-    
+
     I = np.repeat([np.eye(TNom.shape[0])], TNom.shape[-1], axis=0).T
-    
+
     SNom = I - TNom
-    
+
     if TUnc is not None:
         SUnc = -TUnc
     else:
         SUnc = None
-        
+
     if TCoh is not None:
         SCoh = TCoh #FIXIT - This is not the proper transform
     else:
         SCoh = None
-        
+
     return SNom, SUnc, SCoh
 
 # Transfer Sensitivity to Complimentary Sensitivity
 def StoT(SNom, SUnc = None, SCoh = None):
-    
+
     I = np.repeat([np.eye(SNom.shape[0])], SNom.shape[-1], axis=0).T
-    
+
     TNom = I - SNom
-    
+
     if SUnc is not None:
         TUnc = -SUnc
     else:
         TUnc = None
-        
+
     if SCoh is not None:
         TCoh = SCoh #FIXIT - This is not the proper transform
     else:
         TCoh = None
-        
+
     return TNom, TUnc, TCoh
 
 # Transfer Sensitivity to Loop Function
@@ -618,14 +618,14 @@ def StoL(SNom, SUnc = None, SCoh = None):
         SNomInvElem = inv(SNomElem)
 
         LNom[...,i] = -I + SNomInvElem
-        
+
         if SCoh is not None:
             # Sherman-Morrison-Woodbury Identity
             LUnc[...,i] = -inv(I + SNomInvElem @ SUncElem) @ SNomInvElem @ SUncElem @ SNomInvElem
-            
+
         if SCoh is not None:
             LCoh[...,i] = SCoh[...,i] #FIXIT - This is not the proper transform
-    
+
     return LNom, LUnc, LCoh
 
 
@@ -638,12 +638,12 @@ def FreqResp(sys, freq_rps):
 
 def SigmaTemporal(THist):
     numSec, numOut, numIn, numFreq = THist.shape
-    
+
     sHist = np.zeros((numSec, numFreq))
-    
+
     for iSec in range(numSec):
         sHist[iSec, ...] = Sigma(THist[iSec, ...])
-    
+
     return sHist
 
 #
@@ -1011,8 +1011,8 @@ import matplotlib.patches as patch
 # For print pretty to latex
 mpl.rcParams.update({
     "pgf.texsystem": "pdflatex",
-    'font.family': 'serif',
-    "font.serif": ["Palatino"],
+    # 'font.family': 'serif',
+    # "font.serif": ["Palatino"],
     'text.usetex': True,
     'pgf.rcfonts': False,
 })
@@ -1022,7 +1022,7 @@ def PlotGainUncPts(freq, gain_mag, gainUnc_mag, ax = None, **pltArgs):
     for iFreq, f in enumerate(freq):
         gNom = gain_mag[iFreq]
         gUnc = gainUnc_mag[iFreq]
-        
+
         uncPatch = patch.Ellipse((f, gNom), 2*gUnc, 2*gUnc, alpha = 0.25, **pltArgs)
         ax.add_artist(uncPatch)
 
@@ -1031,7 +1031,7 @@ def PlotGainUncPts(freq, gain_mag, gainUnc_mag, ax = None, **pltArgs):
 # Bode/VM/Sigma uncertainty points, as Fill
 def PlotGainUncFill(freq, gainMin, gainMax, ax = None, **pltArgs):
     ax.fill_between(freq, gainMin, gainMax, alpha = 0.25, **pltArgs)
-        
+
     return ax
 
 
@@ -1045,7 +1045,7 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
     plotPhase = False
     if phase_deg is not None:
         plotPhase = True
-    
+
     if isinstance(fig, matplotlib.figure.Figure):
         ax = fig.get_axes()
 
@@ -1064,16 +1064,16 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
             spec = fig.add_gridspec(ncols=1, nrows=2, height_ratios=[1,1])
         else:
             spec = fig.add_gridspec(ncols=1, nrows=1, height_ratios=[1])
-        
+
         for i, s in enumerate(spec):
             if i == 0:
                 ax.append(fig.add_subplot(s)) # Gain
             else:
                 ax.append(fig.add_subplot(s, sharex=ax[0]))
-        
+
         for a in ax[:-1]:
             plt.setp(a.get_xticklabels(), visible=False)
-    
+
     # Plot the Gain
     if dB:
         ax[0].semilogx(freq, mag2db(gain_mag), **pltArgs)
@@ -1081,7 +1081,7 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
     else:
         ax[0].semilogx(freq, gain_mag, **pltArgs)
         ax[0].set_ylabel('Gain [mag]')
-    
+
     # Plot the Phase
     if plotPhase:
         ax[1].semilogx(freq, phase_deg, **pltArgs)
@@ -1093,38 +1093,38 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
     if plotCohere:
         if coher_nd is None:
             coher_nd = np.ones_like(freq)
-        
+
         ax[-1].semilogx(freq, coher_nd, **pltArgs)
         ax[-1].grid(True)
         ax[-1].set_ylabel('Coherence [mag]')
         ax[-1].set_ylim(0, 1)
-    
+
     # Plot the Uncertainty on the Gain plot
     if gainUnc_mag is not None:
 
         ax[0].set_xscale("log", nonposx='clip')
-                
+
         if UncSide == 'Max':
             gainUncMin_mag = gain_mag
         else:
             gainUncMin_mag = gain_mag - 0.5 * np.abs(gainUnc_mag)
-            
+
         if UncSide == 'Min':
             gainUncMax_mag = gain_mag
         else:
             gainUncMax_mag = gain_mag + 0.5 * np.abs(gainUnc_mag)
-        
+
         if 'marker' in pltArgs: pltArgs.pop('marker')
-        
+
         if dB:
             gainUncMax_dB = mag2db(gainUncMax_mag)
             gainUncMin_dB = mag2db(gainUncMin_mag)
-            
+
             ax[0] = PlotGainUncFill(freq, gainUncMin_dB, gainUncMax_dB, ax = ax[0], **pltArgs)
-            
+
         else:
             ax[0] = PlotGainUncFill(freq, gainUncMin_mag, gainUncMax_mag, ax = ax[0], **pltArgs)
-            
+
 
     # Make prettier
     ax[0].grid(True)
@@ -1136,58 +1136,58 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
 # SISO Bode Plot
 def PlotBode(freq, gain_mag, phase_deg, coher_nd = None, gainUnc_mag = None, fig = None, dB = False, **pltArgs):
     fig = PlotGainType(freq, gain_mag, phase_deg, coher_nd, gainUnc_mag, fig = fig, dB = dB, **pltArgs)
-    
+
     ax = fig.get_axes()
     ax[0].set_xscale("log")
-        
+
     return fig
 
 # SISO Vector Margin Plot
 def PlotVectorMargin(freq, vm_mag, coher_nd = None, vmUnc_mag = None, fig = None, **pltArgs):
     fig = PlotGainType(freq, vm_mag, None, coher_nd, vmUnc_mag, fig = fig, dB = False, UncSide='Min', **pltArgs)
-    
+
     ax = fig.get_axes()
     ax[0].set_xscale("linear")
     ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Vector Margin'))
-    
+
     return fig
 
 # SISO Sigma Plot
 def PlotSigma(freq, sv_mag, coher_nd = None, svUnc_mag = None, fig = None, **pltArgs):
     fig = PlotGainType(freq, sv_mag, None, coher_nd, svUnc_mag, fig = fig, dB = False, UncSide='Min', **pltArgs)
-    
+
     ax = fig.get_axes()
     ax[0].set_xscale("linear")
     ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Sigma'))
-    
+
     return fig
-    
+
 # Bode/VM/Sigma Time History Plot
 def PlotGainTemporal(time_s, gain_mag, phase_deg, coher_nd = None, gainUnc_mag = None, fig = None, dB = True, UncSide = None, **pltArgs):
     fig = PlotGainType(time_s, gain_mag, phase_deg, coher_nd, gainUnc_mag, fig = fig, dB = dB, UncSide = UncSide, **pltArgs)
-    
+
     ax = fig.get_axes()
     ax[0].set_xscale("linear")
     ax[-1].set_xlabel("Time [s]")
-    
+
     return fig
-    
+
 # SISO Vector Margin Plot - Temporal
 def PlotVectorMarginTemporal(time_s, vm_mag, coher_nd = None, vmUnc_mag = None, fig = None, dB = False, **pltArgs):
     fig = PlotGainTemporal(time_s, vm_mag, None, coher_nd, vmUnc_mag, fig = fig, dB = dB, UncSide = 'Min', **pltArgs)
-    
+
     ax = fig.get_axes()
     ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Vector Margin'))
-    
+
     return fig
-    
+
 # SISO Sigma Plot - Temporal
 def PlotSigmaTemporal(time_s, sv_mag, coher_nd = None, svUnc_mag = None, fig = None, dB = False, **pltArgs):
     fig = PlotGainTemporal(time_s, sv_mag, None, coher_nd, svUnc_mag, fig = fig, dB = dB, UncSide = 'Min', **pltArgs)
-    
+
     ax = fig.get_axes()
     ax[0].set_ylabel(ax[0].get_ylabel().replace('Gain', 'Sigma'))
-    
+
     return fig
 
 
@@ -1200,7 +1200,7 @@ def PlotNyquistUncPts(T, TUnc, ax = None, **pltArgs):
             uncPatch = patch.Ellipse((nom.real, nom.imag), unc, unc, alpha = 0.25, **pltArgs)
         else:
             uncPatch = patch.Ellipse((nom.real, nom.imag), unc.real, unc.imag, alpha = 0.25, **pltArgs)
-        
+
         ax.add_artist(uncPatch)
 
     return ax
@@ -1240,7 +1240,7 @@ def PlotNyquist(T, TUnc = None, fig = None, fillType = 'circle', **pltArgs):
     ax[0].plot(T.real, T.imag, **pltArgs)
 
     if 'marker' in pltArgs: pltArgs.pop('marker')
-                
+
     if TUnc is not None:
         if fillType == 'circle':
             ax[0] = PlotNyquistUncPts(T, np.abs(TUnc), ax = ax[0], **pltArgs)
@@ -1258,11 +1258,11 @@ def PlotNyquist(T, TUnc = None, fig = None, fillType = 'circle', **pltArgs):
 
 
 def PlotGetExist(ioArray, fig = None):
-    
+
     ncols, nrows = ioArray.shape[0:-1]
     if isinstance(fig, mpl.figure.Figure):
         fig
-        
+
     elif isinstance(fig, int) and plt.fignum_exists(fig):
         fig = plt.figure(fig) # Get the figure handle by label
 
@@ -1270,17 +1270,17 @@ def PlotGetExist(ioArray, fig = None):
         fig = plt.figure(constrained_layout = True, num = fig)
         spec = fig.add_gridspec(ncols = ncols, nrows = nrows)
         ioArray = np.reshape(ioArray, (ncols*nrows,-1))
-                
+
         for iPlot in ioArray:
             [iOut, iIn] = iPlot
             fig.add_subplot(spec[iOut, iIn])
-    
+
     # Get the fig axes
     ax = fig.get_axes()
-    
+
     ax = np.asarray(ax)
     ax = ax.reshape(ncols, nrows).T
-    
+
     return fig, ax
 
 # Fix the Legends to that the Nominal and Uncertainty use the same label
@@ -1288,22 +1288,22 @@ def FixLegend(ax):
     handles, labels = ax.get_legend_handles_labels()
     lNew = []
     hNew = []
-    
+
     for iHandle, handle in enumerate(handles):
         label = labels[iHandle]
         if label in labels[iHandle+1:]:
             iMatch = labels[iHandle+1:].index(label)+1
             hNew.append((handle, handles[iMatch]))
-            
+
             labels[iMatch] = None
             handles[iMatch] = None
         else:
             hNew.append(handle)
-    
+
         lNew.append(label)
-        
+
         ax.legend(hNew, lNew)
-    
+
     return ax
 
 
@@ -1311,9 +1311,9 @@ def PrintPrettyFig(fig, fileName, backend='pgf', size_inches = None):
     backend_bak = mpl.get_backend()
     if size_inches is None:
         size_inches = fig.get_size_inches()
-    
+
     mpl.use(backend)
     fig.set_size_inches(size_inches)
     fig.savefig(fileName)
-    
+
     mpl.use(backend_bak)
