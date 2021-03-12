@@ -45,19 +45,19 @@ class OptSpect:
 
 
 #%% Estimate Transfer Function from Time history data
-def FreqRespFuncEstSIMO(x, y, opt = OptSpect()):
+def FreqRespFuncEstSIMO(x, z, opt = OptSpect()):
     '''
     Estimates the Transfer Function Response from input/output time histories
     Single-Input Multi-Output at a Single-FreqVector
 
-    x and y are real and must be the same length
-    Assumes x and y have uniform spacing
+    x and z are real and must be the same length
+    Assumes x and z have uniform spacing
 
     x has dimension (1, p) or (p,) at input and is expanded to (1, p)
-    y has dimension (n, p) or (p,) at input and is expanded to (n, p)
+    z has dimension (n, p) or (p,) at input and is expanded to (n, p)
     Sxx has dimension (1, r) and is reduced to (1, r) or (r,) depending on input form of x
     Szz has dimension (n, r) and is reduced to (n, r) or (r,) depending on input form of x
-    Sxy, Cxy, and Txy has dimension (n, r) or (r,)
+    Sxz, Cxz, and Txz has dimension (n, r) or (r,)
 
         m is the number of input signals
         n is the number of output signals
@@ -67,44 +67,51 @@ def FreqRespFuncEstSIMO(x, y, opt = OptSpect()):
     fs and freq must have same units. (Puu and Szz will only have correct power scale if units are rad/sec)
     '''
     x = np.atleast_2d(x)
-    y = np.atleast_2d(y)
+    z = np.atleast_2d(z)
 
     # Compute the Power Spectrums
     _   , xDft, Sxx = Spectrum(x, opt)
-    freq, yDft, Szz = Spectrum(y, opt)
+    freq, zDft, Szz = Spectrum(z, opt)
 
     # Compute Cross Spectrum Power with scaling
     lenX = x.shape[-1]
     win = signal.get_window(opt.winType, lenX)
     scale = PowerScale(opt.scaleType, win, opt.freqRate * rps2hz)
 
-    Sxy = xDft.conj() * yDft * scale
-    Sxy_smooth = SmoothPolar(Sxy, opt) # Smooth
+    Sxz = xDft.conj() * zDft * scale
+
+    # Smoothed versions of spectra, used for coherence
+    Sxx_smooth = Smooth(Sxx, opt.smooth)
+    Szz_smooth = Smooth(Szz, opt.smooth)
+    Sxz_smooth = SmoothPolar(Sxz, opt)
 
     # Interpolate Power Spectrums to the Desired Frequency Basis
     if opt.freqInterp is not None:
         Sxx = InterpVal(Sxx, freq, opt.freqInterp, opt.interpType)
         Szz = InterpVal(Szz, freq, opt.freqInterp, opt.interpType)
-        Sxy = InterpPolar(Sxy, freq, opt.freqInterp, opt.interpType)
-        Sxy_smooth = InterpPolar(Sxy_smooth, freq, opt.freqInterp, opt.interpType)
+        Sxz = InterpPolar(Sxz, freq, opt.freqInterp, opt.interpType)
+
+        Sxx_smooth = InterpVal(Sxx_smooth, freq, opt.freqInterp, opt.interpType)
+        Szz_smooth = InterpVal(Szz_smooth, freq, opt.freqInterp, opt.interpType)
+        Sxz_smooth = InterpPolar(Sxz_smooth, freq, opt.freqInterp, opt.interpType)
+
         freq = opt.freqInterp
 
     # Coherence, use the Smoothed Cross Spectrum
-    Cxy = np.abs(Sxy_smooth)**2 / (Sxx * Szz)
-    Cxy[Cxy > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
+    Cxz = Coherence(Sxz_smooth, Sxx_smooth, Szz_smooth)
 
-    # Compute complex transfer function approximation
-    Txy = Sxy / Sxx
+    # Compute complex frequency response function approximation
+    Txz = Sxz / Sxx
 
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
-    Txy = np.atleast_2d(Txy)
-    Cxy = np.atleast_2d(Cxy)
+    Txz = np.atleast_2d(Txz)
+    Cxz = np.atleast_2d(Cxz)
     Sxx = np.atleast_2d(Sxx)
     Szz = np.atleast_2d(Szz)
-    Sxy = np.atleast_2d(Sxy)
+    Sxz = np.atleast_2d(Sxz)
 
-    return freq, Txy, Cxy, Sxx, Szz, Sxy
+    return freq, Txz, Cxz, Sxx, Szz, Sxz
 
 
 def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
@@ -134,7 +141,11 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
     scale = PowerScale(opt.scaleType, win, opt.freqRate * rps2hz)
 
     Sxz = xDft.conj() * zDft * scale
-    Sxz_smooth = SmoothPolar(Sxz, opt) # Smooth
+
+    # Smoothed versions of spectra, used for coherence
+    Sxx_smooth = Smooth(Sxx, opt.smooth)
+    Szz_smooth = Smooth(Szz, opt.smooth)
+    Sxz_smooth = SmoothPolar(Sxz, opt)
 
     # Null Cross Spectrum at input frequencies
     nDft = InterpPolar(zDftNull_N, freq_N, freq, opt.interpType)
@@ -151,7 +162,11 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
         Sxx = InterpVal(Sxx, freq, opt.freqInterp, opt.interpType)
         Szz = InterpVal(Szz, freq, opt.freqInterp, opt.interpType)
         Sxz = InterpPolar(Sxz, freq, opt.freqInterp, opt.interpType)
+
+        Sxx_smooth = InterpVal(Sxx_smooth, freq, opt.freqInterp, opt.interpType)
+        Szz_smooth = InterpVal(Szz_smooth, freq, opt.freqInterp, opt.interpType)
         Sxz_smooth = InterpPolar(Sxz_smooth, freq, opt.freqInterp, opt.interpType)
+
         Sxn = InterpPolar(Sxn, freq, opt.freqInterp, opt.interpType)
 
         if opt.freqNullInterp is True: # Interp _N to _E
@@ -172,21 +187,20 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
 
 
     # Compute complex transfer function approximation of the Null
-    # Sxy of Null / Sxx of Input
+    # Sxz of Null / Sxx of Input
     TUnc = np.abs(Sxn / Sxx) # Additive Uncertainty (x to n)
-    # TUnc = np.abs(Szn / Szz) # Multiplicative Uncertainty (y to n)
+    # TUnc = np.abs(Szn / Szz) # Multiplicative Uncertainty (z to n)
 
     # Coherence, use the Smoothed Cross Spectrum
-    Cxz = np.abs(Sxz_smooth)**2 / (Sxx * Szz)
-    Cxz[Cxz > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
+    Cxz = Coherence(Sxz_smooth, Sxx_smooth, Szz_smooth)
 
-    # Compute complex transfer function approximation
+    # Compute complex frequency response function approximation
     Txz = Sxz / Sxx
 
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
-    Txy = np.atleast_2d(Txz)
-    Cxy = np.atleast_2d(Cxz)
+    Txz = np.atleast_2d(Txz)
+    Cxz = np.atleast_2d(Cxz)
     Sxx = np.atleast_2d(Sxx)
     Szz = np.atleast_2d(Szz)
     Sxz = np.atleast_2d(Sxz)
@@ -195,25 +209,25 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
     SxxNull = np.atleast_2d(SxxNull)
     Snn = np.atleast_2d(Snn)
 
-    return freq, Txy, Cxy, Sxx, Szz, Sxz, TUnc, SxxNull, Snn
+    return freq, Txz, Cxz, Sxx, Szz, Sxz, TUnc, SxxNull, Snn
 
 
-def FreqRespFuncEst(x, y, opt = OptSpect()):
+def FreqRespFuncEst(x, z, opt = OptSpect()):
     '''
     Estimates the Transfer Function Response from input/output time histories
     Single-Input Multi-Output at a Single-FreqVector
 
-    x and y are real and must be the same length
-    Assumes x and y have uniform spacing
+    x and z are real and must be the same length
+    Assumes x and z have uniform spacing
     '''
     import copy
 
     x = np.atleast_2d(x)
-    y = np.atleast_2d(y)
+    z = np.atleast_2d(z)
 
     # If the input is multidimensional, recursively call
     numIn = x.shape[0]
-    numOut = y.shape[0]
+    numOut = z.shape[0]
     if numIn > 1: # Multi-Input
 
         freqOpt = np.atleast_2d(opt.freq)
@@ -230,9 +244,9 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
         freq = np.zeros((numIn, numFreq))
         Sxx = np.zeros((numIn, numFreq))
         Szz = np.zeros((numOut, numIn, numFreq))
-        Cxy = np.zeros((numOut, numIn, numFreq))
-        Sxy = np.zeros((numOut, numIn, numFreq), dtype=complex)
-        Txy = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        Cxz = np.zeros((numOut, numIn, numFreq))
+        Sxz = np.zeros((numOut, numIn, numFreq), dtype=complex)
+        Txz = np.zeros((numOut, numIn, numFreq), dtype=complex)
 
         optIn = copy.deepcopy(opt)
         optIn.freqInterp = freqE
@@ -247,21 +261,21 @@ def FreqRespFuncEst(x, y, opt = OptSpect()):
 
             optIn.freq = np.atleast_2d(freqOptIn)
 
-            freq[iInput, :], Txy[:, iInput, :], Cxy[:, iInput, :], Sxx[iInput, :], Szz[:, iInput, :], Sxy[:, iInput, :] = FreqRespFuncEstSIMO(x[iInput], y, optIn)
+            freq[iInput, :], Txz[:, iInput, :], Cxz[:, iInput, :], Sxx[iInput, :], Szz[:, iInput, :], Sxz[:, iInput, :] = FreqRespFuncEstSIMO(x[iInput], z, optIn)
 
     else: # Single Input
 
-        freq, Txy, Cxy, Sxx, Szz, Sxy = FreqRespFuncEstSIMO(x, y, opt)
+        freq, Txz, Cxz, Sxx, Szz, Sxz = FreqRespFuncEstSIMO(x, z, opt)
 
     # Ensure outputs are 2D
     freq = np.atleast_2d(freq)
-    Txy = np.atleast_2d(Txy)
-    Cxy = np.atleast_2d(Cxy)
+    Txz = np.atleast_2d(Txz)
+    Cxz = np.atleast_2d(Cxz)
     Sxx = np.atleast_2d(Sxx)
     Szz = np.atleast_2d(Szz)
-    Sxy = np.atleast_2d(Sxy)
+    Sxz = np.atleast_2d(Sxz)
 
-    return freq, Txy, Cxy, Sxx, Szz, Sxy
+    return freq, Txz, Cxz, Sxx, Szz, Sxz
 
 
 def FreqRespFuncEstNoise(x, z, opt = OptSpect()):
@@ -314,7 +328,7 @@ def FreqRespFuncEstNoise(x, z, opt = OptSpect()):
             xIn = np.expand_dims(x[iInput], 0)
             freq[iInput, :], Txz[:, iInput, :], Cxz[:, iInput, :], Sxx[iInput, :], Szz[:, iInput, :], Sxz[:, iInput, :], TUnc[:, iInput, :], SxxNull[iInput, :], Snn[:, iInput, :] = FreqRespFuncEstNoiseSIMO(xIn, z, optIn)
 
-    else: # Single-Input, Sigle-FreqVector
+    else: # Single-Input, Single-FreqVector
 
         freq, Txz, Cxz, Sxx, Szz, Sxz, TUnc, SxxNull, Snn = FreqRespFuncEstNoiseSIMO(x, z, opt)
 
@@ -501,7 +515,7 @@ def Spectogram(t, freq, P, dim='2D'):
     fig.tight_layout()
 
     if dim == '3D':
-        from mpl_toolkits.mplot3d import Axes3D
+        # from mpl_toolkits.mplot3d import Axes3D
         ax = fig.gca(projection='3d', proj_type = 'ortho')
         ax.view_init(elev = 90.0, azim = -90.0)
 
@@ -521,7 +535,6 @@ def Spectogram(t, freq, P, dim='2D'):
 
 #%%
 def PowerScale(scaleType, win, fs_hz = 1):
-
     # Compute the scaling for power
     if scaleType == 'density':
         scale = 1.0 / (fs_hz * (win*win).sum()) # if win = ones, scale = dt / N
@@ -532,6 +545,158 @@ def PowerScale(scaleType, win, fs_hz = 1):
         raise ValueError('Unknown scaling: %r' % scaleType)
 
     return scale
+
+
+#%% Window Functions
+# Each window has a Frequency-domain function, an approximation, and an inverse of the approximation.
+
+# Dirichlet Window - Boxcar/Rectangular Window
+def Dirichlet(b, N):
+    theta = (2*pi) * b / N
+    W = np.exp(-1j * (N-0)/2 * theta) * np.sin(N*theta/2) / np.sin(theta/2)
+    return W
+
+def DirichletApprox(b):
+    # bMin = 0.6642246642246642
+    # a = -0.5323470654467308
+    # s = -0.8599226335455387
+    bMin = 0.66
+    a = -0.53
+    s = -0.86
+
+    W = 10**a * b**s
+
+    W[b<bMin] = np.nan
+    return W
+
+def DirichletApproxInv(W):
+    bMin = 0.66
+    a = -0.53
+    s = -0.86
+
+    b = W ** (1/s) * 10**(-a/s)
+    b[b<bMin] = bMin
+
+    return b
+
+
+# Bartlett Window - Triangular like
+def Bartlett(b, N):
+    theta = (2*pi) * b / N
+    W = (2/N) * np.exp(-1j * (N-0)/2 * theta) * (np.sin(N*theta/4) / np.sin(theta/2))**2
+    return W
+
+def BartlettApprox(b):
+    # bMin = 1.3528693528693527
+    # a = -0.5874439858074301
+    # s = -1.553948981407265
+    bMin = 1.35
+    a = -0.59
+    s = -1.55
+
+    W = 10**a * b**s
+
+    W[b<bMin] = np.nan
+    return W
+
+def BartlettApproxInv(W):
+    bMin = 1.35
+    a = -0.59
+    s = -1.55
+
+    b = W ** (1/s) * 10**(-a/s)
+    b[b<bMin] = bMin
+
+    return b
+
+
+# Hann Window
+def Hann(b, N):
+    theta = (2*pi) * b / N
+
+    def D(theta, N):
+        W = np.exp(1j * theta/2) * np.sin(N*theta/2) / np.sin(theta/2)
+        return W
+
+    theta0 = 2*pi/N
+    W = 0.5 * D(theta, N) + 0.25 * (D(theta - theta0, N) + D(theta + theta0, N))
+
+    return W
+
+def HannApprox(b):
+    # bMin = 1.7142857142857144
+    # a = -0.38835276177258016
+    # s = -3.1724455902865176
+    bMin = 1.71
+    a = -0.39
+    s = -3.17
+
+    W = 10**a * b**s
+
+    W[b<bMin] = np.nan
+    return W
+
+def HannApproxInv(W):
+    bMin = 1.71
+    a = -0.39
+    s = -3.17
+
+    b = W ** (1/s) * 10**(-a/s)
+    b[b<bMin] = bMin
+
+    return b
+
+
+def LeakageBestWindow(W):
+    # Dirichlet (Rectangular, Boxcar)
+    # Bartlett (Triangular)
+    # Hann
+
+    #  Compute # of bins
+    bDirichlet = DirichletApproxInv(np.asarray([W]))
+    bBartlett = BartlettApproxInv(np.asarray([W]))
+    bHann = HannApproxInv(np.asarray([W]))
+
+    if bDirichlet < bBartlett:
+        winType = 'Dirichlet'
+    elif bBartlett < bHann:
+        winType = 'Bartlett'
+    else:
+        winType = 'Hann'
+
+    return winType
+
+
+def LeakageGoal(W, winType = None):
+
+    if winType == None:
+        winType = LeakageBestWindow(W)
+
+    if winType.lower() in ['boxcar', 'rect', 'dirichlet']:
+        bSel = DirichletApproxInv(np.asarray([W]))
+    elif winType.lower() in ['triang', 'bartlett']:
+        bSel = BartlettApproxInv(np.asarray([W]))
+    else: # winType.lower() == 'Hann'
+        bSel = HannApproxInv(np.asarray([W]))
+
+    return bSel
+
+# Convert to/from non-dimensional bin width
+def Bin2FreqMin(delFreqBin, R):
+  freqMin_rps = R/(2*pi) * delFreqBin
+  return freqMin_rps
+
+def FreqMin2Bin(freqMin_rps, R):
+  delFreqBin = (2*pi/R) * freqMin_rps
+  return delFreqBin
+
+def FreqStep2TimeBin(freqStep_rps):
+  defTimeBin = (4*pi) / freqStep_rps
+  return defTimeBin
+
+def TimeBin2FreqStep(defTimeBin):
+  freqStep_rps = (4*pi) / defTimeBin
+  return freqStep_rps
 
 
 #%%
@@ -549,7 +714,8 @@ def Phase(T, phaseUnit = 'rad', unwrap = False):
     phase = np.angle(T)
 
     if unwrap:
-        phase = np.unwrap(phase, axis=-1)
+        iNan = ~np.isnan(phase)
+        phase[iNan] = np.unwrap(phase[iNan], axis=-1)
 
     if phaseUnit == 'deg':
         phase = phase * rad2deg
@@ -562,6 +728,22 @@ def GainPhase(T, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
     phase = Phase(T, phaseUnit, unwrap)
 
     return gain, phase
+
+def Coherence(Sxy, Sxx, Syy, cohType=None, optSmooth=None):
+
+    if optSmooth != None:
+        Sxy = np.copy(Smooth(Sxy, optSmooth))
+        Sxx = np.copy(Smooth(Sxx, optSmooth))
+        Syy = np.copy(Smooth(Syy, optSmooth))
+
+    if cohType == None:
+        Cxy = Sxy / np.sqrt(Sxx * Syy)
+    elif cohType.lower() == 'meansquare':
+        Cxy = np.abs(Sxy)**2 / (Sxx * Syy)
+
+    Cxy[Cxy > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
+
+    return Cxy
 
 # Transfer Complimentary Sensitivity to Sensitivity
 def TtoS(TNom, TUnc = None, TCoh = None):
@@ -1097,7 +1279,7 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
         ax[-1].semilogx(freq, coher_nd, **pltArgs)
         ax[-1].grid(True)
         ax[-1].set_ylabel('Coherence [mag]')
-        ax[-1].set_ylim(0, 1)
+        ax[-1].set_ylim(-1, 1)
 
     # Plot the Uncertainty on the Gain plot
     if gainUnc_mag is not None:

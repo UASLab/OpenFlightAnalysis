@@ -131,14 +131,22 @@ def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
             [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
 
 
-    # Re-scale and re-assemble to achieve unity peak-to-peak amplitude on each channel
-    if normalize is 'peak':
+    # Re-scale and re-assemble to achieve desired normalization
+    if normalize == 'peak':
+        # unity peak-to-peak amplitude on each channel
         for iSig, sig in enumerate(sigList):
             iElem = sigIndx[iSig]
             ampElem_nd[iElem] *= 2.0 / (max(sig) - min(sig))
 
         [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
 
+    elif normalize == 'rms':
+        # unity Root-Mean-Square amplitude on each channel
+        for iSig, sig in enumerate(sigList):
+            iElem = sigIndx[iSig]
+            ampElem_nd[iElem] *= 1.0 / np.sqrt(np.mean(sig**2))
+
+        [sigList, sigElem] = MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx)
 
     return np.asarray(sigList), phaseElem_rad, sigElem
 
@@ -233,7 +241,6 @@ def OptimalPhase(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, b
 
 #%% MultiSineAssemble
 def MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx = None):
-
 
     # Default Values and Constants
     if sigIndx is None:

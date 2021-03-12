@@ -78,7 +78,7 @@ freqGap_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 # Generate Schroeder MultiSine Signal
 ampExcit_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(freqExc_rps))
-uExc, phaseElem_rad, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
+uExc, phaseElem_rad, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'rms', costType = 'Schroeder')
 uExc = (uExc.T * (1 / np.std(uExc, axis = -1))).T
 uStd = np.std(uExc, axis = -1)
 uPeak = np.mean(GenExcite.PeakFactor(uExc) * uStd)**2
@@ -415,7 +415,7 @@ if False:
             FreqTrans.PrintPrettyFig(fig, 'OpenMimoGainTemporal' + str(iOut+1) + str(iIn+1) + '.pgf')
 
 #%%
-if True:
+if False:
     for iPlot, [iOut, iIn] in enumerate(ioArray):
         # Best Case SNR can be estimated as the Null input to Excited input
         uNER = np.abs(SuuNullList[:,iIn,:]) / np.abs(SuuList[:,iIn,:])

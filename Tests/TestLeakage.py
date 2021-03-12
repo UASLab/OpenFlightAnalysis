@@ -39,10 +39,13 @@ db2mag = control.db2mag
 
 
 #%%
-mDesire = db2mag(-20)
-fbinSel = 10**-0.5 * 1/mDesire
-#fbinBSel = 10**-(1/5) * (1/mDesire)**0.5
+W_dB = -20.0
+W = db2mag(W_dB)
 
+fBinSel = FreqTrans.LeakageGoal(W, winType = 'Dirichlet')[0]
+
+
+#%%
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
 dt = 1/freqRate_hz
@@ -50,16 +53,16 @@ dt = 1/freqRate_hz
 freqMinDes_hz = 0.1
 numCyclesDes = 3 # Plan for 3
 
-freqStepDes_hz = fbinSel / (numCyclesDes / freqMinDes_hz)
+freqStepDes_hz = 0.1
 
 
 #%% Excitation
-numCycles = 9 # Need 6!
-numExc = 2
+numCycles = 6 # Need 6!
+numChan = 2
 ampInit = 1
 ampFinal = 1
-freqMinDes_rps = freqMinDes_hz * hz2rps * np.ones(numExc)
-freqMaxDes_rps = 10.3 * hz2rps *  np.ones(numExc)
+freqMinDes_rps = freqMinDes_hz * hz2rps * np.ones(numChan)
+freqMaxDes_rps = 10.3 * hz2rps *  np.ones(numChan)
 freqStepDes_rps = (freqStepDes_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
@@ -81,74 +84,56 @@ freqChan_hz = freqChan_rps * rps2hz
 
 
 #%%
-def Dirichlet(fBin, N):
-#    theta = (2*pi) * fBin / N
-#    W = np.exp(-1j * (N-1)/2 * theta) * np.sin(N*theta/2) / np.sin(theta/2)
-    W = np.exp(-1j * (1-1/N) * pi * fBin) * np.sin(pi * fBin) / np.sin(pi * fBin / N)
-    return W
-
-def DirichletApprox(fBin):
-    fBinMin = 0.5 # Approximately where the Approximation hits the main-lobe
-    #W_dB = -10 + mag2db(0.5) * np.log2(fBin)
-    W = 10**-(1/2) * (1/fBin)
-    W[fBin<fBinMin] = np.nan
-    return W
-
-def Bartlett(fBin, N):
-#    theta = (2*pi) * fBin / N
-#    W = (2/N) * np.exp(-1j * (N-1)/2 * theta) * (np.sin(N*theta/4) / np.sin(theta/2))**2
-    W = (2/N) * np.exp(-1j * (1-1/N) * pi * fBin) * (np.sin(pi * fBin / 2) / np.sin(pi * fBin / N))**2
-    return W
-
-def BartlettApprox(fBin):
-    fBinMin = 1 # Approximately where the Approximation hits the main-lobe
-    #W_dB = -8 + mag2db(0.25) * np.log2(xB)
-    W =  10**-(2/5) * (1/fBin)**2
-    W[fBin<fBinMin] = np.nan
-    return W
-
-N = len(time_s)
+N = 2**8
 
 fBin = np.linspace(0, 10, num = N)
 
-D = Dirichlet(fBin, N)
+D = FreqTrans.Dirichlet(fBin, N)
 Dmag = np.abs(D)
 Dmax = np.nanmax(Dmag)
 Dnorm_mag = Dmag / Dmax
 Dnorm_dB = mag2db(Dnorm_mag)
 
-Dapprox_mag = DirichletApprox(fBin)
+Dapprox_mag = FreqTrans.DirichletApprox(fBin)
 Dapprox_dB = mag2db( Dapprox_mag )
 
 
-B = Bartlett(fBin, N)
+B = FreqTrans.Bartlett(fBin, N)
 Bmag = np.abs(B)
 Bmax = np.nanmax(Bmag)
 Bnorm_mag = Bmag / Bmax
 Bnorm_dB = mag2db(Bnorm_mag)
 
-Bapprox_mag = BartlettApprox(fBin)
+Bapprox_mag = FreqTrans.BartlettApprox(fBin)
 Bapprox_dB = mag2db( Bapprox_mag )
 
 
+H = FreqTrans.Hann(fBin, N)
+Hmag = np.abs(H)
+Hmax = np.nanmax(Hmag)
+Hnorm_mag = Hmag / Hmax
+Hnorm_dH = mag2db(Hnorm_mag)
+
+Happrox_mag = FreqTrans.HannApprox(fBin)
+Happrox_dH = mag2db( Happrox_mag )
+
 fig = 1
 fig = FreqTrans.PlotGainType(fBin, Dnorm_mag, None, None, None, fig = fig, dB = True, linestyle='-', color='b', label = 'Dirichlet Function')
-fig = FreqTrans.PlotGainType(fBin, Dapprox_mag, None, None, None, fig = fig, dB = True, linestyle='--', color='b', label = 'Dirichlet Approximation')
-fig = FreqTrans.PlotGainType(fBin, Bnorm_mag, None, None, None, fig = fig, dB = True, linestyle='-', color='r', label = 'Bartlett Function')
-fig = FreqTrans.PlotGainType(fBin, Bapprox_mag, None, None, None, fig = fig, dB = True, linestyle='--', color='r', label = 'Bartlett Approximation')
+fig = FreqTrans.PlotGainType(fBin, Dapprox_mag, None, None, None, fig = fig, dB = True, linestyle=':', color='b', label = 'Dirichlet Approximation')
+fig = FreqTrans.PlotGainType(fBin, Bnorm_mag, None, None, None, fig = fig, dB = True, linestyle='-', color='g', label = 'Bartlett Function')
+fig = FreqTrans.PlotGainType(fBin, Bapprox_mag, None, None, None, fig = fig, dB = True, linestyle=':', color='g', label = 'Bartlett Approximation')
+fig = FreqTrans.PlotGainType(fBin, Hnorm_mag, None, None, None, fig = fig, dB = True, linestyle='-', color='r', label = 'Hann Function')
+fig = FreqTrans.PlotGainType(fBin, Happrox_mag, None, None, None, fig = fig, dB = True, linestyle=':', color='r', label = 'Hann Approximation')
 
 ax = fig.get_axes()
+
 ax[0].set_xscale('linear')
 ax[0].set_xlim(left = 0.0, right = 10)
 ax[0].set_xlabel('Normalized Bin')
-ax[0].set_ylim(bottom = -60, top = 10)
+ax[0].set_ylim(bottom = -70, top = 10)
 ax[0].set_ylabel('Normalized Power Magnitude [dB]')
 ax[0].grid(True)
 ax[0].legend()
-
-fig.set_size_inches([6.4,3.6])
-if False:
-    FreqTrans.PrintPrettyFig(fig, 'WindowFunc.pgf')
 
 
 #%% Validation with Spectrum
@@ -176,23 +161,25 @@ numSeg = int(lenX)
 
 
 t_s = np.zeros(numSeg)
-PwwList = np.zeros((numSeg, numExc, lenFreq))
-PwwNList = np.zeros((numSeg, numExc, lenFreqN))
+PwwList = np.zeros((numSeg, numChan, lenFreq))
+PwwNList = np.zeros((numSeg, numChan, lenFreqN))
 for iSeg in range(0, numSeg):
     iEnd = iSeg * stride
     print ( 100 * iSeg / numSeg )
     _, _, Pww = FreqTrans.Spectrum(exc[:, 0:iEnd+1], optTemp)
     _, _, PwwN = FreqTrans.Spectrum(exc[:, 0:iEnd+1], optTempN)
-    
+
     t_s[iSeg] = time_s[iEnd+1]
     PwwList[iSeg, ] = Pww
     PwwNList[iSeg, ] = PwwN
 
 
 #%% Plot
+N = len(time_s)
+
 #PwwList[:,] = np.nan
-#PwwNList[:,] = np.nan      
-    
+#PwwNList[:,] = np.nan
+
 PwwListMag = np.abs(PwwList[:,0,:])
 PwwNListMag = np.abs(PwwNList[:,0,:])
 
@@ -209,38 +196,35 @@ PwwNListMax = np.max(PwwNListMag, axis=-1)
 freqStep_rps = freqExc_rps[1] - freqExc_rps[0]
 
 freqStep_hz = freqStep_rps * rps2hz
-#tBinLen = 2 * 2 * pi / freqStep_rps
 freqMinDes_rps = freqMinDes_hz * hz2rps
-#tBinLen = fbinSel * 2 * freqMinDes_hz / (numCyclesDes * freqStepDes_hz**2)
-tBinLen = fbinSel * 2 * 2* pi * freqMinDes_rps / (numCyclesDes * freqStepDes_rps**2)
-#tBinLen = 2 * numCyclesDes / (fbinSel * freqMinDes_hz) # If freqStep was selected from the bin, then this is true
+tBinWidth = FreqTrans.FreqStep2TimeBin(freqStepDes_rps)
 
 numCycles / freqMinDes_hz
-tBinD = np.linspace(0, time_s[-1] / tBinLen, 80)
-timeD_s = tBinLen * tBinD
+tBinD = np.linspace(0, time_s[-1] / tBinWidth, 80)
+timeD_s = tBinWidth * tBinD
 
 
-D = Dirichlet(tBinD, N+1)
+D = FreqTrans.Dirichlet(tBinD, N+1)
 Dmag = np.abs(D)
 Dmax = np.nanmax(Dmag)
 Dnorm_mag = Dmag / Dmax
 
 
-tBinDapprox = np.linspace(0.0, time_s[-1] / tBinLen, 80)
-timeDapprox_s = tBinLen * tBinDapprox
+tBinDapprox = np.linspace(0.0, time_s[-1] / tBinWidth, 80)
+timeDapprox_s = tBinWidth * tBinDapprox
 Dapprox_mag = 10**-0.5 * 1/tBinDapprox
 
 
 tBinB = np.linspace(0, numCycles, 80)
-timeB_s = tBinLen * tBinB
+timeB_s = tBinWidth * tBinB
 
-B = Bartlett(tBinB, N+1)
+B = FreqTrans.Bartlett(tBinB, N+1)
 Bmag = np.abs(B)
 Bmax = np.nanmax(Bmag)
 Bnorm_mag = Bmag / Bmax
 
-tBinBapprox = np.linspace(0.0, time_s[-1] / tBinLen, 80)
-timeBapprox_s = tBinLen * tBinBapprox
+tBinBapprox = np.linspace(0.0, time_s[-1] / tBinWidth, 80)
+timeBapprox_s = tBinWidth * tBinBapprox
 Bapprox_mag = 10**-(2/5) * (1/tBinBapprox)**2
 
 fig = 2
@@ -279,14 +263,15 @@ dENR = (Dnorm_mag / PexcD) * PwwNListMean.max()
 dENRapprox = (Dapprox_mag / PexcDApp) * PwwNListMean.max()
 
 fig = 4
-fig = FreqTrans.PlotGainTemporal(t_s, uENRMean, None, None, uENRMax, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='k', label = 'Estimate')
-fig = FreqTrans.PlotGainTemporal(timeD_s, dENR, None, None, None, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='r', label = 'Dirichlet Function')
-fig = FreqTrans.PlotGainTemporal(timeDapprox_s, dENRapprox, None, None, None, fig = fig, dB = False, UncSide = 'Max', linestyle=':', color='r', label = 'Dirichlet Approximation')
+fig = FreqTrans.PlotGainTemporal(t_s, uENRMean, None, None, uENRMax, fig = fig, dB = True, UncSide = 'Max', linestyle='-', color='k', label = 'Leakage Estimate')
+fig = FreqTrans.PlotGainTemporal(timeD_s, dENR, None, None, None, fig = fig, dB = True, UncSide = 'Max', linestyle='-', color='r', label = 'Dirichlet Function')
+fig = FreqTrans.PlotGainTemporal(timeDapprox_s, dENRapprox, None, None, None, fig = fig, dB = True, UncSide = 'Max', linestyle=':', color='r', label = 'Dirichlet Approximation')
 
 ax = fig.get_axes()
-ax[0].set_xlim(0, time_s[-1])
-ax[0].set_ylim(0, 1.2)
-ax[0].set_ylabel(str.replace(ax[0].get_ylabel(), 'Gain', 'Null / Excitation [mag]'))
+# ax[0].set_xlim(0, time_s[-1])
+ax[0].set_xlim(right = 3 * tBinWidth)
+ax[0].set_ylim(bottom = -60)
+ax[0].set_ylabel(str.replace(ax[0].get_ylabel(), 'Gain [dB]', 'Null / Excitation [mag]'))
 
 ax[0].legend()
 FreqTrans.FixLegend(ax[0])
@@ -297,7 +282,7 @@ if False:
 
 #%%
 
-fBin = np.linspace(0, 10, num = 100)
+fBin = np.linspace(0, 5, num = 300)
 
 freqExc_rps / freqExc_rps[0]
 freqExc_rps / freqRate_rps
@@ -307,27 +292,54 @@ freqStep_rps / freqRate_rps
 
 Pww = PwwListMean.sum()
 
-Pexc = Pww * t / T
+# Pexc = Pww * t / T
+# Pexc = uPeak**2 *
 
-Pexc = uPeak**2 * 
 PwwListMag = np.abs(PwwList[:,0,:])
 PwwNListMag = np.abs(PwwNList[:,0,:])
 
 PwwListMean = np.sum(PwwListMag, axis=-1)
 
 
-Dapprox_mag = DirichletApprox(fBin)
+Dapprox_mag = FreqTrans.DirichletApprox(fBin)
 Dapprox_dB = mag2db( Dapprox_mag )
 
-Bapprox_mag = BartlettApprox(fBin)
+Bapprox_mag = FreqTrans.BartlettApprox(fBin)
 Bapprox_dB = mag2db( Bapprox_mag )
 
+Happrox_mag = FreqTrans.HannApprox(fBin)
+Happrox_dB = mag2db( Happrox_mag )
 
-plt.semilogx(fBin, Dapprox_dB, label = 'Dirichlet Approximation')
-plt.semilogx(fBin, Bapprox_dB, label = 'Bartlett Approximation')
+
+DapproxBest_mag = FreqTrans.DirichletApprox(fBin)
+BapproxBest_mag = FreqTrans.BartlettApprox(fBin)
+HapproxBest_mag = FreqTrans.HannApprox(fBin)
+
+WapproxBest_mag = np.nanmin(np.array([DapproxBest_mag,BapproxBest_mag,HapproxBest_mag]), axis=0)
+WapproxBest_dB = mag2db( WapproxBest_mag )
+
+fBinInt = np.arange(1, 5)
+
+DBest_mag = np.abs(FreqTrans.Dirichlet(fBinInt, len(fBinInt)))
+BBest_mag = np.abs(FreqTrans.Bartlett(fBinInt, len(fBinInt)))
+HBest_mag = np.abs(FreqTrans.Hann(fBinInt, len(fBinInt)))
+
+WBest_mag = np.nanmin(np.array([DBest_mag,BBest_mag,HBest_mag]), axis=0)
+WBest_dB = mag2db( WBest_mag )
+
+
+fig = plt.figure()
+plt.semilogx(fBin, Dapprox_dB, color = 'b', label = 'Dirichlet Approximation')
+plt.semilogx(fBin, Bapprox_dB, color = 'g', label = 'Bartlett Approximation')
+plt.semilogx(fBin, Happrox_dB, color = 'r', label = 'Hann Approximation')
+plt.semilogx(fBin, WapproxBest_dB, ':k', label = 'Best Choice')
+# plt.semilogx(fBinInt, WBest_dB, '*k', label = 'Best Choice')
 plt.grid(True)
 plt.xlabel('Normalized Bin')
-plt.ylabel('Null / Excitation [mag]')
+plt.ylabel('Null / Excitation [dB]')
 plt.legend()
 
+fig.set_size_inches([6.4,3.6])
+if False:
+    FreqTrans.PrintPrettyFig(fig, 'WindFuncBest.pgf')
 
