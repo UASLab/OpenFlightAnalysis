@@ -7,6 +7,18 @@ from scipy import fft
 import matplotlib.pyplot as plt
 import control
 
+# Hack to allow loading the Core package
+if __name__ == "__main__" and __package__ is None:
+    from sys import path, argv
+    from os.path import dirname, abspath, join
+
+    path.insert(0, abspath(join(dirname(argv[0]), "..")))
+    path.insert(0, abspath(join(dirname(argv[0]), "..", 'Core')))
+
+    del path, argv, dirname, abspath, join
+
+from Core import FreqTrans
+
 # Constants
 pi = np.pi
 
@@ -78,11 +90,11 @@ for i, winType in enumerate(winTypeList):
 # ax1.legend()
 
 ax2.set_xlim([0, 10])
-ax2.set_ylim([-80, 0])
+ax2.set_ylim([-80, 10])
 ax2.grid(True)
 ax2.set_ylabel("Normalized Power Magnitude [dB]")
 ax2.set_xlabel("Normalized Bin")
-ax2.legend(loc = 'upper right')
+ax2.legend(loc = 'upper right', framealpha  = 1)
 
 fig2.set_size_inches([6.4,3.6])
 fig2.tight_layout()

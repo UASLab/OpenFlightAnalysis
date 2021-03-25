@@ -729,17 +729,17 @@ def GainPhase(T, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
 
     return gain, phase
 
-def Coherence(Sxy, Sxx, Syy, cohType=None, optSmooth=None):
+def Coherence(Sxy, Sxx, Syy, cohType = 'MeanSquare', optSmooth = None):
 
     if optSmooth != None:
         Sxy = np.copy(Smooth(Sxy, optSmooth))
         Sxx = np.copy(Smooth(Sxx, optSmooth))
         Syy = np.copy(Smooth(Syy, optSmooth))
 
-    if cohType == None:
-        Cxy = Sxy / np.sqrt(Sxx * Syy)
-    elif cohType.lower() == 'meansquare':
+    if cohType.lower() == 'meansquare':
         Cxy = np.abs(Sxy)**2 / (Sxx * Syy)
+    else:
+        Cxy = Sxy / np.sqrt(Sxx * Syy)
 
     Cxy[Cxy > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
 
@@ -1192,9 +1192,7 @@ import matplotlib.patches as patch
 
 # For print pretty to latex
 mpl.rcParams.update({
-    "pgf.texsystem": "pdflatex",
-    # 'font.family': 'serif',
-    # "font.serif": ["Palatino"],
+    # "pgf.texsystem": "pdflatex",
     'text.usetex': True,
     'pgf.rcfonts': False,
 })
@@ -1279,7 +1277,7 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
         ax[-1].semilogx(freq, coher_nd, **pltArgs)
         ax[-1].grid(True)
         ax[-1].set_ylabel('Coherence [mag]')
-        ax[-1].set_ylim(-1, 1)
+        ax[-1].set_ylim(0, 1)
 
     # Plot the Uncertainty on the Gain plot
     if gainUnc_mag is not None:

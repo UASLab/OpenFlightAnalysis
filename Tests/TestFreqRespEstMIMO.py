@@ -388,8 +388,6 @@ if False:
         gainThEstUncMin = np.mean(np.abs(gainThEstNom_mag[:,iOut,iIn,:]) - np.abs(gainThEstUnc_mag[:,iOut,iIn,:]), axis=-1)
 
         cohEst = np.abs(CuzList[:,iOut,iIn,:])
-        cohEst[cohEst < 0] = 0
-        cohEst[cohEst > 1] = 1
         cohEstMean = np.mean(cohEst, axis=-1)
         cohEstStd = np.std(cohEst, axis=-1)
         cohEstMin = np.min(cohEst, axis=-1)

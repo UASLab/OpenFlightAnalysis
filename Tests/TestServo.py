@@ -68,7 +68,7 @@ if 0:
 #%%
 # ampList = np.array([3, 5, 10, 20])
 ampList = np.arange(1.0, 40.1, 0.5)
-# ampList = np.array([1, 2, 3, 4, 5, 10, 15])
+# ampList = np.array([1, 1.5, 2.0, 2.5, 20, 21, 22, 23, 24, 25])
 
 # Create Servo Object (HiTec HS-225BB)
 freqNat_hz = 6.0
@@ -107,7 +107,7 @@ for amp in ampList:
 
 
 #%% Plot the Excitation Spectrum
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqExc_rps, smooth = ('box', 3), winType = 'hann')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_hz * hz2rps, freq = freqExc_rps, smooth = ('box', 3), winType = 'rect')
 
 plt.figure(2)
 TxyList = []
@@ -179,7 +179,7 @@ delta = sat
 A = cmd
 f = SatFunc(delta/A)
 
-plt.figure()
+fig = plt.figure()
 plt.plot(A/delta, f, '-', label = 'Saturation Function')
 # plt.plot(A/delta, 1 - f, '-', label = 'Limiter Function')
 plt.grid(True)
@@ -190,13 +190,12 @@ plt.xlabel('Input Amplitude [$A / \delta$]')
 plt.ylabel('Output Amplitude [$|N(A)| / m$]')
 plt.legend()
 
+fig.set_size_inches([6.4, 3.6])
 if False:
-  fig.set_size_inches([6.4, 2.4])
   FreqTrans.PrintPrettyFig(fig, 'SaturationFunction.pgf')
 
 
 #%%
-
 def DF_Saturation(A, delta, m = 1):
     # Saturation (Gelb #7)
     n_r = m * SatFunc(delta/A)
@@ -338,10 +337,12 @@ ax[0].set_xscale("linear")
 ax[1].set_xscale("linear")
 ax[1].set_xlim(left = 0, right = 20)
 ax[1].set_ylim(bottom = -90, top = 0)
-ax[1].set_xlabel('Normalize Input Amplitude')
+ax[0].set_ylabel('Normalized Gain [-]')
+ax[1].set_xlabel('Normalized Input Amplitude')
+ax[1].set_ylabel('Phase [deg]')
 
+fig.set_size_inches([6.4, 3.6])
 if False:
-  fig.set_size_inches([6.4, 3.6])
   FreqTrans.PrintPrettyFig(fig, 'DescribingFunction.pgf')
 
 
@@ -367,47 +368,55 @@ ampPeakFactor = ampList / sigPeakFactor
 
 gainDF_mag, phaseDF_deg = FreqTrans.GainPhase(nDF, magUnit = 'mag', unwrap = True)
 
+TxyArrayMax = np.nanmax(np.abs(TxyArray).squeeze(), axis=0)
+TxyArrayNorm = TxyArray.squeeze() / TxyArrayMax
 
+gainTxyMean_mag = FreqTrans.Gain(TxyArrayNorm, magUnit = 'mag')
 
-# TxyArrayMax = np.nanmax(TxyArray.squeeze(), axis=-1)
-# TxyArrayNorm = np.nanmean(TxyArray.squeeze().T, axis=0)
-# TxyArrayNorm = np.nanmean(TxyArray.squeeze().T / TxyArrayMax, axis=0)
+gainTxy_mag = FreqTrans.Gain(TxyArray.T.squeeze(), magUnit = 'mag').T
+gainTxyMax_mag = np.nanmax(gainTxy_mag, axis=0)
+gainTxyNorm_mag = (gainTxy_mag / gainTxyMax_mag)
+gainTxyMean_mag =  np.nanmean(gainTxyNorm_mag, axis=-1)
 
-# gainTxyNorm_mag = FreqTrans.Gain(TxyArrayNorm.T, magUnit = 'mag')
-# phaseTxyNorm_deg = FreqTrans.Phase(np.nanmax(TxyArray.squeeze(), axis=-1), phaseUnit = 'deg', unwrap = True)
-# phaseTxy_deg = np.unwrap(np.angle(-TxyArray.squeeze())) * rad2deg
+phaseTxy_deg = FreqTrans.Phase(TxyArray.T.squeeze(), phaseUnit = 'deg', unwrap = True).T
+phaseTxy_deg[:, phaseTxy_deg[0] > 90] -= 360
+phaseTxyMean_deg = np.nanmean(phaseTxy_deg, axis=-1)
 
-CxyArrayMax = np.nanmax(CxyArray.squeeze(), axis=-1)
-# CxyArrayNorm = np.nanmean(CxyArray.squeeze().T, axis=0)
-CxyArrayNorm = np.nanmean(CxyArray.squeeze().T / CxyArrayMax, axis=0)
-
-gainTxyNorm_mag, phaseTxyNorm_deg = FreqTrans.GainPhase(CxyArrayNorm, magUnit = 'mag', phaseUnit = 'deg', unwrap = True)
-
-
-# gainTxyMax_mag = np.nanmax(gainTxy_mag, axis=-1)
-# gainTxyNorm_mag = np.nanmean(gainTxy_mag.T / gainTxyMax_mag, axis=-1)
-
-# phaseTxyMax_deg = np.nanmax(phaseTxy_deg, axis=-1)
-# phaseTxyNorm_deg = np.nanmean(phaseTxy_deg.T - phaseTxyMax_deg, axis=-1)
-
-CxyArrayMin = np.nanmin(np.abs(CxyArray), axis=-1)
-CxyArrayNorm = CxyArrayMin / np.nanmax(CxyArrayMin)
-
+CxyArrayMin = np.nanmin(np.abs(CxyArray.T.squeeze()), axis=0)
+CxyArrayMax = np.nanmax(np.abs(CxyArray.T.squeeze()), axis=0)
+CxyArrayMean = np.nanmean(CxyArray.T.squeeze(), axis=0)
 
 fig = None
-fig = FreqTrans.PlotGainType(ampPeakFactor, gainTxyNorm_mag, phaseTxyNorm_deg, coher_nd = CxyArrayNorm**2, gainUnc_mag = None, fig = fig, dB = False, color='r', label='Normalized Estimates')
-# fig = FreqTrans.PlotGainType(cmd, gainDF_mag, phaseDF_deg, coher_nd = None, gainUnc_mag = None, fig = fig, dB = False, color='k', label='Describing Function')
+fig = FreqTrans.PlotGainType(ampPeakFactor, gainTxyMean_mag, phaseTxyMean_deg, coher_nd = CxyArrayMean, gainUnc_mag = None, fig = fig, dB = False, color='r', label='Mean Estimate')
+fig = FreqTrans.PlotGainType(cmd, gainDF_mag, phaseDF_deg, coher_nd = None, gainUnc_mag = None, fig = fig, dB = False, color='k', label='Describing Function')
+# fig = FreqTrans.PlotGainType(ampPeakFactor, gainTxyNorm_mag, phaseTxy_deg, coher_nd = CxyArray, gainUnc_mag = None, fig = fig, dB = False, color='b', marker = '.', alpha = 0.5, linestyle = '', label='Estimates')
 
 ax = fig.get_axes()
+
+ax[0].fill_between(ampPeakFactor, np.min(gainTxyNorm_mag, axis = -1), np.max(gainTxyNorm_mag, axis = -1), color='b', alpha = 0.25, label='Estimate Range')
+ax[1].fill_between(ampPeakFactor, np.min(phaseTxy_deg, axis = -1), np.max(phaseTxy_deg, axis = -1), color='b', alpha = 0.25)
+ax[2].fill_between(ampPeakFactor, np.min(CxyArray, axis = -1), np.max(CxyArray, axis = -1), color='b', alpha = 0.25)
+
 ax[0].set_xscale("linear")
 ax[0].set_xlim([0,20])
 # ax[1].set_ylim([-90,0])
 # ax[-1].set_ylim(bottom = 0.0)
 ax[-1].set_xlabel("Command Amplitude")
 
+# Fix Legend
+handles, labels = ax[0].get_legend_handles_labels()
+handles = [handles[1], handles[-1], handles[0]]
+labels = [labels[1], labels[-1], labels[0]]
+ax[0].legend(handles, labels)
+
+
+fig.set_size_inches([6.4,4.8])
 if False:
-  fig.set_size_inches([6.4,4.8])
   FreqTrans.PrintPrettyFig(fig, 'ServoResponseBode.pgf')
+
+
+#%%
+
 
 
 #%%

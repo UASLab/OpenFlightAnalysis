@@ -88,7 +88,7 @@ objServo.freeplay = 1.0
 objServo.timeDelay_s = 50 / 1000 # this ends up rounded to an integer (timeDelay_s * freqRate_hz)
 objServo.vLim = 560
 
-# np.random.seed(584)
+np.random.seed(584)
 rStd = [0.5]
 r = np.random.normal([0.0], rStd, size = (len(time_s), 1)).T
 
@@ -154,8 +154,7 @@ for iIter in range(maxIter):
     freq_rps, Tuz, Cuz, Suu, Szz, Suz, Tun, SuuNull, Snn = FreqTrans.FreqRespFuncEstNoise(pCmd, pMeas, optSpec)
     freq_hz = freq_rps * rps2hz
 
-    Cuz = np.abs(Cuz)**2 # Mean Square Coherence
-    Cuz[Cuz>1] = 1.0
+    Cuz = Cuz.clip(0, 1)
 
     TuzRefine.append(Tuz.squeeze())
     CuzRefine.append(Cuz.squeeze())
@@ -215,29 +214,34 @@ for iIter in range(maxIter):
 
 #%%
 # Leakage Goal
-WGoal_dB = -20.0
-WGoal = db2mag(WGoal_dB)
-binGoal = FreqTrans.LeakageGoal(WGoal, winType = 'boxcar')[0]
-# binGoal = FreqTrans.LeakageGoal(WGoal, winType = 'hann')[0]
+uN2EGoal_dB = 20.0
+uN2EGoal = db2mag(uN2EGoal_dB)
+binGoal = FreqTrans.LeakageGoal(1/uN2EGoal, winType = 'boxcar')[0]
+# binGoal = FreqTrans.LeakageGoal(1/uN2EGoal, winType = 'hann')[0]
 
 freqStepDes_rps = (10 / 50) * hz2rps
 tBinWidth = FreqTrans.FreqStep2TimeBin(freqStepDes_rps)
 
-# XXX - SNR Goal - zSNRProjectMean = numCycles * np.mean(zSNRCurr)
-zSNRGoal = 100
+# XXX - SNR Goal - zSNRProjectMean = numSeg * np.mean(zSNRCurr)
+zSNRGoal = 80
 numCyclesSNR = zSNRGoal / np.mean(zSNRCurr)
 
 tLeakageGoal = binGoal * tBinWidth
 
 # Estimate how many cycles are required to achieve objective
 tCycle = 1/(freqMinDes_rps * rps2hz)[0]
-numCycles = np.ceil(tLeakageGoal / tCycle)
+numCyclesLeakage = tLeakageGoal / tCycle
+
+numCycles = np.ceil(np.max([numCyclesSNR, numCyclesLeakage]))
+
+cyclepseg = tBinWidth / tCycle # # of cycles per segment
+numSeg = int(numCycles / cyclepseg)
 
 # Predict the final SNR estimate
-zSNRCurr = SzzRefine[-1] / SnnRefine[-1]
-zSNRProjectMean = numCycles * np.mean(zSNRCurr)
+zSNRCurr = np.abs(SzzRefine[-1]) / np.abs(SnnRefine[-1])
+zSNRProjectMean = numSeg * np.mean(zSNRCurr)
 # zSNRMergeMeanErgotic
-# zSNRMean
+# zSNRMean[-1]
 
 ## Generate MultiSine Frequencies
 freqExcFinal_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles, freqStepDes_rps, methodSW)
@@ -276,8 +280,6 @@ optSpec.freqNullInterp = True
 optSpec.winType = 'boxcar'
 
 ## Split the signals into segments, process each, merge
-cyclepseg = int(tBinWidth / tCycle) # # of cycles per segment
-numSeg = numCycles / cyclepseg
 nperseg = int(pCmd.shape[-1] / numSeg)
 noverlap = 0
 numFreq = freqExcFinal_rps.shape[-1]
@@ -304,8 +306,7 @@ for iSeg in range(int(numSeg)):
   # freq_rps, Tuz, Cuz, Suu, Szz, Suz = FreqTrans.FreqRespFuncEst(pCmd, pMeas, optSpec)
   freq_rps, Tuz, Cuz, Suu, Szz, Suz, Tun, SuuNull, Snn = FreqTrans.FreqRespFuncEstNoise(pCmdFinal[-1], pMeasFinal[-1], optSpec)
 
-  Cuz = np.abs(Cuz)**2 # Mean Square Coherence
-  Cuz[Cuz>1] = 1.0
+  Cuz = Cuz.clip(0, 1)
 
   TuzFinal.append(Tuz.squeeze())
   CuzFinal.append(Cuz.squeeze())
@@ -319,9 +320,7 @@ for iSeg in range(int(numSeg)):
 
 # Run the whole 'Final' sequence together for comparison
 freq_rps, Tuz, Cuz, Suu, Szz, Suz, Tun, SuuNull, Snn = FreqTrans.FreqRespFuncEstNoise(pCmd, pMeas, optSpec)
-
-Cuz = np.abs(Cuz)**2 # Mean Square Coherence
-Cuz[Cuz>1] = 1.0
+Cuz = Cuz.clip(0, 1)
 
 #%%
 fig = plt.figure()
@@ -365,43 +364,40 @@ zSNRRefineMax = np.max(zSNRRefine, axis=-1)
 # Coherence Statistics
 CuzRefineMean = np.mean(CuzRefine, axis=-1)
 CuzRefineStd = np.std(CuzRefine, axis=-1)
-CuzRefineMin = np.min(CuzRefine, axis=-1)
-CuzRefineMax = np.max(CuzRefine, axis=-1)
 
 # Final Stage Estimates
 iIterFinal = iIterRefine[-1] + np.arange(1, len(timeFinal_s)+1)
 iIterFinalRange = [iIterFinal[0], iIterFinal[-1]]
+iterCont = [iIterRefine[0], iIterFinalRange[-1]]
 
 # Excitation - to - Null Statistics
 uN2EFinal = np.abs(SuuFinal) / np.abs(SuuNullFinal)
 
 uN2EFinalMean = np.mean(uN2EFinal, axis=-1)
 uN2EFinalStd = np.std(uN2EFinal, axis=-1)
-uN2EFinalMin = np.min(uN2EFinal, axis=-1)
-uN2EFinalMax = np.max(uN2EFinal, axis=-1)
 
 uN2EMergeMean = np.mean(uN2EFinalMean, axis=-1)
 uN2EMergeStd = np.std(uN2EFinalMean, axis=-1) + np.mean(uN2EFinalStd, axis=-1)
-uN2EMergeStd / uN2EMergeMean
+
+uN2EMergeMeanErgotic = 1 * uN2EMergeMean # XXX
+uN2EMergeStdErgotic = 1 * uN2EMergeStd # XXX
 
 uN2E = (np.abs(Suu) / np.abs(SuuNull)).squeeze()
 uN2EMean = np.mean(uN2E, axis=-1)
 uN2EStd = np.std(uN2E, axis=-1)
 
 # SNR Statistics
-zSNRFinal = np.abs(SzzFinal) / np.abs(SnnFinal)
+zSNRFinal = np.abs(SzzFinal) / np.abs(SnnFinal) - 1
+zSNRFinal[zSNRFinal > 500] = np.nan
 
-zSNRFinalSum = np.sum(zSNRFinal, axis=-1)
-zSNRFinalMean = np.mean(zSNRFinal, axis=-1)
-zSNRFinalStd = np.std(zSNRFinal, axis=-1)
-zSNRFinalMin = np.min(zSNRFinal, axis=-1)
-zSNRFinalMax = np.max(zSNRFinal, axis=-1)
+zSNRFinalMean = np.nanmean(zSNRFinal, axis=-1)
+zSNRFinalStd = np.nanstd(zSNRFinal, axis=-1)
 
 zSNRMergeMean = np.mean(zSNRFinalMean, axis=-1)
 zSNRMergeStd = np.std(zSNRFinalMean, axis=-1) + np.mean(zSNRFinalStd, axis=-1)
 
-zSNRMergeMeanErgotic = (numSeg) * zSNRMergeMean
-zSNRMergeStdErgotic = (numSeg) * zSNRMergeStd
+zSNRMergeMeanErgotic = numSeg * zSNRMergeMean
+zSNRMergeStdErgotic = numSeg * zSNRMergeStd
 
 zSNR = np.abs(Szz) / np.abs(Snn)
 zSNRMean = np.mean(zSNR, axis=-1)
@@ -411,14 +407,21 @@ zSNRStd = np.std(zSNR, axis=-1)
 # Coherence Statistics
 CuzFinalMean = np.mean(CuzFinal, axis=-1)
 CuzFinalStd = np.std(CuzFinal, axis=-1)
-CuzFinalMin = np.min(CuzFinal, axis=-1)
-CuzFinalMax = np.max(CuzFinal, axis=-1)
 
 CuzMergeMean = np.mean(CuzFinalMean, axis=-1)
 CuzMergeStd = np.std(CuzFinalMean, axis=-1) + np.mean(CuzFinalStd, axis=-1)
+CuzMergeCoefVar = CuzMergeStd / CuzMergeMean
 
 CuzMean = np.mean(Cuz, axis=-1)
 CuzStd = np.std(Cuz, axis=-1)
+
+CuzMergeMeanErgotic = (np.sqrt(1/numSeg) * (1 - CuzMergeMean)) + CuzMergeMean
+CuzMergeStdErgotic = np.sqrt(1/numSeg) * CuzMergeStd
+
+coher = CuzMergeMean
+N_s = CuzFinalMean.shape[-1]
+coherError = np.sqrt(2 / (N_s * coher)) * (1 - coher) # = std(coher) / coher; coher is the estimated mean square coherence, Bendat2010 Table 9.6
+coherError * CuzMergeMean
 
 
 #%% Linear System
@@ -428,139 +431,191 @@ TLinRefine = FreqTrans.FreqResp(sysLin, freqExc_rps)
 TLinFinal = FreqTrans.FreqResp(sysLin, freqExcFinal_rps)
 
 # Error
-TErrRefine = (TLinRefine - TuzRefine).squeeze()
-TErrRefineMean = np.mean(np.abs(TErrRefine), axis = -1)
-TErrRefineStd = np.std(np.abs(TErrRefine), axis = -1)
+TErrRefine = (TuzRefine - TLinRefine).squeeze()
+TErrSqdRefine = np.abs(TErrRefine**2)
 
-TErrRefineMSE = np.mean(np.abs(TErrRefine)**2, axis = -1)
-TErrRefineMSD = np.std(np.abs(TErrRefine)**2, axis = -1)
+TErrFinal = (TuzFinal - TLinFinal).squeeze()
+TErrSqdFinal = np.abs(TErrFinal**2)
 
+TErrMergeMean = np.mean(np.mean(TErrFinal, axis = -1), axis=-1)
+TErrMergeStd = np.std(np.mean(TErrFinal, axis = -1), axis=-1) + np.mean(np.std(TErrFinal, axis = -1), axis=-1)
 
-TErrFinal = (TLinFinal - TuzFinal).squeeze()
-TErrFinalMean = np.mean(np.abs(TErrFinal), axis = -1)
-TErrFinalStd = np.std(np.abs(TErrFinal), axis = -1)
-
-TErrFinalMSE = np.mean(np.abs(TErrFinal)**2, axis = -1)
-TErrFinalMSD = np.std(np.abs(TErrFinal)**2, axis = -1)
-
-TErrMergeMean = np.mean(TErrFinalMean, axis=-1)
-TErrMergeStd = np.std(TErrFinalMean, axis=-1) + np.mean(TErrFinalStd, axis=-1)
-
-TErrMergeMSE = np.mean(TErrFinalMSE)
-TErrMergeMSD = np.mean(TErrFinalMSD)
-
-TErr = (TLinFinal - Tuz).squeeze()
-TErrMean = np.mean(np.abs(TErr))
-TErrStd = np.std(np.abs(TErr))
-
-TErrMSE = np.mean(np.abs(TErr)**2)
-TErrMSD = np.std(np.abs(TErr)**2, axis = -1)
+TErr = (Tuz - TLinFinal).squeeze()
+TErrSqd = np.abs(TErr**2)
 
 
 #%% Plot the Error Distribution
 fig = plt.figure()
-plt.plot(freqExcFinal_rps * rps2hz, np.abs(TErrFinal).T, ':b', label = 'Final Estimates')
-plt.plot(freqExcFinal_rps * rps2hz, np.mean(np.abs(TErrFinal), axis=0).T, '-b', label = 'Final Merge Estimate')
-plt.plot(freqExcFinal_rps * rps2hz, [TErrMergeMean] * np.ones_like(freqExcFinal_rps), '-b', label = 'Final Merge Estimate')
+plt.subplot(2,1,1)
+plt.plot(freqExcFinal_rps * rps2hz, np.real(TErrFinal).T, ':b', label = 'Final Estimates')
+plt.plot(freqExcFinal_rps * rps2hz, [np.real(TErrMergeMean)] * np.ones_like(freqExcFinal_rps), '-b', label = 'Final Merge Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.real(TErrMergeMean) - TErrMergeStd] * np.ones_like(freqExcFinal_rps), [np.real(TErrMergeMean) + TErrMergeStd] * np.ones_like(freqExcFinal_rps), color = 'b', alpha = 0.25, label = 'Final Merge Estimate')
 
-plt.plot(freqExcFinal_rps * rps2hz, np.abs(TErr).T, '-k', label = 'Continuous Estimate')
-plt.plot(freqExcFinal_rps * rps2hz, [TErrMean] * np.ones_like(freqExcFinal_rps), '-k', label = 'Final Merge Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, np.real(TErr).T, ':k', label = 'Continuous Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, [np.real(np.mean(TErr))] * np.ones_like(freqExcFinal_rps), '-k', label = 'Continuous Mean Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.real(np.mean(TErr)) - np.std(TErr)] * np.ones_like(freqExcFinal_rps), [np.real(np.mean(TErr)) + np.std(TErr)] * np.ones_like(freqExcFinal_rps), color = 'k', alpha = 0.25, label = 'Continuous Mean Estimate')
 
-plt.xlabel('Frequency [Hz]')
-plt.ylabel('Error')
+plt.ylabel('Real Error')
 plt.grid(True)
 plt.legend()
 
-#%% Plot the Error Distribution
-fig = plt.figure()
-# plt.plot(freqExcFinal_rps * rps2hz, np.abs(TErrFinal**2).T, ':b', label = 'Final Estimates')
-plt.plot(freqExcFinal_rps * rps2hz, np.mean(np.abs(TErrFinal**2), axis=0).T, '-b', label = 'Final Merge Estimate')
-plt.plot(freqExcFinal_rps * rps2hz, [TErrMergeMSE] * np.ones_like(freqExcFinal_rps), '-b', label = 'Final Merge Estimate')
+plt.subplot(2,1,2)
+plt.plot(freqExcFinal_rps * rps2hz, np.imag(TErrFinal).T, ':b', label = 'Final Estimates')
+plt.plot(freqExcFinal_rps * rps2hz, [np.imag(TErrMergeMean)] * np.ones_like(freqExcFinal_rps), '-b', label = 'Final Merge Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.imag(TErrMergeMean) - TErrMergeStd] * np.ones_like(freqExcFinal_rps), [np.imag(TErrMergeMean) + TErrMergeStd] * np.ones_like(freqExcFinal_rps), color = 'b', alpha = 0.25, label = 'Final Merge Estimate')
 
-plt.plot(freqExcFinal_rps * rps2hz, np.abs(TErr**2).T, '-k', label = 'Continuous Estimate')
-plt.plot(freqExcFinal_rps * rps2hz, [TErrMSE] * np.ones_like(freqExcFinal_rps), '-k', label = 'Final Merge Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, np.imag(TErr).T, ':k', label = 'Continuous Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, [np.imag(np.mean(TErr))] * np.ones_like(freqExcFinal_rps), '-k', label = 'Continuous Mean Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.imag(np.mean(TErr)) - np.std(TErr)] * np.ones_like(freqExcFinal_rps), [np.imag(np.mean(TErr)) + np.std(TErr)] * np.ones_like(freqExcFinal_rps), color = 'k', alpha = 0.25, label = 'Continuous Mean Estimate')
+plt.ylabel('Imag Error')
 
 plt.xlabel('Frequency [Hz]')
-plt.ylabel('Mean Squared Error')
+plt.grid(True)
+
+#%% Plot the Error Squared Distribution
+fig = plt.figure()
+plt.plot(freqExcFinal_rps * rps2hz, TErrSqdFinal.T, ':b', label = 'Final Estimates')
+plt.plot(freqExcFinal_rps * rps2hz, [np.mean(TErrSqdFinal)] * np.ones_like(freqExcFinal_rps), '-r', label = 'Final Merge Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.mean(TErrSqdFinal) - np.std(TErrSqdFinal)] * np.ones_like(freqExcFinal_rps), [np.mean(TErrSqdFinal) + np.std(TErrSqdFinal)] * np.ones_like(freqExcFinal_rps), color = 'r', alpha = 0.25, label = 'Final Merge Estimate')
+
+plt.plot(freqExcFinal_rps * rps2hz, TErrSqd.T, ':k', label = 'Continuous Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, [np.mean(TErrSqd)] * np.ones_like(freqExcFinal_rps), '-k', label = 'Continuous Mean Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.mean(TErrSqd) - np.std(TErrSqd)] * np.ones_like(freqExcFinal_rps), [np.mean(TErrSqd) + np.std(TErrSqd)] * np.ones_like(freqExcFinal_rps), color = 'k', alpha = 0.25, label = 'Continuous Mean Estimate')
+
+plt.xlabel('Frequency [Hz]')
+plt.ylabel('Gain Error')
+plt.grid(True)
+plt.legend()
+
+
+#%% Plot the Excitation-to-Null Distribution
+fig = plt.figure()
+plt.plot(freqExcFinal_rps * rps2hz, uN2EFinal.T, ':b', label = 'Final Estimates')
+# plt.plot(freqExcFinal_rps * rps2hz, np.mean(uN2EFinal, axis=0).T, '-b', label = 'Final Merge Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, np.mean(uN2EFinal) * np.ones_like(freqExcFinal_rps), '-r', label = 'Final Merge Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.mean(uN2EFinal) - np.std(uN2EFinal)] * np.ones_like(freqExcFinal_rps), [np.mean(uN2EFinal) + np.std(uN2EFinal)] * np.ones_like(freqExcFinal_rps), color = 'r', alpha = 0.25, label = 'Final Merge Estimate')
+
+plt.plot(freqExcFinal_rps * rps2hz, uN2E.T, ':k', label = 'Continuous Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, [(uN2E).mean()] * np.ones_like(freqExcFinal_rps), '-k', label = 'Continuous Mean Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.mean(uN2E) - np.std(uN2E)] * np.ones_like(freqExcFinal_rps), [np.mean(uN2E) + np.std(uN2E)] * np.ones_like(freqExcFinal_rps), color = 'k', alpha = 0.25, label = 'Continuous Mean Estimate')
+
+# Ergotic
+plt.plot(freqExcFinal_rps * rps2hz, (uN2EMergeMeanErgotic) * np.ones_like(freqExcFinal_rps), '-r', label = 'Final Merge Estimate (Ergodic)')
+plt.fill_between(freqExcFinal_rps * rps2hz, [(uN2EMergeMeanErgotic) - (uN2EMergeStdErgotic)] * np.ones_like(freqExcFinal_rps), [(uN2EMergeMeanErgotic) + (uN2EMergeStdErgotic)] * np.ones_like(freqExcFinal_rps), color = 'g', alpha = 0.25, label = 'Final Merge Estimate (Ergodic)')
+
+plt.xlabel('Frequency [Hz]')
+plt.ylabel('Excitation/Null Ratio')
 plt.grid(True)
 plt.legend()
 
 #%% Plot the SNR Distribution
 fig = plt.figure()
-# plt.plot(freqExcFinal_rps * rps2hz, 1/zSNRFinal.T, ':b', label = 'Final Estimates')
-plt.plot(freqExcFinal_rps * rps2hz, np.mean(1/zSNRFinal, axis=0).T, '-b', label = 'Final Merge Estimate')
-plt.plot(freqExcFinal_rps * rps2hz, np.mean(1/zSNRFinal) * np.ones_like(freqExcFinal_rps), '-b', label = 'Final Merge Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, zSNRFinal.T, ':b', label = 'Final Estimates')
+# plt.plot(freqExcFinal_rps * rps2hz, np.mean(zSNRFinal, axis=0).T, '-b', label = 'Final Merge Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, np.nanmean(zSNRFinal) * np.ones_like(freqExcFinal_rps), '-r', label = 'Final Merge Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.nanmean(zSNRFinal) - np.nanstd(zSNRFinal)] * np.ones_like(freqExcFinal_rps), [np.nanmean(zSNRFinal) + np.nanstd(zSNRFinal)] * np.ones_like(freqExcFinal_rps), color = 'r', alpha = 0.25, label = 'Final Merge Estimate')
 
-plt.plot(freqExcFinal_rps * rps2hz, (1/zSNRMergeMeanErgotic) * np.ones_like(freqExcFinal_rps), '-r', label = 'Final Merge Estimate (Ergodic)')
+plt.plot(freqExcFinal_rps * rps2hz, zSNR.T, ':k', label = 'Continuous Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, [(zSNR).mean()] * np.ones_like(freqExcFinal_rps), '-k', label = 'Continuous Mean Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.mean(zSNR) - np.std(zSNR)] * np.ones_like(freqExcFinal_rps), [np.mean(zSNR) + np.std(zSNR)] * np.ones_like(freqExcFinal_rps), color = 'k', alpha = 0.25, label = 'Continuous Mean Estimate')
 
-plt.plot(freqExcFinal_rps * rps2hz, 1/zSNR.T, '-k', label = 'Continuous Estimate')
-plt.plot(freqExcFinal_rps * rps2hz, np.mean(1/zSNR) * np.ones_like(freqExcFinal_rps), '-k', label = 'Final Merge Estimate')
+# Ergotic
+plt.plot(freqExcFinal_rps * rps2hz, (zSNRMergeMeanErgotic) * np.ones_like(freqExcFinal_rps), '-r', label = 'Final Merge Estimate (Ergodic)')
+plt.fill_between(freqExcFinal_rps * rps2hz, [(zSNRMergeMeanErgotic) - (zSNRMergeStdErgotic)] * np.ones_like(freqExcFinal_rps), [(zSNRMergeMeanErgotic) + (zSNRMergeStdErgotic)] * np.ones_like(freqExcFinal_rps), color = 'g', alpha = 0.25, label = 'Final Merge Estimate (Ergodic)')
 
 plt.xlabel('Frequency [Hz]')
-plt.ylabel('Noise/Signal Ratio')
+plt.ylabel('Signal/Noise Ratio')
+plt.grid(True)
+plt.legend()
+
+#%% Plot the Coherence Distribution
+fig = plt.figure()
+plt.plot(freqExcFinal_rps * rps2hz, np.array(CuzFinal).T, ':b', label = 'Final Estimates')
+# plt.plot(freqExcFinal_rps * rps2hz, np.mean(CuzFinal, axis=0).T, '-b', label = 'Final Merge Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, np.nanmean(CuzFinal) * np.ones_like(freqExcFinal_rps), '-b', label = 'Final Merge Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.nanmean(CuzFinal) - np.nanstd(CuzFinal)] * np.ones_like(freqExcFinal_rps), [np.nanmean(CuzFinal) + np.nanstd(CuzFinal)] * np.ones_like(freqExcFinal_rps), color = 'b', alpha = 0.25, label = 'Final Merge Estimate')
+
+plt.plot(freqExcFinal_rps * rps2hz, Cuz.T, ':k', label = 'Continuous Estimate')
+plt.plot(freqExcFinal_rps * rps2hz, [(Cuz).mean()] * np.ones_like(freqExcFinal_rps), '-k', label = 'Continuous Mean Estimate')
+plt.fill_between(freqExcFinal_rps * rps2hz, [np.mean(Cuz) - np.std(Cuz)] * np.ones_like(freqExcFinal_rps), [np.mean(Cuz) + np.std(Cuz)] * np.ones_like(freqExcFinal_rps), color = 'k', alpha = 0.25, label = 'Continuous Mean Estimate')
+
+# Ergotic
+plt.plot(freqExcFinal_rps * rps2hz, (CuzMergeMeanErgotic) * np.ones_like(freqExcFinal_rps), '-r', label = 'Final Merge Estimate (Ergodic)')
+plt.fill_between(freqExcFinal_rps * rps2hz, [(CuzMergeMeanErgotic) - (CuzMergeStdErgotic)] * np.ones_like(freqExcFinal_rps), [(CuzMergeMeanErgotic) + (CuzMergeStdErgotic)] * np.ones_like(freqExcFinal_rps), color = 'r', alpha = 0.25, label = 'Final Merge Estimate (Ergodic)')
+
+plt.xlabel('Frequency [Hz]')
+plt.ylabel('Coherence')
 plt.grid(True)
 plt.legend()
 
 #%% Plot the iteration history
 fig = plt.figure()
-
 plt.subplot(4,1,1)
-plt.plot(iIterRefine, (TErrRefineMSE), '--.k', label = 'Refine Estimates')
-# plt.fill_between(iIterRefine, (TErrRefineMSE - TErrRefineMSD), (TErrRefineMSE + TErrRefineMSD), alpha = 0.25, color = 'k', label = 'Refine Estimates')
 
-plt.plot(iIterFinal, (TErrFinalMSE), '--.b', label = 'Final Estimate')
-plt.fill_between(iIterFinal, (TErrFinalMSE - TErrFinalMSD), (TErrFinalMSE + TErrFinalMSD), alpha = 0.25, color = 'b', label = 'Final Estimates')
+plt.plot(iIterRefine, np.mean(TErrSqdRefine, axis=-1), '--.k', label = 'Refine Estimates')
+# plt.fill_between(iIterRefine, (np.mean(TErrRefinSqd, axis=-1) - np.std(TErrRefinSqd, axis=-1)), (np.mean(TErrRefinSqd, axis=-1) + np.std(TErrRefinSqd, axis=-1)), alpha = 0.25, color = 'k', label = 'Refine Estimates')
 
-plt.plot(iIterFinalRange, [TErrMergeMSE]*2, '-r', label = 'Final Merge')
-plt.fill_between(iIterFinalRange, [TErrMergeMSE - TErrMergeMSD]*2, [TErrMergeMSE + TErrMergeMSD]*2, alpha = 0.25, color = 'r', label = 'Final Merge')
+plt.plot(iIterFinal, np.mean(TErrSqdFinal, axis=-1), '--.b', label = 'Final Estimate')
+plt.fill_between(iIterFinal, np.mean(TErrSqdFinal, axis=-1) - np.std(TErrSqdFinal, axis=-1), np.mean(TErrSqdFinal, axis=-1) + np.std(TErrSqdFinal, axis=-1), alpha = 0.25, color = 'b', label = 'Final Estimates')
 
-plt.plot(iIterFinalRange, [TErrMSE]*2, '-k', label = 'Final Continuous')
-plt.fill_between(iIterFinalRange, [TErrMSE - TErrMSD]*2, [TErrMSE + TErrMSD]*2, alpha = 0.25, color = 'k', label = 'Final Continuous')
-plt.yscale('log')
+plt.plot(iIterFinalRange, [np.mean(TErrSqdFinal)]*2, '-r', label = 'Final Merge')
+plt.fill_between(iIterFinalRange, [np.mean(TErrSqdFinal) - np.std(TErrSqdFinal)]*2, [np.mean(TErrSqdFinal) + np.std(TErrSqdFinal)]*2, alpha = 0.25, color = 'r', label = 'Final Merge')
+
+plt.plot(iterCont, [np.mean(TErrSqd)]*2, '-k', label = 'Final Continuous')
+plt.fill_between(iterCont, [np.mean(TErrSqd) - np.std(TErrSqd)]*2, [np.mean(TErrSqd) + np.std(TErrSqd)]*2, alpha = 0.25, color = 'k', label = 'Final Continuous')
+# plt.yscale('log')
 plt.ylabel('Mean Square Error')
 plt.grid(True)
 plt.legend()
 
 # Fix Legend
 ax = fig.get_axes()
-handles, labels = ax[0].get_legend_handles_labels()
-handles = [handles[0], (handles[1], handles[4]), (handles[2], handles[5]), (handles[3], handles[6])]
-labels = [labels[0], labels[1], labels[2], labels[3]]
-ax[0].legend(handles, labels)
+# handles, labels = ax[0].get_legend_handles_labels()
+# handles = [handles[0], (handles[1], handles[4]), (handles[2], handles[5]), (handles[3], handles[6])]
+# labels = [labels[0], labels[1], labels[2], labels[3]]
+# ax[0].legend(handles, labels)
 
 
 plt.subplot(4,1,2)
-plt.plot(iIterRefine, 1/(uN2ERefineMean), '--.k', label = 'Refine Estimates')
-# plt.fill_between(iIterRefine, (1/uN2ERefineMean - 1/uN2ERefineStd), (1/uN2ERefineMean + 1/uN2ERefineStd), alpha = 0.25, color = 'k', label = 'Refine Estimates')
+plt.plot(iIterRefine, (uN2ERefineMean), '--.k', label = 'Refine Estimates')
+# plt.fill_between(iIterRefine, (uN2ERefineMean - uN2ERefineStd), (uN2ERefineMean + uN2ERefineStd), alpha = 0.25, color = 'k', label = 'Refine Estimates')
 
-plt.plot(iIterFinal, 1/(uN2EFinalMean), '--.b', label = 'Final Estimate')
-plt.fill_between(iIterFinal, (1/uN2EFinalMean - 1/uN2EFinalStd), (1/uN2EFinalMean + 1/uN2EFinalStd), alpha = 0.25, color = 'b', label = 'Final Estimates')
+# plt.plot(iIterRefine[-1] + 0.5, (uN2EGoal), '*k', label = 'Final Goal')
 
-plt.plot(iIterFinalRange, [1/uN2EMergeMean]*2, '-r', label = 'Final Merge')
-plt.fill_between(iIterFinalRange, (1/uN2EMergeMean - 1/uN2EMergeStd), (1/uN2EMergeMean + 1/uN2EMergeStd), alpha = 0.25, color = 'r', label = 'Final Merge')
+plt.plot(iIterFinal, (uN2EFinalMean), '--.b', label = 'Final Estimate')
+plt.fill_between(iIterFinal, (uN2EFinalMean - uN2EFinalStd), (uN2EFinalMean + uN2EFinalStd), alpha = 0.25, color = 'b', label = 'Final Estimates')
 
-plt.plot(iIterFinalRange, [1/uN2EMean]*2, '-k', label = 'Final Continuous')
-plt.fill_between(iIterFinalRange, (1/uN2EMean - 1/uN2EStd), (1/uN2EMean + 1/uN2EStd), alpha = 0.25, color = 'k', label = 'Final Continuous')
+plt.plot(iIterFinalRange, [uN2EMergeMean]*2, '-r', label = 'Final Merge')
+plt.fill_between(iIterFinalRange, (uN2EMergeMean - uN2EMergeStd), (uN2EMergeMean + uN2EMergeStd), alpha = 0.25, color = 'r', label = 'Final Merge')
+
+plt.plot(iIterFinalRange, [uN2EMergeMeanErgotic] * 2, '-g', label = 'Final Merge Estimate (Ergodic)')
+plt.fill_between(iIterFinalRange, (uN2EMergeMeanErgotic - uN2EMergeStdErgotic), (uN2EMergeMeanErgotic + uN2EMergeStdErgotic), alpha = 0.25, color = 'g', label = 'Final Merge Estimate (Ergodic)')
+
+plt.plot(iterCont, [uN2EMean]*2, '-k', label = 'Final Continuous')
+plt.fill_between(iterCont, (uN2EMean - uN2EStd), (uN2EMean + uN2EStd), alpha = 0.25, color = 'k', label = 'Final Continuous')
 plt.yscale('log')
 plt.ylabel('Input Excitation/Null')
 plt.grid(True)
 
 
 plt.subplot(4,1,3)
-plt.plot(iIterRefine, (1/zSNRRefineMean), '--.k', label = 'Refine Estimates')
-# plt.fill_between(iIterRefine, (1/zSNRRefineMean - 1/zSNRRefineStd), (1/zSNRRefineMean + 1/zSNRRefineStd), alpha = 0.25, color = 'k', label = 'Refine Estimates')
+plt.plot(iIterRefine, (zSNRRefineMean), '--.k', label = 'Refine Estimates')
+# plt.fill_between(iIterRefine, (zSNRRefineMean - zSNRRefineStd), (zSNRRefineMean + zSNRRefineStd), alpha = 0.25, color = 'k', label = 'Refine Estimates')
 
-plt.plot(iIterFinal, (1/zSNRFinalMean), '--.b', label = 'Final Estimate')
-plt.fill_between(iIterFinal, (1/zSNRFinalMean - 1/zSNRFinalStd), (1/zSNRFinalMean + 1/zSNRFinalStd), alpha = 0.25, color = 'b', label = 'Final Estimates')
+# plt.plot(iIterRefine[-1] + 0.5, (zSNRGoal), '*k', label = 'Final Goal')
+# plt.plot(iIterRefine[-1] + 0.5, (zSNRProjectMean), '.k', label = 'Final Projections')
 
-plt.plot(iIterFinalRange, [1/zSNRMergeMean]*2, '-r', label = 'Final Merge')
-plt.fill_between(iIterFinalRange, (1/zSNRMergeMean - 1/zSNRMergeStd), (1/zSNRMergeMean + 1/zSNRMergeStd), alpha = 0.25, color = 'r', label = 'Final Merge')
+plt.plot(iIterFinal, (zSNRFinalMean), '--.b', label = 'Final Estimate')
+plt.fill_between(iIterFinal, (zSNRFinalMean - zSNRFinalStd), (zSNRFinalMean + zSNRFinalStd), alpha = 0.25, color = 'b', label = 'Final Estimates')
 
-plt.plot(iIterFinalRange, [1/zSNRMergeMeanErgotic] * 2, '-m', label = 'Final Merge Estimate (Ergodic)')
-plt.fill_between(iIterFinalRange, (1/zSNRMergeMeanErgotic - 1/zSNRMergeStdErgotic), (1/zSNRMergeMeanErgotic + 1/zSNRMergeStdErgotic), alpha = 0.25, color = 'm', label = 'Final Merge Estimate (Ergodic)')
+plt.plot(iIterFinalRange, [zSNRMergeMean]*2, '-r', label = 'Final Merge')
+plt.fill_between(iIterFinalRange, (zSNRMergeMean - zSNRMergeStd), (zSNRMergeMean + zSNRMergeStd), alpha = 0.25, color = 'r', label = 'Final Merge')
 
-plt.plot(iIterFinalRange, [1/zSNRMean]*2, '-k', label = 'Final Continuous')
-plt.fill_between(iIterFinalRange, (1/zSNRMean - 1/zSNRStd), (1/zSNRMean + 1/zSNRStd), alpha = 0.25, color = 'k', label = 'Final Continuous')
+plt.plot(iIterFinalRange, [zSNRMergeMeanErgotic] * 2, '-g', label = 'Final Merge Estimate (Ergodic)')
+plt.fill_between(iIterFinalRange, (zSNRMergeMeanErgotic - zSNRMergeStdErgotic), (zSNRMergeMeanErgotic + zSNRMergeStdErgotic), alpha = 0.25, color = 'g', label = 'Final Merge Estimate (Ergodic)')
+
+plt.plot(iterCont, [zSNRMean]*2, '-k', label = 'Final Continuous')
+plt.fill_between(iterCont, (zSNRMean - zSNRStd), (zSNRMean + zSNRStd), alpha = 0.25, color = 'k', label = 'Final Continuous')
 plt.yscale('log')
 plt.ylabel('Output Noise/Signal')
 plt.grid(True)
@@ -576,8 +631,11 @@ plt.fill_between(iIterFinal, (CuzFinalMean - CuzFinalStd), (CuzFinalMean + CuzFi
 plt.plot(iIterFinalRange, [CuzMergeMean]*2, '-r', label = 'Final Merge')
 plt.fill_between(iIterFinalRange, (CuzMergeMean - CuzMergeStd), (CuzMergeMean + CuzMergeStd), alpha = 0.25, color = 'r', label = 'Final Merge')
 
-plt.plot(iIterFinalRange, [CuzMean]*2, '-k', label = 'Final Continuous')
-plt.fill_between(iIterFinalRange, (CuzMean - CuzStd), (CuzMean + CuzStd), alpha = 0.25, color = 'k', label = 'Final Continuous')
+plt.plot(iIterFinalRange, [CuzMergeMeanErgotic] * 2, '-g', label = 'Final Merge Estimate (Ergodic)')
+plt.fill_between(iIterFinalRange, (CuzMergeMeanErgotic - CuzMergeStdErgotic), (CuzMergeMeanErgotic + CuzMergeStdErgotic), alpha = 0.25, color = 'g', label = 'Final Merge Estimate (Ergodic)')
+
+plt.plot(iterCont, [CuzMean]*2, '-k', label = 'Final Continuous')
+plt.fill_between(iterCont, (CuzMean - CuzStd), (CuzMean + CuzStd), alpha = 0.25, color = 'k', label = 'Final Continuous')
 
 plt.xlabel('Iteration')
 plt.ylabel('Coherence')
