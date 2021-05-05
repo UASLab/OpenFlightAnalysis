@@ -28,6 +28,13 @@ from Core import Loader
 from Core import OpenData
 
 
+# plt.rcParams.update({
+#     "text.usetex": True,
+#     "font.family": "serif",
+#     "font.serif": ["Palatino"],
+#     "font.size": 10
+# })
+
 # Constants
 hz2rps = 2 * np.pi
 rps2hz = 1 / hz2rps
@@ -36,8 +43,8 @@ rps2hz = 1 / hz2rps
 #%% File Lists
 import os.path as path
 
-pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Thor')
-#pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Thor')
+# pathBase = path.join('/home', 'rega0051', 'FlightArchive', 'Thor')
+pathBase = path.join('G:', 'Shared drives', 'UAVLab', 'Flight Data', 'Thor')
 
 fileList = {}
 flt = 'FLT126'
@@ -63,26 +70,26 @@ fileList[flt]['def'] = path.join(pathBase, 'Thor' + flt, 'thor_def.json')
 from Core import FreqTrans
 
 rtsmSegList = [
-#        {'flt': 'FLT126', 'seg': ('time_us', [875171956 , 887171956], 'FLT126 - RTSM - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
-#        {'flt': 'FLT126', 'seg': ('time_us', [829130591 , 841130591], 'FLT126 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
-#        {'flt': 'FLT127', 'seg': ('time_us', [641655909 , 653655909], 'FLT127 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Yaw controller in-op??
-#        {'flt': 'FLT128', 'seg': ('time_us', [700263746 , 712263746 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Interesting Roll Margin vs. Uncertainty
-#        {'flt': 'FLT128', 'seg': ('time_us', [831753831 , 843753831 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'},
-#        {'flt': 'FLT128', 'seg': ('time_us', [ 959859721 , 971859721 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'fmt': 'k'}, # Not good
+#        {'flt': 'FLT126', 'seg': ('time_us', [875171956 , 887171956], 'FLT126 - RTSM - Nominal Gain, 4 deg amp'), 'color': 'k'},
+#        {'flt': 'FLT126', 'seg': ('time_us', [829130591 , 841130591], 'FLT126 - RTSM Route - Nominal Gain, 4 deg amp'), 'color': 'k'},
+#        {'flt': 'FLT127', 'seg': ('time_us', [641655909 , 653655909], 'FLT127 - RTSM Route - Nominal Gain, 4 deg amp'), 'color': 'k'}, # Yaw controller in-op??
+#        {'flt': 'FLT128', 'seg': ('time_us', [700263746 , 712263746 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'color': 'k'}, # Interesting Roll Margin vs. Uncertainty
+#        {'flt': 'FLT128', 'seg': ('time_us', [831753831 , 843753831 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'color': 'k'},
+#        {'flt': 'FLT128', 'seg': ('time_us', [ 959859721 , 971859721 ], 'FLT128 - RTSM Route - Nominal Gain, 4 deg amp'), 'color': 'k'}, # Not good
 
-#        {'flt': 'FLT126', 'seg': ('time_us', [928833763 , 940833763], 'FLT126 - RTSM Large - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
-#        {'flt': 'FLT127', 'seg': ('time_us', [698755386 , 707255278], 'FLT127 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'}, # Yaw controller in-op??
-#        {'flt': 'FLT128', 'seg': ('time_us', [779830919 , 791830919 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
-#        {'flt': 'FLT128', 'seg': ('time_us', [900237086 , 912237086 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'fmt': 'r'},
+#        {'flt': 'FLT126', 'seg': ('time_us', [928833763 , 940833763], 'FLT126 - RTSM Large - Nominal Gain, 8 deg amp'), 'color': 'r'},
+#        {'flt': 'FLT127', 'seg': ('time_us', [698755386 , 707255278], 'FLT127 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'color': 'r'}, # Yaw controller in-op??
+#        {'flt': 'FLT128', 'seg': ('time_us', [779830919 , 791830919 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'color': 'r'},
+#        {'flt': 'FLT128', 'seg': ('time_us', [900237086 , 912237086 ], 'FLT128 - RTSM Large Route - Nominal Gain, 8 deg amp'), 'color': 'r'},
 #
-#        {'flt': 'FLT126', 'seg': ('time_us', [902952886 , 924952886], 'FLT126 - RTSM Long - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
-#        {'flt': 'FLT127', 'seg': ('time_us', [657015836 , 689015836], 'FLT127 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Yaw controller in-op??
-#        {'flt': 'FLT128', 'seg': ('time_us', [714385469 , 746385469 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'},
-        {'flt': 'FLT128', 'seg': ('time_us', [847254621 , 879254621 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'fmt': 'b'}, # Best
+#        {'flt': 'FLT126', 'seg': ('time_us', [902952886 , 924952886], 'FLT126 - RTSM Long - Nominal Gain, 4 deg amp'), 'color': 'b'},
+#        {'flt': 'FLT127', 'seg': ('time_us', [657015836 , 689015836], 'FLT127 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'color': 'b'}, # Yaw controller in-op??
+#        {'flt': 'FLT128', 'seg': ('time_us', [714385469 , 746385469 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'color': 'b'},
+        {'flt': 'FLT128', 'seg': ('time_us', [847254621 , 879254621 ], 'FLT128 - RTSM Long Route - Nominal Gain, 4 deg amp'), 'color': 'b'}, # Best
 
-#        {'flt': 'FLT127', 'seg': ('time_us', [1209355236 , 1221535868], 'FLT127 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'fmt': 'm'}, # Yaw controller in-op??
-#        {'flt': 'FLT128', 'seg': ('time_us', [794251787 , 826251787 ], 'FLT128 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'fmt': 'm'},
-#        {'flt': 'FLT128', 'seg': ('time_us', [921438015 , 953438015 ], 'FLT128 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'fmt': 'm'},
+#        {'flt': 'FLT127', 'seg': ('time_us', [1209355236 , 1221535868], 'FLT127 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'color': 'm'}, # Yaw controller in-op??
+#        {'flt': 'FLT128', 'seg': ('time_us', [794251787 , 826251787 ], 'FLT128 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'color': 'm'},
+#        {'flt': 'FLT128', 'seg': ('time_us', [921438015 , 953438015 ], 'FLT128 - RTSM LongLarge Route - Nominal Gain, 8 deg amp'), 'color': 'm'},
 
 #        {'flt': 'FLT126', 'seg': ('time_us', [981115495 , 993115495], 'FLT126 - RTSM - High Gain, 4 deg amp')},
 #        {'flt': 'FLT126', 'seg': ('time_us', [689907125 , 711907125], 'FLT126 - RTSM Long - High Gain, 4 deg amp')},
@@ -180,67 +187,77 @@ optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = 
 optSpec.freq = np.asarray(freqExc_rps)
 
 # FRF Estimate
-T = []
-C = []
-sNom = []
+LiEstNomList = []
+LiEstCohList = []
+svLiEstNomList = []
 for iSeg, seg in enumerate(oDataSegs):
 
-    freq_rps, Teb, Ceb, Pee, Pbb, Peb = FreqTrans.FreqRespFuncEst(vExcList[iSeg], vFbList[iSeg], optSpec)
-    _       , Tev, Cev, _  , Pvv, Pev = FreqTrans.FreqRespFuncEst(vExcList[iSeg], vCmdList[iSeg], optSpec)
+    freq_rps, Teb, Ceb, Pee, Pbb, Peb = FreqTrans.FreqRespFuncEst(vExcList[iSeg], vExcList[iSeg] + vFbList[iSeg], optSpec)
+    # _       , Tev, Cev, _  , Pvv, Pev = FreqTrans.FreqRespFuncEst(vExcList[iSeg], vCmdList[iSeg], optSpec)
 
     freq_hz = freq_rps * rps2hz
 
-    # Form the Frequency Response
-    T_seg = np.empty_like(Tev)
-    TSens_seg = np.empty_like(Tev)
+    I3 = np.repeat([np.eye(3)], Teb.shape[-1], axis=0).T
+    SaEstNom = Teb # Sa = I + Teb
+    SaEstCoh = Ceb # Cxy = np.abs(Sxy)**2 / (Sxx * Syy) = (np.abs(Sxy) / Sxx) * (np.abs(Sxy) / Syy)
 
-    for i in range(T_seg.shape[-1]):
-        T_seg[...,i] = (Teb[...,i].T @ np.linalg.inv(Tev[...,i].T)).T
+    # T = TNom = (uCtrl + uExc) / uExc - uNull / uExc
+    # Li = inv(TNom + TUnc) - I = LiEstNom + LiEstUnc
+    # LiEstNom = -I + TNom^-1
+    # LiEstUnc = -(I + TNom^-1 * TUnc)^-1 * TNom^-1 * TUnc * TNom^-1
+    LiEstNom = np.zeros_like(SaEstNom, dtype = complex)
+    LiEstCoh = np.zeros_like(SaEstCoh)
 
+    inv = np.linalg.inv
 
-    T.append( T_seg )
+    for i in range(SaEstNom.shape[-1]):
+        SaEstNomElem = SaEstNom[...,i]
+        SaEstNomInvElem = inv(SaEstNomElem)
 
-#    C.append(Cev)
-    C.append(Ceb)
+        LiEstNom[...,i] = -np.eye(3) + SaEstNomInvElem
+        # LiEstCoh[...,i] = -np.eye(3) + inv(SaEstCoh[...,i])
+        LiEstCoh[...,i] = SaEstCoh[...,i]
 
-    sNom_seg, _ = FreqTrans.Sigma(T_seg) # Singular Value Decomp, U @ S @ Vh == T[...,i]
-    sNom.append(sNom_seg)
+    LiEstNomList.append( LiEstNom )
+    LiEstCohList.append( LiEstCoh )
+
+    svLiEstNomList_seg = FreqTrans.Sigma( LiEstNom ) # Singular Value Decomp
+    svLiEstNomList.append(svLiEstNomList_seg)
 
 
 T_InputNames = sigExcList
 T_OutputNames = sigFbList
 
 # Compute Gain, Phase, Crit Distance
-gain_mag = []
-phase_deg = []
-rCritNom_mag = []
-rCrit_mag = []
+gainLiEstNomList_mag = []
+phaseLiEstNomList_deg = []
+rCritLiEstNomList_mag = []
 for iSeg in range(0, len(oDataSegs)):
 
-    gainElem_mag, _, _ = FreqTrans.DistCritCirc(T[iSeg])
-    gain_mag.append(gainElem_mag)
+    gain_mag, phase_deg = FreqTrans.GainPhase(LiEstNomList[iSeg], magUnit = 'mag', phaseUnit = 'deg', unwrap = True)
 
-    phase_deg.append(FreqTrans.Phase(T[iSeg], phaseUnit = 'deg', unwrap = True))
+    gainLiEstNomList_mag.append(gain_mag)
+    phaseLiEstNomList_deg.append(phase_deg)
 
-#    nom_mag, _, _ = FreqTrans.DistCrit(T[iSeg], typeUnc = 'ellipse')
-    nom_mag, _, _ = FreqTrans.DistCritCirc(T[iSeg])
+    # rCritLiEstNom_mag, _, _ = FreqTrans.DistCrit(LiEstNomList[iSeg], typeUnc = 'ellipse')
+    rCritLiEstNom_mag, _, _ = FreqTrans.DistCritCirc(LiEstNomList[iSeg])
 
-    rCritNom_mag.append(nom_mag)
+    rCritLiEstNomList_mag.append(rCritLiEstNom_mag)
 
 
 #%% Sigma Plot
 fig = None
 for iSeg in range(0, len(oDataSegs)):
-    Cmin = np.min(np.min(C[iSeg], axis = 0), axis = 0)
-    sNomMin = np.min(sNom[iSeg], axis=0)
+    Cmin = np.min(np.min(LiEstCohList[iSeg], axis = 0), axis = 0)
+    sNomMin = np.min(svLiEstNomList[iSeg], axis=0)
 
-    fig = FreqTrans.PlotSigma(freq_hz[0], sNomMin, coher_nd = Cmin, fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+    fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstNomList[iSeg], coher_nd = Cmin, fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
 
-fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fmt = '--r', fig = fig)
+fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), color = 'r', linestyle = '--', fig = fig)
 
 ax = fig.get_axes()
 ax[0].set_xlim(0, 10)
-ax[0].set_ylim(0, 1)
+# ax[0].set_ylim(0, 1)
 
 
 #%% Disk Margin Plots
@@ -248,30 +265,28 @@ inPlot = sigExcList # Elements of sigExcList
 outPlot = sigFbList # Elements of sigFbList
 
 if False:
-    #%%
     for iOut, outName in enumerate(outPlot):
         for iIn, inName in enumerate(inPlot):
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotSigma(freq_hz[0], rCritNom_mag[iSeg][iOut, iIn], coher_nd = C[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotSigma(freq_hz[0], rCritLiEstNomList_mag[iSeg][iOut, iIn], coher_nd = LiEstCohList[iSeg][iOut, iIn], fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
 
-            fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fig = fig, fmt = 'r--')
+            fig = FreqTrans.PlotSigma(freq_hz[0], 0.4 * np.ones_like(freq_hz[0]), fig = fig, color = 'r', linestyle = '--')
             fig.suptitle(inName + ' to ' + outName, size=20)
 
             ax = fig.get_axes()
-            ax[0].set_ylim(0, 2)
+            # ax[0].set_ylim(0, 2)
 
 
 #%% Nyquist Plots
 if False:
-    #%%
     for iOut, outName in enumerate(outPlot):
         for iIn, inName in enumerate(inPlot):
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotNyquist(T[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotNyquist(LiEstNomList[iSeg][iOut, iIn], fig = fig, color = rtsmSegList[iSeg]['color'], label = oDataSegs[iSeg]['Desc'])
 
             fig = FreqTrans.PlotNyquist(np.asarray([-1+ 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, fmt = '*r', label = 'Critical Region')
             fig.suptitle(inName + ' to ' + outName, size=20)
@@ -283,12 +298,11 @@ if False:
 
 #%% Bode Plots
 if False:
-    #%%
     for iOut, outName in enumerate(outPlot):
         for iIn, inName in enumerate(inPlot):
 
             fig = None
             for iSeg in range(0, len(oDataSegs)):
-                fig = FreqTrans.PlotBode(freq_hz[0], gain_mag[iSeg][iOut, iIn], phase_deg[iSeg][iOut, iIn], C[iSeg][iOut, iIn], fig = fig, fmt = rtsmSegList[iSeg]['fmt'] + '*-', label = oDataSegs[iSeg]['Desc'])
+                fig = FreqTrans.PlotBode(freq_hz[0], gainLiEstNomList_mag[iSeg][iOut, iIn], phaseLiEstNomList_deg[iSeg][iOut, iIn], LiEstCohList[iSeg][iOut, iIn], fig = fig, color = rtsmSegList[iSeg]['color'], linestyle = '-', label = oDataSegs[iSeg]['Desc'])
 
             fig.suptitle(inName + ' to ' + outName, size=20)

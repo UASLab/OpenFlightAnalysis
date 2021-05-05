@@ -48,25 +48,25 @@ freqLin_rps = freqLin_hz * hz2rps
 
 
 # OL : Mixer -> Plant -> SCAS_FB
-connectNames = sysPlant.InputNames[:7] + sysScas.InputNames[1::3]
-inKeep = sysMixer.InputNames + sysPlant.InputNames[-7:]
-outKeep = sysScas.OutputNames[2::4]
+connectName = sysPlant.InputName[:7] + sysScas.InputName[1::3]
+inKeep = sysMixer.InputName + sysPlant.InputName[-7:]
+outKeep = sysScas.OutputName[2::4]
 
-sysOL = Systems.ConnectName([sysMixer, sysPlant, sysScas], connectNames, inKeep, outKeep)
+sysOL = Systems.ConnectName([sysMixer, sysPlant, sysScas], connectName, inKeep, outKeep)
 
 
 # CL: Ctrl -> Plant
-inNames = sysCtrl.InputNames + sysPlant.InputNames
-outNames = sysCtrl.OutputNames + sysPlant.OutputNames
-connectNames = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
-inKeep = [inNames[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
-outKeep = [outNames[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
+inName = sysCtrl.InputName + sysPlant.InputName
+outName = sysCtrl.OutputName + sysPlant.OutputName
+connectName = ['cmdMotor', 'cmdElev', 'cmdRud', 'cmdAilL', 'cmdAilR', 'cmdFlapL', 'cmdFlapR', 'sensPhi', 'sensTheta', 'sensR']
+inKeep = [inName[i-1] for i in [1, 2, 3, 7, 8, 9, 17, 18, 19, 20, 21, 22, 23]]
+outKeep = [outName[i-1] for i in [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]]
 
-sysCL = Systems.ConnectName([sysCtrl, sysPlant], connectNames, inKeep, outKeep)
+sysCL = Systems.ConnectName([sysCtrl, sysPlant], connectName, inKeep, outKeep)
 
 # Look at only the in-out of the OL
-inList = [sysOL.InputNames.index(s) for s in ['cmdP',  'cmdQ', 'cmdR']]
-outList = [sysOL.OutputNames.index(s) for s in ['fbP', 'fbQ', 'fbR']]
+inList = [sysOL.InputName.index(s) for s in ['cmdP',  'cmdQ', 'cmdR']]
+outList = [sysOL.OutputName.index(s) for s in ['fbP', 'fbQ', 'fbR']]
 
 sysSimOL = sysOL[outList, :]
 sysSimOL = sysOL[:, inList]
@@ -131,13 +131,13 @@ _, out, stateSim = control.forced_response(sysCL, T = time_s, U = u, X0 = 0.0, t
 # shift output time to represent the next frame, pad t=0 with 0.0
 #out = np.concatenate((np.zeros((out.shape[0],1)), out[:,1:-1]), axis=1) # this is handled by a time delay on sensors in the linear simulation
 
-fbNames = sysCL.OutputNames[:3]
+fbName = sysCL.OutputName[:3]
 fb = out[:3]
 
-vNames = sysCL.OutputNames[3:6]
+vName = sysCL.OutputName[3:6]
 v = out[3:6]
 
-sensNames = sysCL.OutputNames[-7:]
+sensName = sysCL.OutputName[-7:]
 sens = out[-7:]
 
 #plt.plot(time_s, uExc[1], time_s, v[1], time_s, fb[1], time_s, pqrDist[1])
@@ -168,8 +168,8 @@ sigmaNom_mag, _ = FreqTrans.Sigma(T) # Singular Value Decomp
 # Coherence
 C = Ceb
 
-T_InputNames = exc_names
-T_OutputNames = fbNames
+T_InputName = exc_names
+T_OutputName = fbName
 
 gain_mag, phase_deg = FreqTrans.GainPhase(T, magUnit='mag', phaseUnit='deg', unwrap=True)
 rCritNom_mag, _, _ = FreqTrans.DistCrit(T, typeUnc = 'ellipse')
@@ -193,7 +193,7 @@ ax[0].set_ylim(1e-2, 1e2)
 
 #%% Disk Margin Plots
 inPlot = exc_names # Elements of exc_names
-outPlot = fbNames # Elements of fbNames
+outPlot = fbName # Elements of fbName
 
 if False:
     for iOut, outName in enumerate(outPlot):

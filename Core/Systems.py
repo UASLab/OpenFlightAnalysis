@@ -12,30 +12,30 @@ import control
 
 #%% Connect by strings
 def ConnectName(sysList, connectNames, inKeep, outKeep):
-    
+
     sys = []
     for s in sysList:
         if sys == []:
             sys = s
         else:
             sys = control.append(sys, control.ss(s))
-        
+
     inNames = []
     outNames = []
     for s in sysList:
-        inNames += s.InputNames
-        outNames += s.OutputNames
-    
+        inNames += s.InputName
+        outNames += s.OutputName
+
     Q = [[inNames.index(s)+1, outNames.index(s)+1]  for s in connectNames]
-    
+
     inputv = [inNames.index(s)+1 for s in inKeep]
     outputv = [outNames.index(s)+1 for s in outKeep]
 
     sysOut = control.connect(sys, Q, inputv, outputv)
-    
-    sysOut.InputNames = inKeep
-    sysOut.OutputNames = outKeep
-    
+
+    sysOut.InputName = inKeep
+    sysOut.OutputName = outKeep
+
     return sysOut
 
 
@@ -47,14 +47,14 @@ def PID2Exc(Kp = 1, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0, dt = None):
     sysR = control.tf2ss(control.tf([Kp*b*Tf + Kd*c, Kp*b + Ki*Tf, Ki], [Tf, 1, 0]))
     sysY = control.tf2ss(control.tf([Kp*Tf + Kd, Kp + Ki*Tf, Ki], [Tf, 1, 0]))
     sysX = control.tf2ss(control.tf(1,1)) # Excitation Input
-    
+
     sys = control.append(sysR, sysY, sysX)
-    
+
     sys.C = np.concatenate((sys.C[0,:] - sys.C[1,:] + sys.C[2,:], sys.C))
     sys.D = np.concatenate((sys.D[0,:] - sys.D[1,:] + sys.D[2,:], sys.D))
-    
+
     sys.outputs = 4
-    
+
     if dt is not None:
         sys = control.c2d(sys, dt)
 
@@ -73,10 +73,10 @@ def PID2(Kp = 1, Ki = 0.0, Kd = 0, b = 1, c = 1, Tf = 0, dt = None):
     sys.D = sys.D[0,:] - sys.D[1,:]
 
     sys.outputs = 1
-    
+
     if dt is not None:
         sys = control.c2d(sys, dt)
-    
+
     return sys
 
 
@@ -84,7 +84,7 @@ def PID2(Kp = 1, Ki = 0.0, Kd = 0, b = 1, c = 1, Tf = 0, dt = None):
 def ActuatorModel(bw, delay = (0, 1)):
     # Inputs: ['cmd']
     # Outputs: ['pos']
-    
+
     sysNom = control.tf2ss(control.tf(1, [1/bw, 1]))
 
     delayPade = control.pade(delay[0], n=delay[1])
@@ -99,7 +99,7 @@ def ActuatorModel(bw, delay = (0, 1)):
 def SensorModel(bw, delay = (0, 1)):
     # Inputs: ['meas', 'dist']
     # Outputs: ['sens']
-    
+
     sysNom = control.tf2ss(control.tf(1, [1/bw, 1]))
 
     delayPade = control.pade(delay[0], n=delay[1])

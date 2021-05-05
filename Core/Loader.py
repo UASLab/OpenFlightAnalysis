@@ -24,10 +24,14 @@ def Load_h5(filename):
 def LoadRecursive_h5(f, basePath):
     data = {}
     for key, item in f[basePath].items():
+        # print(key)
+        # print(item)
         if isinstance(item, h5py._hl.dataset.Dataset):
-            data[key] = item.value
+            # print('Dataset')
+            data[key] = item[()]
             data[key] = data[key].flatten()
         elif isinstance(item, h5py._hl.group.Group):
+            # print('Group')
             data[key] = LoadRecursive_h5(f, basePath + key + '/')
     return data
 
