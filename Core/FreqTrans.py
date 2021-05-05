@@ -796,13 +796,13 @@ def StoL(SNom, SUnc = None, SCoh = None):
     I = np.eye(SNom.shape[0])
     for i in range(SNom.shape[-1]):
         SNomElem = SNom[...,i]
-        SUncElem = SUnc[...,i]
         SNomInvElem = inv(SNomElem)
 
         LNom[...,i] = -I + SNomInvElem
 
-        if SCoh is not None:
+        if SUnc is not None:
             # Sherman-Morrison-Woodbury Identity
+            SUncElem = SUnc[...,i]
             LUnc[...,i] = -inv(I + SNomInvElem @ SUncElem) @ SNomInvElem @ SUncElem @ SNomInvElem
 
         if SCoh is not None:
@@ -995,28 +995,57 @@ def DistEllipseRot(pEllipse, a, b, a_deg, pCrit):
     return vContact, vDist
 
 from scipy import optimize
-def Sigma_SSV(M):
-    # Use equation 8.87 and minimise directly
+def SigmaStruct(nom, unc):
+    nOut, nIn = nom.shape[:2]
 
-    def objFunc(d, M):
-        scale = 1 / d[0] # scale d such that d1 == 1 as in SP note 10 of 8.8.3
-        d_scaled = scale * d
-        D = np.diag(d_scaled)
-        Dinv = np.diag(1 / d_scaled)
-        M_scaled = D @ M @ Dinv
+    def unpack(x, nOut, nIn):
+      lenX = nOut * nIn
 
-        s = np.linalg.svd(M_scaled, full_matrices = True, compute_uv = False)
-        sMax = np.max(s, axis = 0)
-        return sMax
+      r = np.reshape(x[:lenX], (nOut, nIn))
+      ph = np.reshape(x[lenX:], (nOut, nIn))
+      c = r * np.exp(-1j * ph)
 
-    d = np.ones_like(M[0,...], dtype = float)
-    sMax = np.zeros(M.shape[-1])
-    for i in range(M.shape[-1]):
-        res = optimize.minimize(objFunc, d[...,i], args = M[...,i])
-        d[...,i] = res.x
-        sMax[i] = res.fun
+      return c
 
-    return sMax, d
+    def optCostFunc(x, nom, unc):
+      nOut, nIn = nom.shape
+
+      c = unpack(x, nOut, nIn)
+
+      p = nom + c * unc
+
+      sv = np.linalg.svd(p, full_matrices=True, compute_uv = False)
+      svMin = np.min(sv, axis = 0)
+      return svMin
+
+    crit = np.zeros_like(nom, dtype = complex)
+    svMin = np.zeros(nom.shape[-1])
+    for iFreq in range(nom.shape[-1]):
+        # Initial Guess as nominal SVD transform
+        uNom, svNom, vhNom = np.linalg.svd(nom[..., iFreq], full_matrices=True, compute_uv = True)
+
+        c0 = uNom.conjugate().T @ np.eye(nOut) @ vhNom.conjugate().T
+        optInitX = [np.abs(c0), np.arctan2(c0.real, c0.imag)]
+
+        # Setup Optimization
+        dimX = nOut * nIn
+        optBnds = optimize.Bounds(lb = [-1] * dimX + [-np.inf] * dimX , ub = [1] * dimX + [np.inf] * dimX) # lb <= x <= ub
+        optArgs = (nom[..., iFreq], unc[..., iFreq])
+        # optMethod = 'SLSQP' # Slower than L-BFGS-B
+        optMethod = 'L-BFGS-B'
+        optOptions = {}
+        optOptions['disp'] = True
+
+        # Solve
+        optRes = optimize.minimize(optCostFunc, optInitX, args = optArgs, method = optMethod, bounds = optBnds, options = optOptions)
+
+        # Store solution
+        svMin[iFreq] = optRes.fun
+
+        c = unpack(optRes.x, nOut, nIn)
+        crit[..., iFreq] = nom[..., iFreq] + c * unc[..., iFreq]
+
+    return svMin, crit
 
 
 #%% Compute the Fast Fourier Transform
@@ -1282,17 +1311,16 @@ def PlotGainType(freq, gain_mag, phase_deg = None, coher_nd = None, gainUnc_mag 
     # Plot the Uncertainty on the Gain plot
     if gainUnc_mag is not None:
 
-        ax[0].set_xscale("log", nonposx='clip')
+        ax[0].set_xscale("log", nonpositive = 'clip')
+
+        gainUncMin_mag = gain_mag - np.abs(gainUnc_mag)
+        gainUncMax_mag = gain_mag + np.abs(gainUnc_mag)
 
         if UncSide == 'Max':
             gainUncMin_mag = gain_mag
-        else:
-            gainUncMin_mag = gain_mag - 0.5 * np.abs(gainUnc_mag)
 
         if UncSide == 'Min':
             gainUncMax_mag = gain_mag
-        else:
-            gainUncMax_mag = gain_mag + 0.5 * np.abs(gainUnc_mag)
 
         if 'marker' in pltArgs: pltArgs.pop('marker')
 
@@ -1377,9 +1405,9 @@ def PlotNyquistUncPts(T, TUnc, ax = None, **pltArgs):
     for iNom, nom in enumerate(T):
         unc = TUnc[iNom]
         if unc.imag == 0:
-            uncPatch = patch.Ellipse((nom.real, nom.imag), unc, unc, alpha = 0.25, **pltArgs)
+            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, alpha = 0.25, **pltArgs) # patch.Ellipse expects diameter, unc is a radius
         else:
-            uncPatch = patch.Ellipse((nom.real, nom.imag), unc.real, unc.imag, alpha = 0.25, **pltArgs)
+            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc.real, 2*unc.imag, alpha = 0.25, **pltArgs)
 
         ax.add_artist(uncPatch)
 
@@ -1391,8 +1419,8 @@ def PlotNyquistUncFill(T, TUnc, ax = None, **pltArgs):
     diffT = np.diff(T, append=0)
     pathVec = diffT / np.abs(diffT)
     perpVec = pathVec.imag - 1j * pathVec.real
-    TMin = T - perpVec * 0.5 * np.abs(TUnc)
-    TMax = T + perpVec * 0.5 * np.abs(TUnc)
+    TMin = T - perpVec * np.abs(TUnc)
+    TMax = T + perpVec * np.abs(TUnc)
 
     re = np.hstack((TMin.real, np.flip(TMax.real)))
     im = np.hstack((TMin.imag, np.flip(TMax.imag)))
