@@ -138,6 +138,21 @@ TEstNom = Tuz
 TEstUnc = Tun
 TEstCoh = Cuz
 
+#%% Sampling
+numOut, numIn, nFreq = TEstNom.shape
+
+nSamp = 20
+shapeSamp = (numOut, numIn, nFreq, nSamp)
+
+rSamp = np.sqrt(np.random.uniform(0, 1, shapeSamp))
+phSamp = np.random.uniform(-np.pi, np.pi, shapeSamp)
+samp = rSamp * np.exp(1j * phSamp)
+
+TEstSamp = np.zeros(shapeSamp, dtype='complex')
+for iSamp in range(nSamp):
+  TEstSamp[..., iSamp] = TEstNom + TEstUnc * samp[..., iSamp]
+
+
 #%%
 if False:
 #%%
@@ -200,10 +215,21 @@ svTEstUncMax_mag = np.max(svTEstUnc_mag, axis=0) # Overly Conservative
 cohTEst_mag = TEstCoh # Estimation Coherence
 cohTEstMin = np.min(cohTEst_mag, axis = (0, 1))
 
-if False:
+# Sampled Systems
+svTEstSamp_mag = np.zeros((numOut, nFreq, nSamp), dtype='float')
+for iSamp in range(nSamp):
+  svTEstSamp_mag[..., iSamp] = FreqTrans.Sigma(TEstSamp[..., iSamp])
+
+svTEstSampMin_mag = np.min(svTEstSamp_mag, axis = 0)
+
+
+if True:
     fig = 10
     fig = FreqTrans.PlotSigma(freqLin_hz, svTLinNomMin_mag, svUnc_mag = svTLinUncMax_mag, coher_nd = cohTLinMin, fig = fig, color = 'k', label = 'Linear')
     fig = FreqTrans.PlotSigma(freq_hz[0], svTEstNomMin_mag, svUnc_mag = svTEstUncMax_mag, coher_nd = cohTEstMin, marker='.', color = 'r', fig = fig, label = 'Estimate (MIMO)')
+
+    for iSamp in range(nSamp):
+      fig = FreqTrans.PlotSigma(freq_hz[0], svTEstSampMin_mag[..., iSamp], svUnc_mag = None, coher_nd = None, marker='.', color = 'gray', linestyle='None', fig = fig, label = 'Sampled (MIMO)')
 
     ax = fig.get_axes()
     handles, labels = ax[0].get_legend_handles_labels()
@@ -216,15 +242,24 @@ if False:
 vmTLinNom_mag, vmTLinUnc_mag, vmTLinMin_mag = FreqTrans.VectorMargin(TLinNom, TLinUnc, typeUnc = 'circle')
 vmTEstNom_mag, vmTEstUnc_mag, vmTEstMin_mag = FreqTrans.VectorMargin(TEstNom, TEstUnc, typeUnc = 'circle')
 
+# Sampled Systems
+vmTEstSamp_mag = np.zeros((numOut, numIn, nFreq, nSamp), dtype='float')
+for iSamp in range(nSamp):
+  vmTEstSamp_mag[..., iSamp], _, _ = FreqTrans.VectorMargin(TEstSamp[..., iSamp], typeUnc = 'circle')
+
+
 numOut, numIn = TLinNom.shape[0:-1]
 ioArray = np.array(np.meshgrid(np.arange(numOut), np.arange(numIn))).T.reshape(-1, 2)
 
-if False:
+if True:
     for iPlot, [iOut, iIn] in enumerate(ioArray):
         fig = None
         fig = FreqTrans.PlotVectorMargin(freqLin_hz, vmTLinNom_mag[iOut, iIn], cohTLin_mag[iOut, iIn], vmTLinUnc_mag[iOut, iIn], fig = fig, linestyle='-', color='k', label='Linear Model')
         fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], vmTEstNom_mag[iOut, iIn], cohTEst_mag[iOut, iIn], vmTEstUnc_mag[iOut, iIn], fig = fig, linestyle='-', marker='.', color='r', label='Estimate [MIMO]')
         fig = FreqTrans.PlotVectorMargin(freq_hz[iIn, sigIndx[iIn]], vmTEstNom_mag[iOut, iIn, sigIndx[iIn]], cohTEst_mag[iOut, iIn, sigIndx[iIn]], vmTEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, linestyle='-', marker='.', color='b', label='Estimate [SIMO]')
+
+        for iSamp in range(nSamp):
+          fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], vmTEstSamp_mag[iOut, iIn, :, iSamp], marker='.', color = 'gray', linestyle='None', fig = fig, label = 'Sampled (MIMO)')
 
         ax = fig.get_axes()
         handles, labels = ax[0].get_legend_handles_labels()
@@ -287,6 +322,9 @@ if True:
 #        fig = FreqTrans.PlotNyquist(TEstNom[iOut, iIn, sigIndx[iIn]], TEstUnc[iOut, iIn, sigIndx[iIn]], fig = fig, fillType = 'circle', marker='.', color = 'b', linestyle='None', label = 'Estimate (SIMO)')
         fig = FreqTrans.PlotNyquist(np.array([-1+0j]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None')
         # fig = FreqTrans.PlotNyquist(np.array([-1+0j]), np.array([0.4]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None')
+
+        for iSamp in range(nSamp):
+          fig = FreqTrans.PlotNyquist(TEstSamp[iOut, iIn, :, iSamp], fig = fig, fillType = 'circle', marker='.', color = 'gray', linestyle='None')
 
         ax = fig.get_axes()
         handles, labels = ax[0].get_legend_handles_labels()
