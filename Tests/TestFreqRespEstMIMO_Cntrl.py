@@ -28,13 +28,6 @@ from Core import FreqTrans
 from Core.Systems import ConnectName
 
 
-plt.rcParams.update({
-    "text.usetex": True,
-    "font.family": "serif",
-    "font.serif": ["Palatino"],
-    "font.size": 10
-})
-
 # Constants
 hz2rps = 2*np.pi
 rps2hz = 1/hz2rps
@@ -55,55 +48,21 @@ def weighting(wb, m, a):
 
 
 #%% Define a linear plant systems
-if True:
-    freqLin_hz = np.linspace(1e-1, 1e1, 200)
-    freqRate_hz = 50
+freqLin_hz = np.linspace(1e-1, 1e1, 200)
+freqRate_hz = 50
 
-    plantK11 = 1.0 ; plantWn11 = 3 * hz2rps; plantD11 = 0.2;
-    plantK12 = 0.5 ; plantWn12 = 5 * hz2rps; plantD12 = 0.3;
-    plantK21 = 0.25; plantWn21 = 4 * hz2rps; plantD21 = 0.1;
-    plantK22 = 1.0 ; plantWn22 = 6 * hz2rps; plantD22 = 0.4;
+plantK11 = 1.0 ; plantWn11 = 3 * hz2rps; plantD11 = 0.2;
+plantK12 = 0.5 ; plantWn12 = 5 * hz2rps; plantD12 = 0.3;
+plantK21 = 0.25; plantWn21 = 4 * hz2rps; plantD21 = 0.1;
+plantK22 = 1.0 ; plantWn22 = 6 * hz2rps; plantD22 = 0.4;
 
-    sysPlant = control.tf([[[0, 0, plantK11 * plantWn11**2], [0, 0, plantK12 * plantWn12**2]],
-                           [[0, 0, plantK21 * plantWn21**2], [0, 0, plantK22 * plantWn22**2]]],
-                          [[[1, 2.0*plantD11*plantWn11, plantWn11**2], [1, 2.0*plantD12*plantWn12, plantWn12**2]],
-                           [[1, 2.0*plantD21*plantWn21, plantWn21**2], [1, 2.0*plantD22*plantWn22, plantWn22**2]]])
+sysPlant = control.tf([[[0, 0, plantK11 * plantWn11**2], [0, 0, plantK12 * plantWn12**2]],
+                       [[0, 0, plantK21 * plantWn21**2], [0, 0, plantK22 * plantWn22**2]]],
+                      [[[1, 2.0*plantD11*plantWn11, plantWn11**2], [1, 2.0*plantD12*plantWn12, plantWn12**2]],
+                       [[1, 2.0*plantD21*plantWn21, plantWn21**2], [1, 2.0*plantD22*plantWn22, plantWn22**2]]])
 
-    sysK = control.ss([], [], [], np.diag([0.75, 0.5]))
+sysK = control.ss([], [], [], np.diag([0.75, 0.5]))
 
-elif False: # SP Example #3.8
-    freqLin_hz = np.linspace(1e-2 * rps2hz, 1e2 * rps2hz, 200)
-    freqRate_hz = 50
-
-    plantK11 = 1.0; plantWn11 = np.sqrt(5);      plantD11 = 6 / (2 * plantWn11);
-    plantK12 = 1.0; plantWn12 = 1.0 * plantWn11; plantD12 = 1.0 * plantD11;
-    plantK21 = 1.0; plantWn21 = 1.0 * plantWn11; plantD21 = 1.0 * plantD11;
-    plantK22 = 1.0; plantWn22 = 1.0 * plantWn11; plantD22 = 1.0 * plantD11;
-
-    sysPlant = control.tf([[[0, 0, plantK11 * plantWn11**2], [0, 0, plantK12 * plantWn12**2]],
-                           [[0, 0, plantK21 * plantWn21**2], [0, 0, plantK22 * plantWn22**2]]],
-                          [[[1, 2.0*plantD11*plantWn11, plantWn11**2], [1, 2.0*plantD21*plantWn21, plantWn21**2]],
-                           [[1, 2.0*plantD21*plantWn21, plantWn21**2], [1, 2.0*plantD22*plantWn22, plantWn22**2]]])
-
-    # Based on Example 3.8 from Multivariable Feedback Control, Skogestad and Postlethwaite, 2nd Edition.
-    wu = control.ss([], [], [], np.eye(2))
-    wp1 = control.ss(weighting(wb = 0.25, m = 1.5, a = 1e-4))
-    wp2 = control.ss(weighting(wb = 0.25, m = 1.5, a = 1e-4))
-    wp = wp1.append(wp2)
-
-    sysK, sysCL, (gam, rcond) = control.mixsyn(sysPlant, wp, wu)
-
-else: # SP Section #3.7.1
-    freqLin_hz = np.linspace(1e-1, 1e1, 200)
-    freqRate_hz = 50
-
-    plantWn = 10
-    den = [1, 0.0, plantWn**2]
-    sysPlant = control.tf([[[1, -1.0 * plantWn**2], [1.0 * plantWn, 1.0 * plantWn]],
-                           [[-1.0 * plantWn, -1.0 * plantWn], [1, -1.0 * plantWn**2]]],
-                          [[den, den], [den, den]])
-
-    sysK = control.ss([], [], [], 1.0 * np.eye(2))
 
 freqRate_rps = freqRate_hz * hz2rps
 freqLin_rps = freqLin_hz * hz2rps
@@ -201,7 +160,7 @@ TiLinNom = gainTiLinNom_mag * np.exp(1j * phaseTiLinNom_rad)
 gainTiLinNom_dB = 20 * np.log10(gainTiLinNom_mag)
 phaseTiLinNom_deg = np.unwrap(phaseTiLinNom_rad) * rad2deg
 
-sysSi = (np.eye(2) - sysTi)
+sysSi = np.eye(2) - sysTi
 
 pSigma = [0.0, 0.0]
 mSigma = [1.0, 1.0]
@@ -214,7 +173,46 @@ TiLinUnc = gainTiLinUnc_mag * np.exp(1j * phaseTiLinUnc_rad * deg2rad)
 
 # Ti to Si, Si to Li
 SiLinNom, SiLinUnc, _ = FreqTrans.TtoS(TiLinNom, TiLinUnc)
-LiLinNom, LiLinUnc, _ = FreqTrans.StoL(SiLinNom, SiLinUnc)
+LiLinNom2, LiLinUnc, _ = FreqTrans.StoL(SiLinNom, SiLinUnc)
+# Verification: LiLinNom2 - LiLinNom
+
+
+# Sampling
+nSamp = 50
+numOut, numIn, nFreq = TiLinNom.shape
+
+# Unstructured
+shapeSamp = (numOut, numIn, nFreq, nSamp)
+
+rSamp = np.sqrt(np.random.uniform(0, 1, shapeSamp))
+phSamp = np.random.uniform(-np.pi, np.pi, shapeSamp)
+samp = rSamp * np.exp(1j * phSamp)
+
+TiLinSamp = np.zeros(shapeSamp, dtype='complex')
+SiLinSamp = np.zeros(shapeSamp, dtype='complex')
+LiLinSamp = np.zeros(shapeSamp, dtype='complex')
+for iSamp in range(nSamp):
+  TiLinSamp[..., iSamp] = TiLinNom + TiLinUnc * samp[..., iSamp]
+  SiLinSamp[..., iSamp], _, _ = FreqTrans.TtoS(TiLinSamp[..., iSamp])
+  LiLinSamp[..., iSamp], _, _ = FreqTrans.StoL(SiLinSamp[..., iSamp])
+
+
+# Structured Sampling
+shapeSampStruc = (nFreq, nSamp)
+
+rSampStruc = np.sqrt(np.random.uniform(0, 1, shapeSampStruc))
+phSampStruc = np.random.uniform(-np.pi, np.pi, shapeSampStruc)
+sampStruc = rSampStruc * np.exp(1j * phSampStruc)
+
+TiLinSampStruc = np.zeros(shapeSamp, dtype='complex')
+SiLinSampStruc = np.zeros(shapeSamp, dtype='complex')
+LiLinSampStruc = np.zeros(shapeSamp, dtype='complex')
+for iSamp in range(nSamp):
+  TiLinSampStruc[..., iSamp] = TiLinNom + TiLinUnc * sampStruc[..., iSamp]
+  SiLinSampStruc[..., iSamp], _, _ = FreqTrans.TtoS(TiLinSampStruc[..., iSamp])
+  LiLinSampStruc[..., iSamp], _, _ = FreqTrans.StoL(SiLinSampStruc[..., iSamp])
+
+
 
 #%% Excitation
 numExc = 2
@@ -285,30 +283,11 @@ TiEstCoh = Cxu # Cxy = np.abs(Sxu)**2 / (Sxx * Suu)
 SiEstNom, SiEstUnc, SiEstCoh = FreqTrans.TtoS(TiEstNom, TiEstUnc, TiEstCoh)
 LiEstNom, LiEstUnc, LiEstCoh = FreqTrans.StoL(SiEstNom, SiEstUnc, SiEstCoh)
 
+# print(np.sum(SxxNull, axis = -1) / np.sum(Sxx, axis = -1))
+# TiEstSNR = np.abs(TiEstNom / TiEstUnc)**2
+# SiEstSNR = np.abs(SiEstNom / SiEstUnc)**2
+# LiEstSNR = np.abs(LiEstNom / LiEstUnc)**2
 
-print(np.sum(SxxNull, axis = -1) / np.sum(Sxx, axis = -1))
-TiEstSNR = np.abs(TiEstNom / TiEstUnc)**2
-SiEstSNR = np.abs(SiEstNom / SiEstUnc)**2
-LiEstSNR = np.abs(LiEstNom / LiEstUnc)**2
-
-
-#%% Sampling
-numOut, numIn, nFreq = TiEstNom.shape
-
-nSamp = 20
-shapeSamp = (numOut, numIn, nFreq, nSamp)
-
-rSamp = np.sqrt(np.random.uniform(0, 1, shapeSamp))
-phSamp = np.random.uniform(-np.pi, np.pi, shapeSamp)
-samp = rSamp * np.exp(1j * phSamp)
-
-TiEstSamp = np.zeros(shapeSamp, dtype='complex')
-SiEstSamp = np.zeros_like(TiEstSamp)
-LiEstSamp = np.zeros_like(SiEstSamp)
-for iSamp in range(nSamp):
-  TiEstSamp[..., iSamp] = TiEstNom + TiEstUnc * samp[..., iSamp]
-  SiEstSamp[..., iSamp], _, _ = FreqTrans.TtoS(TiEstSamp[..., iSamp])
-  LiEstSamp[..., iSamp], _, _ = FreqTrans.StoL(SiEstSamp[..., iSamp])
 
 
 #%% Nyquist Plot - Compl Sens Function
@@ -324,19 +303,26 @@ if False:
         [iOut, iIn] = io
 
         fig = 10 + iPlot
+        # Linear - Unstructured
         fig = FreqTrans.PlotNyquist(TiLinNom[iOut, iIn], TiLinUncMag[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear')
+        # for iSamp in range(nSamp):
+        #   fig = FreqTrans.PlotNyquist(TiLinSamp[iOut, iIn, :, iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', label = 'Linear Unstructured Sample')
+
+        # Linear - Structured (Same as unstructured)
+        # fig = FreqTrans.PlotNyquist(TiLinNom[iOut, iIn], TiLinUncMag[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear')
+        # for iSamp in range(nSamp):
+        #   fig = FreqTrans.PlotNyquist(TiLinSampStruc[iOut, iIn, :, iSamp], fig = fig, marker='.', color = 'b', linestyle='None', label = 'Linear Structured Sample')
+
         fig = FreqTrans.PlotNyquist(TiEstNom[iOut, iIn], TiEstUncMag[iOut, iIn], fig = fig, fillType = 'circle', marker='.', color = 'b', linestyle='None', label = 'Estimate (MIMO)')
         fig = FreqTrans.PlotNyquist(TiEstNom[iOut, iIn, sigIndx[iIn]], TiEstUncMag[iOut, iIn, sigIndx[iIn]], fig = fig, fillType = 'circle', marker='.', color = 'g', linestyle='None', label = 'Estimate (SIMO)')
+
         fig = FreqTrans.PlotNyquist(np.array([-1+0j]), np.array([0.4]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None', label = 'Critical')
 
-        for iSamp in range(nSamp):
-          fig = FreqTrans.PlotNyquist(TiEstSamp[iOut, iIn, :, iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', label = 'Sample (MIMO)')
-
-#        ax = fig.get_axes()
-#        handles, labels = ax[0].get_legend_handles_labels()
-#        handles = [handles[0], handles[3], handles[1], handles[2], handles[3], handles[5]]
-#        labels = [labels[0], labels[3], labels[1], labels[2], labels[3], labels[5]]
-#        ax[0].legend(handles, labels)
+        # ax = fig.get_axes()
+        # handles, labels = ax[0].get_legend_handles_labels()
+        # handles = [handles[0], handles[3], handles[1], handles[2], handles[3], handles[5]]
+        # labels = [labels[0], labels[3], labels[1], labels[2], labels[3], labels[5]]
+        # ax[0].legend(handles, labels)
 
         fig.suptitle('$T_i$ : ' + '$u_{Exc}$[' + str(iIn) + '] to ' + 'u[' + str(iOut) + ']')
 
@@ -374,77 +360,146 @@ if False:
         fig.suptitle('$T_i$ : ' + '$u_{Exc}$[' + str(iIn) + '] to ' + 'u[' + str(iOut) + ']')
 
 
-#%% Sigma Plot
+#%% Sigma Plot - Compl Sens Function
 I2 = np.repeat([np.eye(2)], len(freqLin_rps), axis=0).T
 
-# Linear Model SVD magnitude
-svLiLinNom_mag = FreqTrans.Sigma(I2 + LiLinNom) # sigma(I + Li)
-svLiLinNomMin_mag = np.min(svLiLinNom_mag, axis=0)
+# Unstructured Singular Values
+svTiLinNom_mag = FreqTrans.Sigma(TiLinNom)
+svTiLinNomMin_mag = np.min(svTiLinNom_mag, axis=0)
+svTiLinNomMax_mag = np.max(svTiLinNom_mag, axis=0)
 
+svTiLinUnc_mag = FreqTrans.Sigma(TiLinUnc)
+svTiLinUncMax_mag = np.max(svTiLinUnc_mag, axis=0) # Overly Conservative
+
+cohTiLin_mag = np.ones_like(TiLinUnc)
+
+# Structured Singular Values
+MiLin = TiLinNom * TiLinUnc
+DeltaLin = np.eye(2)
+muMiLin_mag, MiLin_info = FreqTrans.SigmaStruct(MiLin, DeltaLin, bound = 'upper')
+muMiLinMin_mag = svTiLinNomMin_mag - (muMiLin_mag * svTiLinUncMax_mag)
+
+# Structured Singular Values (Additive)
+svTiLinStructMin_mag, TiLinCritStruct = FreqTrans.SigmaStruct_Add(TiLinNom, TiLinUnc)
+
+
+# Linear Sampled
+svTiLinSampMin_mag = np.zeros((nFreq, nSamp))
+svTiLinSampStrucMin_mag = np.zeros((nFreq, nSamp))
+for iSamp in range(nSamp):
+  svTiLinSampMin_mag[..., iSamp]      = svTiLinNomMin_mag - np.max(FreqTrans.Sigma(TiLinSamp[..., iSamp] - TiLinNom), axis=0)
+  svTiLinSampStrucMin_mag[..., iSamp] = np.min(FreqTrans.Sigma(TiLinSampStruc[..., iSamp]), axis=0)
+
+# Estimated
+I2 = np.repeat([np.eye(2)], len(freq_hz[0]), axis=0).T
+
+# Max singular value
+svTiEstNom_mag = FreqTrans.Sigma(TiEstNom)
+svTiEstNomMin_mag = np.min(svTiEstNom_mag, axis=0)
+
+svTiEstUnc_mag = FreqTrans.Sigma(TiEstUnc)
+svTiEstUncMax_mag = np.max(svTiEstUnc_mag, axis=0) # Overly Conservative
+
+# Structured Singular Values (Additive)
+svTiEstStructMin_mag, TiEstCritStruct = FreqTrans.SigmaStruct_Add(TiEstNom, TiEstUnc)
+
+if False:
+    fig = 1
+    # Linear
+    fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinNomMin_mag, np.ones_like(freqLin_hz), svTiLinUncMax_mag, fig = fig, color = 'k', label = 'Linear w/Unstructured SV')
+    # for iSamp in range(nSamp):
+    #   fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinSampMin_mag[..., iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', label = 'Unstructured Samples')
+    fig = FreqTrans.PlotSigma(freqLin_hz, np.min(svTiLinSampMin_mag, axis = -1), fig = fig, marker='*', color = 'gray', linestyle='None', label = 'Linear w/Unstructured Samples')
+
+    fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinStructMin_mag, marker='None', color = 'k', linestyle = ':', fig = fig, label = 'Linear w/Structured SV')
+    # for iSamp in range(nSamp):
+    #   fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinSampStrucMin_mag[..., iSamp], fig = fig, marker='.', color = 'b', linestyle='None', label = 'Unstructured Samples')
+    fig = FreqTrans.PlotSigma(freqLin_hz, np.min(svTiLinSampStrucMin_mag, axis = -1), fig = fig, marker='*', color = 'm', linestyle='None', label = 'Linear w/Structured Samples')
+
+    # Estimated
+    fig = FreqTrans.PlotSigma(freq_hz[0], svTiEstNomMin_mag, cohTiEstMin, svTiEstUncMax_mag, fig = fig, color = 'b', label = 'Estimate w/Unstructured SV')
+    fig = FreqTrans.PlotSigma(freq_hz[0], svTiEstStructMin_mag, marker='None', color = 'b', linestyle = ':', fig = fig, label = 'Estimate w/Structured SV')
+
+    ax = fig.get_axes()
+    # handles, labels = ax[0].get_legend_handles_labels()
+    # handles = [handles[0], handles[3], handles[1], handles[4], handles[2]]
+    # labels = [labels[0], labels[3], labels[1], labels[4], labels[2]]
+    # ax[0].legend(handles, labels)
+
+    fig.suptitle('$T_i$ : ' + '$u_{Exc}$' + ' to ' + '$u$')
+
+#%% Sigma - Stability
+I2 = np.repeat([np.eye(2)], len(freqLin_rps), axis=0).T
+
+# Unstructured Singular Values
+# svLiLinNom_mag = 1/FreqTrans.Sigma(SiLinNom)
+svLiLinNom_mag = FreqTrans.Sigma(I2 + LiLinNom)
+# Validation: np.allclose(np.min(1/FreqTrans.Sigma(SiLinNom), axis=0), np.min(FreqTrans.Sigma(I2 + LiLinNom), axis=0))
+svLiLinNomMin_mag = np.min(svLiLinNom_mag, axis=0)
+svLiLinNomMax_mag = np.max(svLiLinNom_mag, axis=0)
+
+# svLiLinUnc_mag = FreqTrans.Sigma(SiLinUnc)
 svLiLinUnc_mag = FreqTrans.Sigma(LiLinUnc)
+# Validation: np.allclose(FreqTrans.Sigma(SiLinUnc), FreqTrans.Sigma(LiLinUnc)) # FIXIT -
 svLiLinUncMax_mag = np.max(svLiLinUnc_mag, axis=0) # Overly Conservative
 
-cohLiLin_mag = np.ones_like(LiLinUnc)
+# Structured Singular Values (Additive)
+svLiLinStructMin_mag, LiLinCritStruct = FreqTrans.SigmaStruct_Add(I2 + LiLinNom, LiLinUnc, minmax = 'min')
 
-# Compute Structured Singular Values
-svLiLinSSV_mag, LiLinCrit = FreqTrans.SigmaStruct(I2 + LiLinNom, np.abs(LiLinUnc))
-LiLinCrit = LiLinCrit - I2
+LiLinCoh = np.ones_like(LiLinUnc)
 
 
-# Estimate SVD magnitude
-I2 = np.repeat([np.eye(2)], len(freqExc_rps), axis=0).T
-# svLiEstNom_mag = FreqTrans.Sigma(I2 + LiEstNom) # sigma(I + Li)
-svLiEstNom_mag = 1 / FreqTrans.Sigma(SiEstNom) # sigma(I + Li) = 1 / sigma(Si)
+# Estimated
+I2 = np.repeat([np.eye(2)], len(freq_hz[0]), axis=0).T
+
+# Max singular value
+svLiEstNom_mag = 1/FreqTrans.Sigma(SiEstNom) # 1/sigma(S) = sigma(I + L)
+# svLiEstNom_mag = FreqTrans.Sigma(I2 + LiEstNom)
+# Validation: np.allclose(1/np.max(FreqTrans.Sigma(SiEstNom), axis=0), np.min(FreqTrans.Sigma(I2 + LiEstNom), axis=0))
 svLiEstNomMin_mag = np.min(svLiEstNom_mag, axis=0)
 
-svLiEstUnc_mag = FreqTrans.Sigma(LiEstUnc) # Uncertain SVD magnitude
+
+svLiEstUnc_mag = FreqTrans.Sigma(SiEstUnc)
+# Validation: np.allclose(FreqTrans.Sigma(SiEstUnc), FreqTrans.Sigma(LiEstUnc)) # FIXIT -
 svLiEstUncMax_mag = np.max(svLiEstUnc_mag, axis=0) # Overly Conservative
 
-cohLiEst_mag = LiEstCoh
-cohLiEstMin = np.min(cohLiEst_mag, axis = (0, 1)) # Estimation Coherence
+# Structured Singular Values (Additive)
+svLiEstStructMin_mag, LiEstCritStruct = FreqTrans.SigmaStruct_Add(SiEstNom, SiEstUnc, minmax = 'max')
+# LiEstCritStruct -= I2
 
-# Sampled Systems
-svLiEstSamp_mag = np.zeros((numOut, nFreq, nSamp), dtype='float')
-for iSamp in range(nSamp):
-  svLiEstSamp_mag[..., iSamp] = FreqTrans.Sigma(I2 + LiEstSamp[..., iSamp])
-
-svLiEstSampMin_mag = np.min(svLiEstSamp_mag, axis = 0)
-
-# Compute Structured Singular Values
-svLiEstSSV_mag, LiEstCrit = FreqTrans.SigmaStruct(I2 + LiEstNom, np.abs(LiEstUnc))
-LiEstCrit = LiEstCrit - I2
+LiEstCohMin = np.min(LiEstCoh, axis = (0, 1)) # Estimation Coherence
 
 if True:
     fig = 1
-    fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinNomMin_mag, np.ones_like(freqLin_hz), svLiLinUncMax_mag, fig = fig, color = 'k', label = 'Linear')
-    fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinSSV_mag, marker='None', color = 'k', linestyle = ':', fig = fig, label = 'Linear SSV')
+    # Linear
+    fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinNomMin_mag, np.ones_like(freqLin_hz), svLiLinUncMax_mag, fig = fig, color = 'k', label = 'Linear w/Unstructured SV')
+    fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinStructMin_mag, marker='None', color = 'k', linestyle = ':', fig = fig, label = 'Linear w/Structured SV')
 
-    fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstNomMin_mag, cohLiEstMin, svLiEstUncMax_mag, marker='.', color = 'b', fig = fig, label = 'Estimate (MIMO)')
-    fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstSSV_mag, marker='None', color = 'b', linestyle = ':', fig = fig, label = 'Estimate SSV (MIMO)')
+    # Estimated
+    fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstNomMin_mag, LiEstCohMin, svLiEstUncMax_mag, fig = fig, color = 'b', label = 'Estimate w/Unstructured SV')
+    fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstStructMin_mag, marker='None', color = 'b', linestyle = ':', fig = fig, label = 'Estimate w/Structured SV')
 
-    # for iSamp in range(nSamp):
-    #   fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstSampMin_mag[..., iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', label = 'Sample (MIMO)')
-
-    fig = FreqTrans.PlotSigma(freqLin_hz, (0.4) * np.ones_like(freqLin_hz), linestyle = '--', color = 'r', fig = fig, label = 'Critical Limit')
+    fig = FreqTrans.PlotSigma(freqLin_hz, (0) * np.ones_like(freqLin_hz), linestyle = '-', color = 'r', fig = fig, label = 'Critical Limit = 0.0')
+    fig = FreqTrans.PlotSigma(freqLin_hz, (0.4) * np.ones_like(freqLin_hz), linestyle = ':', color = 'r', fig = fig, label = 'Critical Limit = 0.4')
 
     ax = fig.get_axes()
     handles, labels = ax[0].get_legend_handles_labels()
-    handles = [handles[0], handles[3], handles[1], handles[4], handles[2]]
-    labels = [labels[0], labels[3], labels[1], labels[4], labels[2]]
-    ax[0].legend(handles, labels)
+    # handles = [(handles[0], handles[6]), handles[1], (handles[2], handles[7]), handles[3]]
+    # labels = labels[0:3]
+    # ax[0].legend(handles, labels)
 
     fig.suptitle('$L_i$ : ' + '$u_{Exc}$' + ' to ' + '$u$')
 
 
 #%% Vector Margin Plots
+# Linear Model
 rCritLiLinNom_mag, rCritLiLinUnc_mag, rCritLiLinMin_mag = FreqTrans.VectorMargin(LiLinNom, LiLinUnc, typeUnc = 'circle')
+
+# Estimated Model
 rCritLiEstNom_mag, rCritLiEstUnc_mag, rCritLiEstMin_mag = FreqTrans.VectorMargin(LiEstNom, LiEstUnc, typeUnc = 'circle')
 
-rCritLiEstSamp_mag, _, _ = FreqTrans.VectorMargin(LiEstSamp, typeUnc = 'circle')
 
-rCritLiEstCrit_mag, _, _ = FreqTrans.VectorMargin(LiEstCrit, typeUnc = 'circle')
-
-if True:
+if False:
     numOut, numIn = LiLinNom.shape[0:-1]
     ioArray = np.array(np.meshgrid(np.arange(numOut), np.arange(numIn))).T.reshape(-1, 2)
 
@@ -452,21 +507,19 @@ if True:
         [iOut, iIn] = io
 
         fig = 30 + iPlot
-        fig = FreqTrans.PlotVectorMargin(freqLin_hz, rCritLiLinNom_mag[iOut, iIn], cohLiLin_mag[iOut, iIn], rCritLiLinUnc_mag[iOut, iIn], fig = fig, linestyle='-', color='k', label='Linear Model')
-        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], rCritLiEstNom_mag[iOut, iIn], cohLiEst_mag[iOut, iIn], rCritLiEstUnc_mag[iOut, iIn], fig = fig, linestyle='-', marker='.', color='b', label='Estimate [MIMO]')
-        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn, sigIndx[iIn]], rCritLiEstNom_mag[iOut, iIn, sigIndx[iIn]], cohLiEst_mag[iOut, iIn, sigIndx[iIn]], rCritLiEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, linestyle='None', marker='.', color='g', label='Estimate [SIMO]')
-        fig = FreqTrans.PlotVectorMargin(freqLin_hz, 0.4 * np.ones_like(freqLin_hz), fig = fig, linestyle=':', color='r', label='Critical')
+        fig = FreqTrans.PlotVectorMargin(freqLin_hz, rCritLiLinNom_mag[iOut, iIn], LiLinCoh[iOut, iIn], rCritLiLinUnc_mag[iOut, iIn], fig = fig, linestyle='-', color='k', label='Linear Model')
 
-        for iSamp in range(nSamp):
-          fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], rCritLiEstSamp_mag[iOut, iIn, :, iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', label = 'Sample (MIMO)')
+        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], rCritLiEstNom_mag[iOut, iIn], LiEstCoh[iOut, iIn], rCritLiEstUnc_mag[iOut, iIn], fig = fig, linestyle='-', marker='.', color='b', label='Estimate [MIMO]')
+        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn, sigIndx[iIn]], rCritLiEstNom_mag[iOut, iIn, sigIndx[iIn]], LiEstCoh[iOut, iIn, sigIndx[iIn]], rCritLiEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, linestyle='None', marker='.', color='g', label='Estimate [SIMO]')
 
-        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], rCritLiEstCrit_mag[iOut, iIn], fig = fig, linestyle='None', marker='.', color='m', label='SSV Crit [SIMO]')
+        fig = FreqTrans.PlotVectorMargin(freqLin_hz, 0.0 * np.ones_like(freqLin_hz), fig = fig, linestyle='-', color='r', label='Critical Limit = 0.0')
+        fig = FreqTrans.PlotVectorMargin(freqLin_hz, 0.4 * np.ones_like(freqLin_hz), fig = fig, linestyle=':', color='r', label='Critical Limit = 0.4')
 
         ax = fig.get_axes()
-        handles, labels = ax[0].get_legend_handles_labels()
-        handles = [handles[0], handles[3], handles[1], handles[4], handles[2], handles[5]]
-        labels = [labels[0], labels[3], labels[1], labels[4], labels[2], labels[5]]
-        ax[0].legend(handles, labels)
+        # handles, labels = ax[0].get_legend_handles_labels()
+        # handles = [handles[0], handles[3], handles[1], handles[4], handles[2], handles[5]]
+        # labels = [labels[0], labels[3], labels[1], labels[4], labels[2], labels[5]]
+        # ax[0].legend(handles, labels)
 
         fig.suptitle('$L_i$ : ' + '$u_{Exc}$[' + str(iIn) + '] to ' + '$u$ [' + str(iOut) + ']')
 
@@ -490,14 +543,19 @@ if False:
         [iOut, iIn] = io
 
         fig = 40 + iPlot
-        fig = FreqTrans.PlotBode(freqLin_hz, gainLiLinNom_mag[iOut, iIn], phaseLiLinNom_deg[iOut, iIn], coher_nd = cohLiLin_mag[iOut, iIn], gainUnc_mag = gainLiLinUnc_mag[iOut, iIn], fig = fig, dB = True, color='k', label='Linear Model')
-        fig = FreqTrans.PlotBode(freq_hz[iIn], gainLiEstNom_mag[iOut, iIn], phaseLiEstNom_deg[iOut, iIn], coher_nd = cohLiEst_mag[iOut, iIn], gainUnc_mag = gainLiEstUnc_mag[iOut, iIn], fig = fig, dB = True, color='b', label='Estimate [MIMO]')
-        fig = FreqTrans.PlotBode(freq_hz[iIn, sigIndx[iIn]], gainLiEstNom_mag[iOut, iIn, sigIndx[iIn]], phaseLiEstNom_deg[iOut, iIn, sigIndx[iIn]], coher_nd = cohLiEst_mag[iOut, iIn, sigIndx[iIn]], gainUnc_mag = gainLiEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, dB = True, color='g', label='Estimate [SIMO]')
+        fig = FreqTrans.PlotBode(freqLin_hz, gainLiLinNom_mag[iOut, iIn], phaseLiLinNom_deg[iOut, iIn], coher_nd = LiLinCoh[iOut, iIn], fig = fig, dB = True, color='k', label='Linear Model')
+        fig = FreqTrans.PlotBode(freq_hz[iIn], gainLiEstNom_mag[iOut, iIn], phaseLiEstNom_deg[iOut, iIn], coher_nd = LiEstCoh[iOut, iIn], fig = fig, dB = True, color='b', label='Estimate [MIMO]')
+        fig = FreqTrans.PlotBode(freq_hz[iIn, sigIndx[iIn]], gainLiEstNom_mag[iOut, iIn, sigIndx[iIn]], phaseLiEstNom_deg[iOut, iIn, sigIndx[iIn]], coher_nd = LiEstCoh[iOut, iIn, sigIndx[iIn]], fig = fig, dB = True, color='g', label='Estimate [SIMO]')
+
+        fig = FreqTrans.PlotGainType(freqLin_hz, gainLiLinUnc_mag[iOut, iIn], fig = fig, dB = True, color='k', linestyle = '--', label='Linear Model')
+        fig = FreqTrans.PlotGainType(freq_hz[iIn], gainLiEstUnc_mag[iOut, iIn], fig = fig, dB = True, color='b', linestyle = '--', label='Estimate [MIMO]')
+        fig = FreqTrans.PlotGainType(freq_hz[iIn, sigIndx[iIn]], gainLiEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, dB = True, color='g', linestyle = '--', label='Estimate [SIMO]')
+
 
         ax = fig.get_axes()
         handles, labels = ax[0].get_legend_handles_labels()
-        handles = [handles[0], handles[3], handles[1], handles[4], handles[2], handles[5]]
-        labels = [labels[0], labels[3], labels[1], labels[4], labels[2], labels[5]]
+        handles = [(handles[0], handles[3]), (handles[1], handles[4]), (handles[2], handles[5])]
+        labels = labels[0:3]
         ax[0].legend(handles, labels)
 
         fig.suptitle('$L_i$ : ' + '$u_{Exc}$[' + str(iIn) + '] to ' + '$u$ [' + str(iOut) + ']')
@@ -506,6 +564,8 @@ if False:
 #%% Nyquist Plot
 LiLinUncMag = np.abs(LiLinUnc)
 LiEstUncMag = np.abs(LiEstUnc)
+
+LiEstCrit = LiEstCritStruct
 
 if True:
     numOut, numIn = LiLinNom.shape[0:-1]
@@ -516,20 +576,21 @@ if True:
         [iOut, iIn] = io
 
         fig = 50 + iPlot
+        # fig = FreqTrans.PlotNyquist(LiLinNom[iOut, iIn], fig = fig, color = 'k', label = 'Linear')
         fig = FreqTrans.PlotNyquist(LiLinNom[iOut, iIn], LiLinUncMag[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear')
+
         fig = FreqTrans.PlotNyquist(LiEstNom[iOut, iIn], LiEstUncMag[iOut, iIn], fig = fig, fillType = 'circle', marker='.', color = 'b', linestyle='None', label = 'Estimate (MIMO)')
         fig = FreqTrans.PlotNyquist(LiEstNom[iOut, iIn, sigIndx[iIn]], LiEstUncMag[iOut, iIn, sigIndx[iIn]], fig = fig, fillType = 'circle', marker='.', color = 'g', linestyle='None', label = 'Estimate (SIMO)')
-        fig = FreqTrans.PlotNyquist(np.array([-1+0j]), np.array([0.4]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None')
 
-        for iSamp in range(nSamp):
-          fig = FreqTrans.PlotNyquist(LiEstSamp[iOut, iIn, :, iSamp], fig = fig, fillType = 'circle', marker='.', color = 'gray', linestyle='None')
+        fig = FreqTrans.PlotNyquist(LiEstCritStruct[iOut, iIn], fig = fig, linestyle='None', marker='*', color='b', label='Estimate Critical SSV')
 
-        fig = FreqTrans.PlotNyquist(LiEstCrit[iOut, iIn], fig = fig, linestyle='None', marker='.', color='m', label='SSV Crit [SIMO]')
+        fig = FreqTrans.PlotNyquist(np.array([-1+0j]), np.array([0.4]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle=':')
+
 
         ax = fig.get_axes()
-#        handles, labels = ax[0].get_legend_handles_labels()
-#        handles = [handles[0], handles[3], handles[1], handles[4], handles[2], handles[5]]
-#        labels = [labels[0], labels[3], labels[1], labels[4], labels[2], labels[5]]
-#        ax[0].legend(handles, labels)
+        handles, labels = ax[0].get_legend_handles_labels()
+        handles = [(handles[0], handles[3]), handles[1], handles[2]]
+        labels = labels[0:3]
+        ax[0].legend(handles, labels)
 
         fig.suptitle('$L_i$ : ' + '$u_{Exc}$[' + str(iIn) + '] to ' + '$u$ [' + str(iOut) + ']')

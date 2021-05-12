@@ -783,14 +783,27 @@ def StoT(SNom, SUnc = None, SCoh = None):
 
     return TNom, TUnc, TCoh
 
+# Sherman-Morrison-Woodbury
+# (A+B)^−1 = A^−1 − (I + A^−1 @ B)^−1 @ A^−1 @ B @ A^−1
+def SWM(A, B):
+  inv = np.linalg.inv
+
+  I = np.eye(len(A))
+  Ainv = inv(A)
+  SumABinv = Ainv - inv(I + Ainv @ B) @ Ainv @ B @ Ainv
+
+  return SumABinv
+
+
 # Transfer Sensitivity to Loop Function
 def StoL(SNom, SUnc = None, SCoh = None):
-    # Li = inv(TNom + TUnc) - I = LNom + LUnc
-    # LNom = -I + TNom^-1
-    # LUnc = -(I + TNom^-1 * TUnc)^-1 * TNom^-1 * TUnc * TNom^-1
+    # Li = inv(SNom + SUnc) - I = (LNom + LUnc)
+    # LNom = -I + SNom^-1
+    # LUnc = -(I + SNom^-1 * SUnc)^-1 * SNom^-1 * SUnc * SNom^-1
     LNom = np.zeros_like(SNom, dtype = complex)
     LUnc = np.zeros_like(SUnc, dtype = complex)
     LCoh = np.zeros_like(SCoh)
+
 
     inv = np.linalg.inv
     I = np.eye(SNom.shape[0])
@@ -801,9 +814,10 @@ def StoL(SNom, SUnc = None, SCoh = None):
         LNom[...,i] = -I + SNomInvElem
 
         if SUnc is not None:
-            # Sherman-Morrison-Woodbury Identity
             SUncElem = SUnc[...,i]
-            LUnc[...,i] = -inv(I + SNomInvElem @ SUncElem) @ SNomInvElem @ SUncElem @ SNomInvElem
+
+            # Sherman-Morrison-Woodbury Identity
+            LUnc[...,i] = SWM(SNomElem, SUncElem) - SNomInvElem
 
         if SCoh is not None:
             LCoh[...,i] = SCoh[...,i] #FIXIT - This is not the proper transform
@@ -995,28 +1009,139 @@ def DistEllipseRot(pEllipse, a, b, a_deg, pCrit):
     return vContact, vDist
 
 from scipy import optimize
-def SigmaStruct(nom, unc):
+def Sigma_DMD(M, D):
+    # DMD algorithm based on S&P Section 8.8.3
+    # Use Equation (8.87) and minimize directly
+    nOut, nIn, nFreq = M.shape
+
+    def optCostFunc(d, M):
+        scale = 1 / d[0] # scale d such that d1 == 1 as in Note 10
+        d_scaled = scale * d
+        D = np.diag(d_scaled)
+        Dinv = np.diag(1 / d_scaled)
+        M_scaled = D @ M @ Dinv
+
+        sv = np.linalg.svd(M_scaled, full_matrices = True, compute_uv = False)
+        svMax = np.max(sv, axis = 0)
+        return svMax
+
+    svMax = np.zeros(M.shape[-1])
+    for iFreq in range(nFreq):
+        # Setup Optimization
+        optInitX = np.diag(D[..., iFreq])
+        optArgs = M[..., iFreq]
+        optMethod = 'SLSQP'
+        # optMethod = 'L-BFGS-B'
+        optOptions = {}
+        # optOptions['disp'] = True
+
+        # Solve
+        optRes = optimize.minimize(optCostFunc, optInitX, args = optArgs, method = optMethod, options = optOptions)
+
+        # Store solution
+        D[..., iFreq] = np.diag(optRes.x)
+        svMax[iFreq] = optRes.fun
+
+    return svMax, D
+
+def Sigma_MU(M, U):
+    # MU algorithm based on S&P Section 8.8.3
+    # Use Equation (8.86) and minimize directly
+    nOut, nIn, nFreq = M.shape
+
+    def optCostFunc(u, M):
+        nOut, nIn = M.shape
+        scale = 1 / u[0] # scale u such that u1 == 1 as in Note 10
+        u_scaled = scale * u
+
+        U = np.reshape(u_scaled, (nOut, nIn))
+        Q, R = np.linalg.qr(U) # Q is a unitary, orthonormal matrix
+        U = Q
+
+        MU = M @ U
+
+        rho = np.abs(np.linalg.eigvals(MU)) # Spectal radius
+        rhoMax = -np.max(rho, axis = 0)
+
+        return rhoMax
+
+    rhoMax = np.zeros(nFreq)
+    for iFreq in range(nFreq):
+        # Setup Optimization
+        optInitX = U[..., iFreq].flatten()
+        optArgs = M[..., iFreq]
+        optMethod = 'SLSQP'
+        # optMethod = 'L-BFGS-B'
+        optOptions = {}
+        # optOptions['disp'] = True
+
+        # Solve
+        optRes = optimize.minimize(optCostFunc, optInitX, args = optArgs, method = optMethod, options = optOptions)
+
+        # Store solution
+        U[..., iFreq] = np.reshape(optRes.x, (nOut, nIn))
+        rhoMax[iFreq] = -optRes.fun
+
+    return rhoMax, U
+
+# Find the smallest km such that det(I - km * M * Delta) = 0
+# det(I - km * Delta * M) = det(I - km * M * Delta)
+# km = 1 / mu(M)
+def SigmaStruct(M, Delta, bound = 'upper'):
+    nOut, nIn = Delta.shape
+    nFreq = M.shape[-1]
+
+    if bound in ['upper', 'both']:
+      # Upper Bound Estimate
+      if (Delta == 1).all(): # Delta is 'full', D = d * I
+        D = np.repeat([np.eye(nOut)], nFreq, axis=0).T
+      else: # (Delta == np.eye(nOut)).all(): # Delta = d * I, D is 'full
+        D = np.repeat([np.ones((nOut, nIn))], nFreq, axis=0).T
+
+      mu_ub, D = Sigma_DMD(M, D)
+
+    if bound in ['lower', 'both']:
+      # Lower Bound Estimate
+      U = np.repeat([np.ones((nOut, nIn))], nFreq, axis=0).T
+
+      mu_lb, U = Sigma_MU(M, U)
+
+
+    info = {}
+
+    if bound in 'both':
+      mu = np.array([mu_lb, mu_ub])
+      info['D'] = D
+      info['U'] = U
+    elif bound in 'upper':
+      mu = mu_ub
+      info['D'] = D
+    elif bound in 'lower':
+      mu = mu_lb
+      info['U'] = U
+
+    return mu, info
+
+def SigmaStruct_Add(nom, unc, minmax = 'min'):
     nOut, nIn = nom.shape[:2]
 
-    def unpack(x, nOut, nIn):
-      lenX = nOut * nIn
-
-      r = np.reshape(x[:lenX], (nOut, nIn))
-      ph = np.reshape(x[lenX:], (nOut, nIn))
-      c = r * np.exp(-1j * ph)
+    def unpack(x):
+      c = x[0] * np.exp(-1j * x[1])
 
       return c
 
-    def optCostFunc(x, nom, unc):
-      nOut, nIn = nom.shape
-
-      c = unpack(x, nOut, nIn)
-
+    def optCostFunc(x, nom, unc, minmax):
+      c = unpack(x)
       p = nom + c * unc
 
-      sv = np.linalg.svd(p, full_matrices=True, compute_uv = False)
-      svMin = np.min(sv, axis = 0)
-      return svMin
+      svP = np.linalg.svd(p, full_matrices=True, compute_uv = False)
+
+      if minmax == 'min':
+        svP = np.min(svP, axis = 0)
+      elif minmax == 'max':
+        svP = 1/np.max(svP, axis = 0)
+
+      return svP
 
     crit = np.zeros_like(nom, dtype = complex)
     svMin = np.zeros(nom.shape[-1])
@@ -1025,25 +1150,33 @@ def SigmaStruct(nom, unc):
         uNom, svNom, vhNom = np.linalg.svd(nom[..., iFreq], full_matrices=True, compute_uv = True)
 
         c0 = uNom.conjugate().T @ np.eye(nOut) @ vhNom.conjugate().T
-        optInitX = [np.abs(c0), np.arctan2(c0.real, c0.imag)]
+
+        g = np.mean(np.abs(c0))
+        ph = -np.mean(np.abs(np.arctan2(c0.real, c0.imag)))
+
+        optInitX = [1, 0]
 
         # Setup Optimization
-        dimX = nOut * nIn
-        optBnds = optimize.Bounds(lb = [-1] * dimX + [-np.inf] * dimX , ub = [1] * dimX + [np.inf] * dimX) # lb <= x <= ub
-        optArgs = (nom[..., iFreq], unc[..., iFreq])
-        # optMethod = 'SLSQP' # Slower than L-BFGS-B
-        optMethod = 'L-BFGS-B'
+        optBnds = optimize.Bounds(lb =[-1, -np.inf] , ub = [1, np.inf]) # lb <= x <= ub
+        optArgs = (nom[..., iFreq], unc[..., iFreq], minmax)
+        optMethod = 'SLSQP'
+        # optMethod = 'L-BFGS-B'
         optOptions = {}
-        optOptions['disp'] = True
+        # optOptions['disp'] = True
 
         # Solve
         optRes = optimize.minimize(optCostFunc, optInitX, args = optArgs, method = optMethod, bounds = optBnds, options = optOptions)
 
-        # Store solution
-        svMin[iFreq] = optRes.fun
+        c = unpack(optRes.x)
 
-        c = unpack(optRes.x, nOut, nIn)
-        crit[..., iFreq] = nom[..., iFreq] + c * unc[..., iFreq]
+        # Store solution
+        if minmax == 'min':
+          svMin[iFreq] = optRes.fun
+          crit[..., iFreq] = nom[..., iFreq] + c * unc[..., iFreq]
+        elif minmax == 'max':
+          svMin[iFreq] = optRes.fun
+          crit[..., iFreq] = nom[..., iFreq] + c * unc[..., iFreq]
+
 
     return svMin, crit
 
