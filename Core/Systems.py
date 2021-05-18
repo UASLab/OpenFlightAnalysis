@@ -40,8 +40,7 @@ def ConnectName(sysList, connectNames, inKeep, outKeep):
 
 
 #%% Controller Models
-# 2-DOF PID with excitation input
-def PID2(Kp = 1, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0):
+def PID2Exc(Kp = 1, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0, dt = None):
     # Inputs: ['ref', 'sens', 'exc']
     # Outputs: ['cmd', 'ff', 'fb', 'exc']
 
@@ -55,6 +54,28 @@ def PID2(Kp = 1, Ki = 0, Kd = 0, b = 1, c = 1, Tf = 0):
     sys.D = np.concatenate((sys.D[0,:] - sys.D[1,:] + sys.D[2,:], sys.D))
 
     sys.outputs = 4
+
+    if dt is not None:
+        sys = control.c2d(sys, dt)
+
+    return sys
+
+def PID2(Kp = 1, Ki = 0.0, Kd = 0, b = 1, c = 1, Tf = 0, dt = None):
+    # Inputs: ['ref', 'sens']
+    # Outputs: ['cmd']
+
+    sysR = control.tf2ss(control.tf([Kp*b*Tf + Kd*c, Kp*b + Ki*Tf, Ki], [Tf, 1, 0]))
+    sysY = control.tf2ss(control.tf([Kp*Tf + Kd, Kp + Ki*Tf, Ki], [Tf, 1, 0]))
+
+    sys = control.append(sysR, sysY)
+
+    sys.C = sys.C[0,:] - sys.C[1,:]
+    sys.D = sys.D[0,:] - sys.D[1,:]
+
+    sys.outputs = 1
+
+    if dt is not None:
+        sys = control.c2d(sys, dt)
 
     return sys
 
