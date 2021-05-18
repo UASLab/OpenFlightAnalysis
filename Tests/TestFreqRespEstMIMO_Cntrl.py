@@ -194,7 +194,7 @@ LiLinSamp = np.zeros(shapeSamp, dtype='complex')
 for iSamp in range(nSamp):
   TiLinSamp[..., iSamp] = TiLinNom + TiLinUnc * samp[..., iSamp]
   SiLinSamp[..., iSamp], _, _ = FreqTrans.TtoS(TiLinSamp[..., iSamp])
-  LiLinSamp[..., iSamp], _, _ = FreqTrans.StoL(SiLinSamp[..., iSamp])
+  LiLinSamp[..., iSamp] = LiLinNom + LiLinUnc * samp[..., iSamp]
 
 
 # Structured Sampling
@@ -210,8 +210,7 @@ LiLinSampStruc = np.zeros(shapeSamp, dtype='complex')
 for iSamp in range(nSamp):
   TiLinSampStruc[..., iSamp] = TiLinNom + TiLinUnc * sampStruc[..., iSamp]
   SiLinSampStruc[..., iSamp], _, _ = FreqTrans.TtoS(TiLinSampStruc[..., iSamp])
-  LiLinSampStruc[..., iSamp], _, _ = FreqTrans.StoL(SiLinSampStruc[..., iSamp])
-
+  LiLinSampStruc[..., iSamp] = LiLinNom + LiLinUnc * sampStruc[..., iSamp]
 
 
 #%% Excitation
@@ -403,17 +402,17 @@ svTiEstUncMax_mag = np.max(svTiEstUnc_mag, axis=0) # Overly Conservative
 # Structured Singular Values (Additive)
 svTiEstStructMin_mag, TiEstCritStruct = FreqTrans.SigmaStruct_Add(TiEstNom, TiEstUnc)
 
-if False:
+if True:
     fig = 1
     # Linear
     fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinNomMin_mag, np.ones_like(freqLin_hz), svTiLinUncMax_mag, fig = fig, color = 'k', label = 'Linear w/Unstructured SV')
     # for iSamp in range(nSamp):
-    #   fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinSampMin_mag[..., iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', label = 'Unstructured Samples')
+    #   fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinSampMin_mag[..., iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', alpha = 0.25, label = 'Unstructured Samples')
     fig = FreqTrans.PlotSigma(freqLin_hz, np.min(svTiLinSampMin_mag, axis = -1), fig = fig, marker='*', color = 'gray', linestyle='None', label = 'Linear w/Unstructured Samples')
 
     fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinStructMin_mag, marker='None', color = 'k', linestyle = ':', fig = fig, label = 'Linear w/Structured SV')
     # for iSamp in range(nSamp):
-    #   fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinSampStrucMin_mag[..., iSamp], fig = fig, marker='.', color = 'b', linestyle='None', label = 'Unstructured Samples')
+    #   fig = FreqTrans.PlotSigma(freqLin_hz, svTiLinSampStrucMin_mag[..., iSamp], fig = fig, marker='.', color = 'b', linestyle='None', alpha = 0.25, label = 'Unstructured Samples')
     fig = FreqTrans.PlotSigma(freqLin_hz, np.min(svTiLinSampStrucMin_mag, axis = -1), fig = fig, marker='*', color = 'm', linestyle='None', label = 'Linear w/Structured Samples')
 
     # Estimated
@@ -448,6 +447,13 @@ svLiLinStructMin_mag, LiLinCritStruct = FreqTrans.SigmaStruct_Add(I2 + LiLinNom,
 
 LiLinCoh = np.ones_like(LiLinUnc)
 
+# Linear Sampled
+svLiLinSampMin_mag = np.zeros((nFreq, nSamp))
+svLiLinSampStrucMin_mag = np.zeros((nFreq, nSamp))
+for iSamp in range(nSamp):
+  svLiLinSampMin_mag[..., iSamp]      = svLiLinNomMin_mag - np.max(FreqTrans.Sigma(LiLinSamp[..., iSamp] - LiLinNom), axis=0)
+  svLiLinSampStrucMin_mag[..., iSamp] = np.min(FreqTrans.Sigma(LiLinSampStruc[..., iSamp]), axis=0)
+
 
 # Estimated
 I2 = np.repeat([np.eye(2)], len(freq_hz[0]), axis=0).T
@@ -470,14 +476,21 @@ svLiEstStructMin_mag, LiEstCritStruct = FreqTrans.SigmaStruct_Add(SiEstNom, SiEs
 LiEstCohMin = np.min(LiEstCoh, axis = (0, 1)) # Estimation Coherence
 
 if True:
-    fig = 1
+    fig = 2
     # Linear
-    fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinNomMin_mag, np.ones_like(freqLin_hz), svLiLinUncMax_mag, fig = fig, color = 'k', label = 'Linear w/Unstructured SV')
+    # fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinNomMin_mag, np.ones_like(freqLin_hz), svLiLinUncMax_mag, fig = fig, color = 'k', label = 'Linear w/Unstructured SV')
+    # for iSamp in range(nSamp):
+    #     fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinSampMin_mag[..., iSamp], fig = fig, marker='.', color = 'gray', linestyle='None', alpha = 0.25, label = 'Unstructured Samples')
+    # fig = FreqTrans.PlotSigma(freqLin_hz, np.min(svLiLinSampMin_mag, axis = -1), fig = fig, marker='*', color = 'gray', linestyle='None', label = 'Linear w/Unstructured Samples')
+
     fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinStructMin_mag, marker='None', color = 'k', linestyle = ':', fig = fig, label = 'Linear w/Structured SV')
+    for iSamp in range(nSamp):
+        fig = FreqTrans.PlotSigma(freqLin_hz, svLiLinSampStrucMin_mag[..., iSamp], fig = fig, marker='.', color = 'gray', alpha = 0.25, linestyle='None', label = 'Structured Samples')
+    fig = FreqTrans.PlotSigma(freqLin_hz, np.min(svLiLinSampStrucMin_mag, axis = -1), fig = fig, marker='*', color = 'gray', linestyle='None', label = 'Linear w/Structured Sample Min')
 
     # Estimated
-    fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstNomMin_mag, LiEstCohMin, svLiEstUncMax_mag, fig = fig, color = 'b', label = 'Estimate w/Unstructured SV')
-    fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstStructMin_mag, marker='None', color = 'b', linestyle = ':', fig = fig, label = 'Estimate w/Structured SV')
+    # fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstNomMin_mag, LiEstCohMin, svLiEstUncMax_mag, fig = fig, color = 'b', label = 'Estimate w/Unstructured SV')
+    # fig = FreqTrans.PlotSigma(freq_hz[0], svLiEstStructMin_mag, marker='None', color = 'b', linestyle = ':', fig = fig, label = 'Estimate w/Structured SV')
 
     fig = FreqTrans.PlotSigma(freqLin_hz, (0) * np.ones_like(freqLin_hz), linestyle = '-', color = 'r', fig = fig, label = 'Critical Limit = 0.0')
     fig = FreqTrans.PlotSigma(freqLin_hz, (0.4) * np.ones_like(freqLin_hz), linestyle = ':', color = 'r', fig = fig, label = 'Critical Limit = 0.4')
