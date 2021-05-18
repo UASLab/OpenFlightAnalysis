@@ -50,14 +50,14 @@ class Servo:
         self.a = Limit(self.a, self.aLim)
         
         # Apply limit to Specific Power (pwr = a * v)
-        pwr = self.a * self.v
-#        pwr = self.a * (self.v + self.a * self.dt)
+        # pwr = self.a * self.v
+        pwr = self.a * (self.v + self.a * self.dt)
         if abs(pwr) > self.pwrLim:
-            self.a = np.sign(self.a) * abs(self.pwrLim / self.v)
-
+            self.a = np.sign(self.a) * abs(self.pwrLim / (self.v + self.a * self.dt))
+            
         # Integrate Acceleration to update Velocity
         self.v += self.a * self.dt
-        
+            
         # Rate Limit
         self.v = Limit(self.v, self.vLim)
         
@@ -68,6 +68,7 @@ class Servo:
         self.pOut = Freeplay(self.p, self.pOut, self.freeplay)
           
         # Position Limit
+        # self.pOut = Limit(self.p, self.pLim)
         self.pOut = Limit(self.pOut, self.pLim)
                 
         return self.pOut

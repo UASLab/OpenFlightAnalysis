@@ -145,7 +145,7 @@ def MultiSine(freqElem_rps, ampElem_nd, sigIndx, time_s, phaseInit_rad = 0, boun
 
 
 #%% SchroederPhase
-def SchroederPhase(ampElem_nd, phaseInit_rad = 0, boundPhase = 1):
+def SchroederPhase(ampElem_nd, phaseInit_rad = 0, boundPhase = True):
 
     #Reference:
     # "Synthesis of Low-Peak-Factor Signals and Binary Sequences with Low
@@ -162,9 +162,9 @@ def SchroederPhase(ampElem_nd, phaseInit_rad = 0, boundPhase = 1):
     # Compute the Schroeder phase shifts
     # Compute phases  (Reference 1, Equation 11)
     numElem = len(phaseElem_rad)
-    for iElem in range(0, numElem):
+    for iElem in range(1, numElem):
         sumVal = 0;
-        for indxL in range(0, iElem-1):
+        for indxL in range(1, iElem):
             sumVal = sumVal + ((iElem - indxL) * sigPowerRel[indxL])
 
         phaseElem_rad[iElem] = phaseElem_rad[0] - 2*np.pi * sumVal
@@ -261,8 +261,7 @@ def MultiSineAssemble(freqElem_rps, phaseElem_rad, ampElem_nd, time_s, sigIndx =
     return sigList, sigElem
 
 #%%
-def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles = 1, freqStepDes_rps = 0, methodSW = 'zipper'):
-
+def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_rps, numCycles = 1, freqStepDes_rps = 0, methodSW = 'zipper'):
 
     ## Check Inputs
     if len(freqMinDes_rps) is not len(freqMaxDes_rps):
@@ -271,7 +270,7 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
     # Number of channels
     numChan = len(freqMinDes_rps)
 
-    freqMaxLimit_rps = freqRate_hz / 2 * hz2rps
+    freqMaxLimit_rps = freqRate_rps / 2
     if any(freqMaxDes_rps > freqMaxLimit_rps):
         print('MultiSineComponents - The maximum desired frequency is too high for the frame rate');
         freqMaxDes_rps = freqMaxLimit_rps;
@@ -284,17 +283,18 @@ def MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles =
 
     # Time vector is based on completing the desired number of cycles for the
     # min frequency component, must be divisible by the frame rate
+    freqRate_hz = freqRate_rps * rps2hz
     timeDur_s = (round((numCycles / min(freqMinDes_hz))*freqRate_hz)) / freqRate_hz
     time_s =  np.linspace(0, timeDur_s, int(timeDur_s*freqRate_hz) + 1)
 
 
     # Frequency sequence step size
-    freqStepMin_hz = 1/freqRate_hz # Absolute Minimum (closest) step size
+    freqStepMin_hz = 1/freqRate_hz # Absolute Minimum (tightest spacing) step size
     freqStepMax_hz = min(freqMaxDes_hz - freqMinDes_hz) # Max - Min would be a huge step size
 
     freqStepDes_hz = freqStepDes_rps * rps2hz
-    # freqStep_hz = round(freqStepDes_hz / freqStepMin_hz) * freqStepMin_hz
-    freqStep_hz = freqStepDes_hz
+    freqStep_hz = np.round(freqStepDes_hz / freqStepMin_hz) * freqStepMin_hz
+#    freqStep_hz = freqStepDes_hz
 
     # Clip if required
     freqStep_hz = np.clip(freqStep_hz, freqStepMin_hz, freqStepMax_hz)

@@ -180,11 +180,11 @@ for iSeg, seg in enumerate(oDataSegs):
 # Define the excitation frequencies
 freqRate_hz = 50
 freqRate_rps = freqRate_hz * hz2rps
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
 
 # Excited Frequencies per input channel
-optSpec.freq = np.asarray(freqExc_rps)
-optSpec.freqInterp = np.sort(optSpec.freq.flatten())
+optSpec.freq_rps = np.asarray(freqExc_rps)
+optSpec.freqInterp = np.sort(optSpec.freq_rps.flatten())
 
 # Null Frequencies
 freqNull_rps = optSpec.freqInterp[0:-1] + 0.5 * np.diff(optSpec.freqInterp)
@@ -265,7 +265,7 @@ if True:
 
     ax = fig.get_axes()
     ax[0].set_xlim(0, 10)
-    ax[0].set_ylim(0, 1)
+    ax[0].set_ylim(0, 1.5)
 
 
 #%% Vector Margin Plots
@@ -297,7 +297,7 @@ if False:
             fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], vm_mag, vmUnc_mag = vmUnc_mag, coher_nd = LaEstCohList[iSeg][iOut, iIn], fig = fig, color = rtsmSegList[iSeg]['color'], label = oDataSegs[iSeg]['Desc'])
 
         fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], 0.4 * np.ones_like(freq_hz[iIn]), fig = fig, color = 'r', linestyle = '--', label = 'Critical')
-        fig.suptitle(inPlot[iIn] + ' to ' + outPlot[iOut])
+        fig.suptitle('$L_a$ - ' + inPlot[iIn] + ' to ' + outPlot[iOut])
 
         ax = fig.get_axes()
         ax[0].set_ylim(0, 2)
@@ -348,12 +348,12 @@ if False:
 
 
 #%% Turbulence
-optSpecE = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 7), winType=('tukey', 0.0))
-optSpecE.freq = np.asarray(freqExc_rps)
-optSpecE.freqInterp = np.sort(optSpecE.freq.flatten())
+optSpecE = FreqTrans.OptSpect(dftType = 'czt', freqRate_rps = freqRate_rps, smooth = ('box', 7), winType='bartlett')
+optSpecE.freq_rps = np.asarray(freqExc_rps)
+optSpecE.freqInterp = np.sort(optSpecE.freq_rps.flatten())
 
-optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 7), winType=('tukey', 0.0))
-optSpecN.freq = freqNull_rps
+optSpecN = FreqTrans.OptSpect(dftType = 'czt', freqRate_rps = freqRate_rps, smooth = ('box', 7), winType='bartlett')
+optSpecN.freq_rps = freqNull_rps
 
 
 SyyList = []
@@ -420,8 +420,8 @@ if False:
     iSgnlOut = 0
 
     freqRate_rps = 50 * hz2rps
-    optSpec = FreqTrans.OptSpect(dftType = 'dftmat', freq = freqExc_rps[iSgnlExc], freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
-    optSpecN = FreqTrans.OptSpect(dftType = 'dftmat', freq = freqNull_rps, freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear')
+    optSpec = FreqTrans.OptSpect(dftType = 'dftmat', freq_rps = freqExc_rps[iSgnlExc], freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
+    optSpecN = FreqTrans.OptSpect(dftType = 'dftmat', freq_rps = freqNull_rps, freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
 
 
     for iSeg in range(0, len(oDataSegs)):
@@ -431,7 +431,7 @@ if False:
 
         # Number of time segments and length of overlap, units of samples
         #lenSeg = 2**6 - 1
-        lenSeg = int(1.0 * optSpec.freqRate * rps2hz)
+        lenSeg = int(1.0 * optSpec.freqRate_rps * rps2hz)
         lenOverlap = 1
 
         # Compute Spectrum over time
@@ -445,16 +445,15 @@ if False:
         fig = FreqTrans.Spectogram(tSpecN_s, freqSpecN_rps * rps2hz, 20 * np.log10(P_N_mag))
         fig.suptitle(oDataSegs[iSeg]['Desc'] + ': Spectrogram Null - ' + sigFbList[iSgnlOut])
 
-      
         
 #%% Estimate the frequency response function time history
 iSeg = 3
         
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.2), detrendType = 'Linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
 
 # Excited Frequencies per input channel
-optSpec.freq = np.asarray(freqExc_rps)
-optSpec.freqInterp = np.sort(optSpec.freq.flatten())
+optSpec.freq_rps = np.asarray(freqExc_rps)
+optSpec.freqInterp = np.sort(optSpec.freq_rps.flatten())
 
 # Null Frequencies
 freqNull_rps = optSpec.freqInterp[0:-1] + 0.5 * np.diff(optSpec.freqInterp)

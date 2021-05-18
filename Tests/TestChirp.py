@@ -57,7 +57,7 @@ plt.show()
 
 #%% Plot the Excitation Spectrum
 ## Compute Spectrum of each channel
-optSpect = FreqTrans.OptSpect(freqRate = freqRate_hz)
+optSpect = FreqTrans.OptSpect(freqRate_rps = freqRate_hz * hz2rps)
 
 freq_hz, sigDft, Psd_mag = FreqTrans.Spectrum(sig, optSpect)
 Psd_dB = 20*np.log10(Psd_mag)

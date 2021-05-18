@@ -62,16 +62,16 @@ TLinNom = FreqTrans.FreqResp(sysPlant, freqLin_rps)
 
 #%% Excitation
 numExc = 2
-numCycles = 3
+numCycles = 4
 ampInit = 1
 ampFinal = 1
 freqMinDes_rps = 0.1 * hz2rps * np.ones(numExc)
-freqMaxDes_rps = 10.1 * hz2rps *  np.ones(numExc)
-freqStepDes_rps = (10/freqRate_hz) * hz2rps
+freqMaxDes_rps = 10.0 * hz2rps *  np.ones(numExc)
+freqStepDes_rps = (10 / freqRate_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
 # Generate MultiSine Frequencies
-freqExc_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_hz, numCycles, freqStepDes_rps, methodSW)
+freqExc_rps, sigIndx, time_s = GenExcite.MultiSineComponents(freqMinDes_rps, freqMaxDes_rps, freqRate_rps, numCycles, freqStepDes_rps, methodSW)
 freqGap_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 #time_s = time_s[0:-5]
@@ -81,7 +81,7 @@ ampExcit_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(fre
 uExc, phaseElem_rad, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
 uExc = (uExc.T * (1 / np.std(uExc, axis = -1))).T
 uStd = np.std(uExc, axis = -1)
-uPeak = np.mean(GenExcite.PeakFactor(uExc) * uStd)**2
+uPeakFactor = GenExcite.PeakFactor(uExc)
 
 # Excited Frequencies per input channel
 freqChan_rps = freqExc_rps[sigIndx]
@@ -92,13 +92,25 @@ _, y, _ = control.forced_response(sysPlant, T = time_s, U = uExc)
 
 
 # Plant-Output Noise
-noiseK11 = (2/8) * np.abs(sysPlant.dcgain())[0, 0]; noiseWn11 = 6 * hz2rps; noiseD11 = 0.1;
-noiseK22 = (8/8) * np.abs(sysPlant.dcgain())[1, 1]; noiseWn22 = 4 * hz2rps; noiseD22 = 1.0;
+noiseK11 = (2/8); noiseWn11 = 6 * hz2rps; noiseD11 = 0.1;
+noiseK22 = (1/8); noiseWn22 = 4 * hz2rps; noiseD22 = 1.0;
 
 sysN = control.tf([[[-noiseK11, 0, noiseK11 * noiseWn11**2], [0]],
                    [[0], [-noiseK22, 0, noiseK22 * noiseWn22**2]]],
                   [[[1, 2.0*noiseD11*noiseWn11, noiseWn11**2], [1]],
                    [[1], [1, 2.0*noiseD22*noiseWn22, noiseWn22**2]]])
+
+
+#noiseK11 = (1/8) ; noiseWn11 = 6 * hz2rps; noiseD11 = 0.1;
+#noiseK12 = (4/8) ; noiseWn12 = 6 * hz2rps; noiseD12 = 0.7;
+#noiseK21 = (4/8) ; noiseWn21 = 4 * hz2rps; noiseD21 = 0.7;
+#noiseK22 = (4/8) ; noiseWn22 = 4 * hz2rps; noiseD22 = 1.0;
+#
+#sysN = control.tf([[[-noiseK11, 0, noiseK11 * noiseWn11**2], [-noiseK21, 0, noiseK21 * noiseWn21**2]],
+#                   [[-noiseK12, 0, noiseK12 * noiseWn12**2], [-noiseK22, 0, noiseK22 * noiseWn22**2]]],
+#                  [[[1, 2.0*noiseD11*noiseWn11, noiseWn11**2], [1, 2.0*noiseD21*noiseWn21, noiseWn21**2]],
+#                   [[1, 2.0*noiseD12*noiseWn12, noiseWn12**2], [1, 2.0*noiseD22*noiseWn22, noiseWn22**2]]])
+
 
 
 np.random.seed(324)
@@ -119,10 +131,10 @@ TLinUnc = scaleLinUnc * FreqTrans.FreqResp(sysTUnc, freqLin_rps) # Noise STD sca
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate = freqRate_rps, smooth = ('box', 3), winType = 'bartlett', detrendType = 'linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
 
 # Excited Frequencies per input channel
-optSpec.freq = freqChan_rps
+optSpec.freq_rps = freqChan_rps
 optSpec.freqInterp = freqExc_rps
 
 # Null Frequencies
@@ -133,21 +145,51 @@ optSpec.freqNullInterp = True
 #freq_rps, Tuz, Cuz, Suu, Szz, Suz = FreqTrans.FreqRespFuncEst(uExc, z, optSpec)
 freq_rps, Tuz, Cuz, Suu, Szz, Suz, Tun, SuuNull, Snn = FreqTrans.FreqRespFuncEstNoise(uExc, z, optSpec)
 freq_hz = freq_rps * rps2hz
+SuuNull.sum()
+
+print(SuuNull.sum(axis=-1) / Suu.sum(axis=-1))
+print(Snn.sum(axis=-1))
+print(Szz.sum(axis=-1))
 
 TEstNom = Tuz
 TEstUnc = Tun
 TEstCoh = Cuz
 
+
+# Check
+N = len(time_s)
+#PexcSpec = 0.5 * (ampExcit_nd**2).sum()
+#PexcPsd = PexcSpec * N / freqRate_hz # Convert Total Spectrum Power to Density
+
+PexcParsevalSpec = (1/N) * (np.abs(uExc)**2).sum(axis = -1)
+PexcParsevalPsd = PexcParsevalSpec * N / freqRate_hz # Convert Total Spectrum Power to Density
+
+SuuMag = np.abs(Suu)
+SuuSum = SuuMag.sum(axis = -1)
+
+print(SuuSum / PexcParsevalPsd)
+
+PnParsevalSpec = (1/N) * (np.abs(n)**2).sum(axis = -1)
+PnParsevalPsd = PnParsevalSpec * N / freqRate_hz # Convert Total Spectrum Power to Density
+
+SnnMag = np.abs(Snn)
+SnnSum = SnnMag.sum(axis = -1)
+
+print(SnnSum / PnParsevalPsd)
+
+
+PzParsevalSpec = (1/N) * (np.abs(z)**2).sum(axis = -1)
+PzParsevalPsd = PzParsevalSpec * N / freqRate_hz # Convert Total Spectrum Power to Density
+
+SzzMag = np.abs(Szz)
+SzzSum = SzzMag.sum(axis = -1)
+
+print(SzzSum / PzParsevalPsd)
+
 #%%
 if False:
 #%%
-    optTemp = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate = freqRate_rps, smooth = ('box', 3), winType = 'bartlett', detrendType = 'linear')
-    optTemp.freq = freqGap_rps
-    
-    
-    _, _, SnnN = FreqTrans.Spectrum(z, optTemp)
-    
-    
+
     [iOut, iIn] = [0,0]
     fig = plt.figure(); plt.grid(True)
     plt.plot(freq_hz[iIn], mag2db(Szz[iOut, iIn]), '.b', label = 'Estimate Nominal [MIMO]')
@@ -156,17 +198,27 @@ if False:
     plt.ylabel('Power Spectral Density [dB]')
     plt.legend()
     plt.xlim([1,5])
-    plt.ylim([0,20])
+#    plt.ylim([0,20])
     fig.set_tight_layout(True)
     fig.set_size_inches([6.4,2.4])
     
     if False:
         FreqTrans.PrintPrettyFig(fig, 'OpenMimoExcitationInterp.pgf')
     
+#%%
+    optSpecN = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
+    optSpecN.freq_rps = freqGap_rps
     
+    _, _, SnnN = FreqTrans.Spectrum(z, optSpecN)
+#    _, _, _, SuuN, SnnN, _ = FreqTrans.FreqRespFuncEst(uExc, z, optSpecN)
+
+    SnnN.sum(axis=-1)
+    Snn.sum(axis=-1)
+
     fig = plt.figure(); plt.grid(True)
     fig.tight_layout()
     plt.plot(freq_hz[iIn], mag2db(Snn[iOut, iIn]), '.b', label = 'Estimate Null [MIMO]');
+#    plt.plot(freq_hz[iIn, sigIndx[iIn]], mag2db(Snn[iOut, iIn, sigIndx[iIn]]), '.g:', label = 'Estimate from Null')
     plt.plot(freqGap_rps*rps2hz, mag2db(SnnN[iOut]), '.g:', label = 'Estimate from Null')
     plt.ylabel('Power Spectral Density [dB]')
     plt.xlabel('Frequency [Hz]')
@@ -203,13 +255,15 @@ cohTEstMin = np.min(cohTEst_mag, axis = (0, 1))
 if False:
     fig = 10
     fig = FreqTrans.PlotSigma(freqLin_hz, svTLinNomMin_mag, svUnc_mag = svTLinUncMax_mag, coher_nd = cohTLinMin, fig = fig, color = 'k', label = 'Linear')
-    fig = FreqTrans.PlotSigma(freq_hz[0], svTEstNomMin_mag, svUnc_mag = svTEstUncMax_mag, coher_nd = cohTEstMin, marker='.', color = 'r', fig = fig, label = 'Estimate (MIMO)')
+    fig = FreqTrans.PlotSigma(freq_hz[0], svTEstNomMin_mag, svUnc_mag = svTEstUncMax_mag, coher_nd = cohTEstMin, marker='.', color = 'r', fig = fig, label = 'Estimate')
 
     ax = fig.get_axes()
     handles, labels = ax[0].get_legend_handles_labels()
     handles = [handles[0], handles[2], handles[1], handles[3]]
     labels = [labels[0], labels[2], labels[1], labels[3]]
     ax[0].legend(handles, labels)
+    
+    fig.suptitle('$T$ : ' + '$u_{ex}$' + ' to ' + '$z$')
     
     
 #%% Vector Margin Plots
@@ -224,7 +278,7 @@ if False:
         fig = None
         fig = FreqTrans.PlotVectorMargin(freqLin_hz, vmTLinNom_mag[iOut, iIn], cohTLin_mag[iOut, iIn], vmTLinUnc_mag[iOut, iIn], fig = fig, linestyle='-', color='k', label='Linear Model')
         fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], vmTEstNom_mag[iOut, iIn], cohTEst_mag[iOut, iIn], vmTEstUnc_mag[iOut, iIn], fig = fig, linestyle='-', marker='.', color='r', label='Estimate [MIMO]')
-        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn, sigIndx[iIn]], vmTEstNom_mag[iOut, iIn, sigIndx[iIn]], cohTEst_mag[iOut, iIn, sigIndx[iIn]], vmTEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, linestyle='-', marker='.', color='b', label='Estimate [SIMO]')
+#        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn, sigIndx[iIn]], vmTEstNom_mag[iOut, iIn, sigIndx[iIn]], cohTEst_mag[iOut, iIn, sigIndx[iIn]], vmTEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, linestyle='-', marker='.', color='b', label='Estimate [SIMO]')
         
         ax = fig.get_axes()
         handles, labels = ax[0].get_legend_handles_labels()
@@ -232,7 +286,7 @@ if False:
         labels = [labels[0], labels[3], labels[1], labels[4], labels[2], labels[5]]
         ax[0].legend(handles, labels)
     
-        fig.suptitle('$u_' + str(iIn) + '$ to ' + '$z_' + str(iOut) + '$')
+        fig.suptitle('$T$')
         fig.set_tight_layout(True)
 
 
@@ -247,17 +301,15 @@ gainTEstUnc_mag = FreqTrans.Gain(TEstUnc, magUnit = 'mag')
 
 np.mean(gainTEstUnc_mag, axis = -1) / np.mean(gainTLinUnc_mag, axis = -1) # should be 1 if scaled correctly
 
-if False:
+if True:
     for iPlot, [iOut, iIn] in enumerate(ioArray):
         fig = None
-        fig = FreqTrans.PlotBode(freqLin_hz, gainTLinNom_mag[iOut, iIn], phaseTLinNom_deg[iOut, iIn], coher_nd = cohTLin_mag[iOut, iIn], gainUnc_mag = None, fig = fig, dB = True, color='k', label='Linear Nominal' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
-        fig = FreqTrans.PlotBode(freqLin_hz, gainTLinUnc_mag[iOut, iIn], None, coher_nd = None, gainUnc_mag = None, fig = fig, dB = True, color='k', linestyle='--', label='Linear Uncertainty' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
+        ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
+        fig = FreqTrans.PlotBode(freqLin_hz, gainTLinNom_mag[iOut, iIn], phaseTLinNom_deg[iOut, iIn], coher_nd = cohTLin_mag[iOut, iIn], gainUnc_mag = None, fig = fig, dB = True, color='k', label='Linear Nominal ' + ioName)
+        fig = FreqTrans.PlotBode(freqLin_hz, gainTLinUnc_mag[iOut, iIn], None, coher_nd = None, gainUnc_mag = None, fig = fig, dB = True, color='k', linestyle='--', label='Linear Uncertainty ' + ioName)
         
-        fig = FreqTrans.PlotBode(freq_hz[iIn], gainTEstNom_mag[iOut, iIn], phaseTEstNom_deg[iOut, iIn], coher_nd = cohTEst_mag[iOut, iIn], gainUnc_mag = None, fig = fig, dB = True, color='b', linestyle='None', marker='.', label='Estimate Nominal' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
-        fig = FreqTrans.PlotBode(freq_hz[iIn], gainTEstUnc_mag[iOut, iIn], None, coher_nd = None, gainUnc_mag = None, fig = fig, dB = True, color='r', linestyle='None', marker='.', label='Estimate Uncertainty' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
-
-#        fig = FreqTrans.PlotBode(freq_hz[iIn, sigIndx[iIn]], gainTEstNom_mag[iOut, iIn, sigIndx[iIn]], phaseTEstNom_deg[iOut, iIn, sigIndx[iIn]], coher_nd = cohTEst_mag[iOut, iIn, sigIndx[iIn]], gainUnc_mag = gainTEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, dB = True, color='b', linestyle='None', marker='.', label='Estimate [SIMO]')
-#        fig = FreqTrans.PlotBode(freq_hz[iIn, sigIndx[iIn]], gainTEstUnc_mag[iOut, iIn, sigIndx[iIn]], None, coher_nd = None, gainUnc_mag = None, fig = fig, dB = True, color='b', linestyle='None', marker='.', label='Estimate [SIMO]')
+        fig = FreqTrans.PlotBode(freq_hz[iIn], gainTEstNom_mag[iOut, iIn], phaseTEstNom_deg[iOut, iIn], coher_nd = cohTEst_mag[iOut, iIn], gainUnc_mag = None, fig = fig, dB = True, color='r', linestyle='None', marker='.', label='Estimate Nominal ' + ioName)
+        fig = FreqTrans.PlotBode(freq_hz[iIn], gainTEstUnc_mag[iOut, iIn], None, coher_nd = None, gainUnc_mag = None, fig = fig, dB = True, color='b', linestyle='None', marker='.', label='Estimate Uncertainty ' + ioName)
 
         ax = fig.get_axes()
 #        handles, labels = ax[0].get_legend_handles_labels()
@@ -266,7 +318,7 @@ if False:
 #        ax[0].legend(handles, labels)
 #        ax[0].set_xlim([1,10])
         
-#        fig.set_size_inches([6.4,4.8])
+        fig.set_size_inches([6.4,4.8])
         if False:
             FreqTrans.PrintPrettyFig(fig, 'OpenMimoBode' + str(iOut+1) + str(iIn+1) + '.pgf')
 
@@ -282,8 +334,9 @@ if True:
         [iOut, iIn] = io
         
         fig = None
-        fig = FreqTrans.PlotNyquist(TLinNom[iOut, iIn], TLinUnc[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
-        fig = FreqTrans.PlotNyquist(TEstNom[iOut, iIn], TEstUnc[iOut, iIn], fig = fig, fillType = 'circle', marker='.', color = 'r', linestyle='None', label = 'Estimate' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
+        ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
+        fig = FreqTrans.PlotNyquist(TLinNom[iOut, iIn], TLinUnc[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear ' + ioName)
+        fig = FreqTrans.PlotNyquist(TEstNom[iOut, iIn], TEstUnc[iOut, iIn], fig = fig, fillType = 'circle', marker='.', color = 'r', linestyle='None', label = 'Estimate ' + ioName)
 #        fig = FreqTrans.PlotNyquist(TEstNom[iOut, iIn, sigIndx[iIn]], TEstUnc[iOut, iIn, sigIndx[iIn]], fig = fig, fillType = 'circle', marker='.', color = 'b', linestyle='None', label = 'Estimate (SIMO)')
         fig = FreqTrans.PlotNyquist(np.array([-1+0j]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None')
         # fig = FreqTrans.PlotNyquist(np.array([-1+0j]), np.array([0.4]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None')
@@ -300,10 +353,10 @@ if True:
 
 
 #%% Estimate the frequency response function time history
-optSpec = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate = freqRate_rps, smooth = ('box', 3), winType = 'bartlett', detrendType = 'linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
 
 # Excited Frequencies per input channel
-optSpec.freq = freqChan_rps
+optSpec.freq_rps = freqChan_rps
 optSpec.freqInterp = freqExc_rps
 
 # Null Frequencies
@@ -352,7 +405,6 @@ for iSeg in range(0, numSeg):
         SuuNullList[iSeg, ] = SuuNull
         SnnList[iSeg, ] = Snn
     
-    
     freq_hz = freq_rps * rps2hz
 
 
@@ -367,7 +419,6 @@ for iSeg in range(0, numSeg):
 
 #%%
 ones = np.ones_like(t_s)
-
 gainThLinNom_mag = FreqTrans.Gain(TLinNomList, magUnit = 'mag')
 gainThLinUnc_mag = FreqTrans.Gain(TLinUncList, magUnit = 'mag')
 gainThEstNom_mag = FreqTrans.Gain(TuzList, magUnit = 'mag')
@@ -396,10 +447,11 @@ if False:
         
         
         fig = None
-        fig = FreqTrans.PlotGainTemporal(t_s, gainThLinNomMean, None, coher_nd = ones, gainUnc_mag = gainThLinUncMean, fig = fig, dB = False, linestyle='-', color='k', label = 'Linear' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
+        ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
+        fig = FreqTrans.PlotGainTemporal(t_s, gainThLinNomMean, None, coher_nd = ones, gainUnc_mag = gainThLinUncMean, fig = fig, dB = False, linestyle='-', color='k', label = 'Linear ' + ioName)
 #        fig = FreqTrans.PlotGainTemporal(t_s, gainThLinUncMin, None, fig = fig, dB = False, linestyle=':', color='k', label = 'Linear - Lower')
      
-        fig = FreqTrans.PlotGainTemporal(t_s, gainThEstNomMean, None, coher_nd = cohEstMean, gainUnc_mag = gainThEstUncMean, fig = fig, dB = False, linestyle='-', color='b', label = 'Estimate' + ' [$u_' + str(iIn+1) + '$ to ' + '$z_' + str(iOut+1) + '$]')
+        fig = FreqTrans.PlotGainTemporal(t_s, gainThEstNomMean, None, coher_nd = cohEstMean, gainUnc_mag = gainThEstUncMean, fig = fig, dB = False, linestyle='-', color='b', label = 'Estimate ' + ioName)
 #        fig = FreqTrans.PlotGainTemporal(t_s, gainThEstUncMin, None, coher_nd = cohEstMin, fig = fig, dB = False, linestyle=':', color='r', label = 'Estimate - Lower')
 
         ax = fig.get_axes()
@@ -417,20 +469,20 @@ if False:
 #%%
 if True:
     for iPlot, [iOut, iIn] in enumerate(ioArray):
-        # Best Case SNR can be estimated as the Null input to Excited input
-        uNER = np.abs(SuuNullList[:,iIn,:]) / np.abs(SuuList[:,iIn,:])
-        uNERMean = np.mean(uNER, axis=-1)
-        uNERMin = np.min(uNER, axis=-1)
+        # Best Case E2N can be estimated as the Null input to Excited input
+        uN2E = np.abs(SuuNullList[:,iIn,:]) / np.abs(SuuList[:,iIn,:])
+        uN2EMean = np.mean(uN2E, axis=-1)
+        uN2EMin = np.min(uN2E, axis=-1)
         
-        zSNR = np.abs(SnnList[:,iOut, iIn,:]) / np.abs(SzzList[:,iOut, iIn,:])
-        zSNRMean = np.mean(zSNR, axis=-1)
-        zSNRMin = np.min(zSNR, axis=-1)
-        zSNRMin[zSNRMin < 0] = 0
+        zN2S = np.abs(SnnList[:,iOut, iIn,:]) / np.abs(SzzList[:,iOut, iIn,:])
+        zN2SMean = np.mean(zN2S, axis=-1)
+        zN2SMin = np.min(zN2S, axis=-1)
+        zN2SMin[zN2SMin < 0] = 0
         
-#        zSNR2 = np.abs(TunList[:,iOut, iIn,:])
-#        zSNR2Mean = np.mean(zSNR2, axis=-1)
-#        zSNR2Min = np.min(zSNR2, axis=-1)
-#        zSNR2Min[zSNR2Min < 0] = 0
+#        zN2S2 = np.abs(TunList[:,iOut, iIn,:])
+#        zN2S2Mean = np.mean(zN2S2, axis=-1)
+#        zN2S2Min = np.min(zN2S2, axis=-1)
+#        zN2S2Min[zN2S2Min < 0] = 0
         
         cohEst = np.abs(CuzList[:,iOut,iIn,:])
         cohEst[cohEst < 0] = 0
@@ -439,15 +491,16 @@ if True:
         cohEstMin = np.min(cohEst, axis=-1)
         
         fig = None
-        fig = FreqTrans.PlotGainTemporal(t_s, uNERMean, None, None, uNERMin, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='g', label = 'Estimate at Input' + ' [$u_' + str(iIn+1) + '$]')
-        fig = FreqTrans.PlotGainTemporal(t_s, zSNRMean, None, None, zSNRMin, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='b', label = 'Estimate at Output' + ' [$z_' + str(iOut+1) + '$]')
-#        fig = FreqTrans.PlotGainTemporal(t_s, zSNR2Mean, None, None, zSNR2Min, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='r', label = 'Estimate at Output' + ' [$z_' + str(iOut+1) + '$]')
-#        fig = FreqTrans.PlotGainTemporal(t_s, uNERMean, None, cohEstMin, uNERMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='k', label = 'Estimate at Input')
-#        fig = FreqTrans.PlotGainTemporal(t_s, zSNRMean, None, cohEstMean, zSNRMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='r', label = 'Estimate at Output')
+        ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
+        fig = FreqTrans.PlotGainTemporal(t_s, uN2EMean, None, None, uN2EMin, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='g', label = 'Estimate at Input: ' + '$u[' + str(iIn+1) + '$]')
+        fig = FreqTrans.PlotGainTemporal(t_s, zN2SMean, None, None, zN2SMin, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='r', label = 'Estimate at Output: ' + ' $z[' + str(iOut+1) + '$]')
+#        fig = FreqTrans.PlotGainTemporal(t_s, zN2S2Mean, None, None, zN2S2Min, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='r', label = 'Estimate at Output: ' + ' $z[' + str(iOut+1) + '$]')
+#        fig = FreqTrans.PlotGainTemporal(t_s, uN2EMean, None, cohEstMin, uN2EMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='k', label = 'Estimate at Input')
+#        fig = FreqTrans.PlotGainTemporal(t_s, zN2SMean, None, cohEstMean, zN2SMin, fig = fig, dB = True, UncSide = 'Min', linestyle='-', color='r', label = 'Estimate at Output')
 
         ax = fig.get_axes()
         ax[0].set_ylim([0, 2.0])
-        ax[0].set_ylabel("Noise/Signal [mag]")
+        ax[0].set_ylabel("Null/Excitation Power [mag]")
         
         handles, labels = ax[0].get_legend_handles_labels()
         handles = [(handles[0], handles[2]), (handles[1], handles[3])]
@@ -456,6 +509,6 @@ if True:
 
         fig.set_size_inches([6.4,3.0])
         if False:
-            FreqTrans.PrintPrettyFig(fig, 'OpenMimoSNRTemporal' + str(iOut+1) + str(iIn+1) + '.pgf')
+            FreqTrans.PrintPrettyFig(fig, 'OpenMimoN2STemporal' + str(iOut+1) + str(iIn+1) + '.pgf')
         
 
