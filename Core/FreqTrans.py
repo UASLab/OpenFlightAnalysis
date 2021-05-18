@@ -78,33 +78,30 @@ def FreqRespFuncEstSIMO(x, z, opt = OptSpect()):
     win = signal.get_window(opt.winType, lenX)
     scale = PowerScale(opt.scaleType, win, opt.freqRate_rps)
 
-    Sxz = 2 * xDft.conj() * zDft * scale
-    Sxz_smooth = SmoothPolar(Sxz, opt) # Smooth
-    
-    Sxx_smooth = Smooth(Sxx, opt.smooth) # Smooth
-    Szz_smooth = Smooth(Szz, opt.smooth) # Smooth
+    Sxz = xDft.conj() * zDft * scale
+
+    # Smoothed versions of spectra, used for coherence
+    Sxx_smooth = Smooth(Sxx, opt.smooth)
+    Szz_smooth = Smooth(Szz, opt.smooth)
+    Sxz_smooth = SmoothPolar(Sxz, opt)
 
     # Interpolate Power Spectrums to the Desired Frequency Basis
     if opt.freqInterp is not None:
-        s = 1
-        if opt.scaleType.lower() == 'density':
-            # scale the Powers as density, mean value should be preserved
-            s = freq.shape[-1] / opt.freqInterp.shape[-1]
-            
-        Sxx = s * InterpVal(Sxx, freq, opt.freqInterp, opt.interpType)
-        Szz = s * InterpVal(Szz, freq, opt.freqInterp, opt.interpType)
+        Sxx = InterpVal(Sxx, freq, opt.freqInterp, opt.interpType)
+        Szz = InterpVal(Szz, freq, opt.freqInterp, opt.interpType)
         Sxz = InterpPolar(Sxz, freq, opt.freqInterp, opt.interpType)
+
+        Sxx_smooth = InterpVal(Sxx_smooth, freq, opt.freqInterp, opt.interpType)
+        Szz_smooth = InterpVal(Szz_smooth, freq, opt.freqInterp, opt.interpType)
         Sxz_smooth = InterpPolar(Sxz_smooth, freq, opt.freqInterp, opt.interpType)
-        Sxx_smooth = s * InterpVal(Sxx_smooth, freq, opt.freqInterp, opt.interpType)
-        Szz_smooth = s * InterpVal(Szz_smooth, freq, opt.freqInterp, opt.interpType)
+
         freq = opt.freqInterp
-            
+
 
     # Coherence, use the Smoothed Cross Spectrum
-    Cxz = np.abs(Sxz_smooth)**2 / (Sxx_smooth * Szz_smooth)
-    # Cxz[Cxz > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
+    Cxz = Coherence(Sxz_smooth, Sxx_smooth, Szz_smooth)
 
-    # Compute complex transfer function approximation
+    # Compute complex frequency response function approximation
     Txz = Sxz / Sxx
 
     # Ensure outputs are 2D
@@ -138,19 +135,20 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
     freq, zDft, Szz = Spectrum(z, opt)
     _     , xDftNull_N, SxxNull_N = Spectrum(x, optN)
     freq_N, zDftNull_N, Snn_N = Spectrum(z, optN)
-    
+
 #    zDft = zDft - zDftNull_N
-    
+
     # Compute Cross Spectrum Power with appropriate scaling (same as in Spectrum())
     lenX = x.shape[-1]
     win = signal.get_window(opt.winType, lenX)
-    scale = PowerScale(opt.scaleType, win, opt.freqRate_rps)
-    
-    Sxz = 2 * xDft.conj() * zDft * scale
-    
-    Sxz_smooth = SmoothPolar(Sxz, opt) # Smooth
-    Sxx_smooth = Smooth(Sxx, opt.smooth) # Smooth
-    Szz_smooth = Smooth(Szz, opt.smooth) # Smooth
+    scale = PowerScale(opt.scaleType, win, opt.freqRate * rps2hz)
+
+    Sxz = xDft.conj() * zDft * scale
+
+    # Smoothed versions of spectra, used for coherence
+    Sxx_smooth = Smooth(Sxx, opt.smooth)
+    Szz_smooth = Smooth(Szz, opt.smooth)
+    Sxz_smooth = SmoothPolar(Sxz, opt)
 
     # Null Cross Spectrum at input frequencies
     nDft = InterpPolar(zDftNull_N, freq_N, freq, opt.interpType)
@@ -168,13 +166,15 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
         if opt.scaleType.lower() == 'density':
             # scale the Powers as density, mean value should be preserved
             s = freq.shape[-1] / opt.freqInterp.shape[-1]
-            
+
         Sxx = s * InterpVal(Sxx, freq, opt.freqInterp, opt.interpType)
         Szz = s * InterpVal(Szz, freq, opt.freqInterp, opt.interpType)
         Sxz = InterpPolar(Sxz, freq, opt.freqInterp, opt.interpType)
-        Sxx_smooth = s * InterpVal(Sxx_smooth, freq, opt.freqInterp, opt.interpType)
-        Szz_smooth = s * InterpVal(Szz_smooth, freq, opt.freqInterp, opt.interpType)
+
+        Sxx_smooth = InterpVal(Sxx_smooth, freq, opt.freqInterp, opt.interpType)
+        Szz_smooth = InterpVal(Szz_smooth, freq, opt.freqInterp, opt.interpType)
         Sxz_smooth = InterpPolar(Sxz_smooth, freq, opt.freqInterp, opt.interpType)
+
         Sxn = InterpPolar(Sxn, freq, opt.freqInterp, opt.interpType)
 
         if opt.freqNullInterp is True: # Interp _N to _E
@@ -189,7 +189,7 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
             if opt.scaleType.lower() == 'density':
                 # scale the Powers as density, mean value should be preserved
                 s = freq_N.shape[-1] / freq.shape[-1]
-                
+
             SxxNull = s * InterpVal(SxxNull_N, freq_N, freq, opt.interpType)
             Sxn = InterpPolar(Sxn_N, freq_N, freq, opt.interpType)
             Snn = s * InterpVal(Snn_N, freq_N, freq, opt.interpType)
@@ -200,22 +200,21 @@ def FreqRespFuncEstNoiseSIMO(x, z, opt = OptSpect()):
         if opt.scaleType.lower() == 'density':
             # scale the Powers as density, mean value should be preserved
             s = freq_N.shape[-1] / freq.shape[-1]
- 
+
         SxxNull = s * InterpVal(SxxNull_N, freq_N, freq, opt.interpType)
         Sxn = InterpPolar(Sxn_N, freq_N, freq, opt.interpType)
         Snn = s * InterpVal(Snn_N, freq_N, freq, opt.interpType)
 
 
     # Compute complex transfer function approximation of the Null
-    # Sxy of Null / Sxx of Input
+    # Sxz of Null / Sxx of Input
     TUnc = np.abs(Sxn / Sxx) # Additive Uncertainty (x to n)
-    # TUnc = np.abs(Szn / Szz) # Multiplicative Uncertainty (y to n)
+    # TUnc = np.abs(Szn / Szz) # Multiplicative Uncertainty (z to n)
 
     # Coherence, use the Smoothed Cross Spectrum
-    Cxz = np.abs(Sxz_smooth)**2 / (Sxx_smooth * Szz_smooth)
-    # Cxz[Cxz > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
+    Cxz = Coherence(Sxz_smooth, Sxx_smooth, Szz_smooth)
 
-    # Compute complex transfer function approximation
+    # Compute complex frequency response function approximation
     Txz = Sxz / Sxx
 
     # Ensure outputs are 2D
@@ -349,7 +348,7 @@ def FreqRespFuncEstNoise(x, z, opt = OptSpect()):
             xIn = np.expand_dims(x[iInput], 0)
             freq[iInput, :], Txz[:, iInput, :], Cxz[:, iInput, :], Sxx[iInput, :], Szz[:, iInput, :], Sxz[:, iInput, :], TUnc[:, iInput, :], SxxNull[iInput, :], Snn[:, iInput, :] = FreqRespFuncEstNoiseSIMO(xIn, z, optIn)
 
-    else: # Single-Input, Sigle-FreqVector
+    else: # Single-Input, Single-FreqVector
 
         freq, Txz, Cxz, Sxx, Szz, Sxz, TUnc, SxxNull, Snn = FreqRespFuncEstNoiseSIMO(x, z, opt)
 
@@ -559,12 +558,36 @@ def SpectSlide(t, x, lenSeg = 50, lenOverlap = 1, opt = OptSpect()):
 
     return tSpec_s, freq, P_mag.T
 
+# Plot the Spectrogram
+def Spectogram(t, freq, P, dim='2D'):
+    import matplotlib.pyplot as plt
+
+    tArray, freqArray = np.meshgrid(t, freq)
+
+    fig = plt.figure()
+    fig.tight_layout()
+
+    if dim == '3D':
+        # from mpl_toolkits.mplot3d import Axes3D
+        ax = fig.gca(projection='3d', proj_type = 'ortho')
+        ax.view_init(elev = 90.0, azim = -90.0)
+
+        ax.plot_surface(tArray, freqArray, P, rstride=1, cstride=1, cmap='nipy_spectral')
+
+        ax.set_zlabel('Power ( )')
+    else:
+        ax = fig.gca()
+
+        pcm = ax.pcolormesh(tArray, freqArray, P, cmap='nipy_spectral')
+        fig.colorbar(pcm, ax=ax, label = 'Power ( )')
+
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Frequency ( )')
+
+    return fig
 
 #%%
-def PowerScale(scaleType, win, fs_rps = 1 * rps2hz):
-    
-    fs_hz = fs_rps * rps2hz
-    
+def PowerScale(scaleType, win, fs_hz = 1):
     # Compute the scaling for power
     if scaleType == 'density':
         scale = 1.0 / (fs_hz * (win*win).sum()) # if win = ones, scale = dt / N
@@ -575,6 +598,158 @@ def PowerScale(scaleType, win, fs_rps = 1 * rps2hz):
         raise ValueError('Unknown scaling: %r' % scaleType)
 
     return scale
+
+
+#%% Window Functions
+# Each window has a Frequency-domain function, an approximation, and an inverse of the approximation.
+
+# Dirichlet Window - Boxcar/Rectangular Window
+def Dirichlet(b, N):
+    theta = (2*pi) * b / N
+    W = np.exp(-1j * (N-0)/2 * theta) * np.sin(N*theta/2) / np.sin(theta/2)
+    return W
+
+def DirichletApprox(b):
+    # bMin = 0.6642246642246642
+    # a = -0.5323470654467308
+    # s = -0.8599226335455387
+    bMin = 0.66
+    a = -0.53
+    s = -0.86
+
+    W = 10**a * b**s
+
+    W[b<bMin] = np.nan
+    return W
+
+def DirichletApproxInv(W):
+    bMin = 0.66
+    a = -0.53
+    s = -0.86
+
+    b = W ** (1/s) * 10**(-a/s)
+    b[b<bMin] = bMin
+
+    return b
+
+
+# Bartlett Window - Triangular like
+def Bartlett(b, N):
+    theta = (2*pi) * b / N
+    W = (2/N) * np.exp(-1j * (N-0)/2 * theta) * (np.sin(N*theta/4) / np.sin(theta/2))**2
+    return W
+
+def BartlettApprox(b):
+    # bMin = 1.3528693528693527
+    # a = -0.5874439858074301
+    # s = -1.553948981407265
+    bMin = 1.35
+    a = -0.59
+    s = -1.55
+
+    W = 10**a * b**s
+
+    W[b<bMin] = np.nan
+    return W
+
+def BartlettApproxInv(W):
+    bMin = 1.35
+    a = -0.59
+    s = -1.55
+
+    b = W ** (1/s) * 10**(-a/s)
+    b[b<bMin] = bMin
+
+    return b
+
+
+# Hann Window
+def Hann(b, N):
+    theta = (2*pi) * b / N
+
+    def D(theta, N):
+        W = np.exp(1j * theta/2) * np.sin(N*theta/2) / np.sin(theta/2)
+        return W
+
+    theta0 = 2*pi/N
+    W = 0.5 * D(theta, N) + 0.25 * (D(theta - theta0, N) + D(theta + theta0, N))
+
+    return W
+
+def HannApprox(b):
+    # bMin = 1.7142857142857144
+    # a = -0.38835276177258016
+    # s = -3.1724455902865176
+    bMin = 1.71
+    a = -0.39
+    s = -3.17
+
+    W = 10**a * b**s
+
+    W[b<bMin] = np.nan
+    return W
+
+def HannApproxInv(W):
+    bMin = 1.71
+    a = -0.39
+    s = -3.17
+
+    b = W ** (1/s) * 10**(-a/s)
+    b[b<bMin] = bMin
+
+    return b
+
+
+def LeakageBestWindow(W):
+    # Dirichlet (Rectangular, Boxcar)
+    # Bartlett (Triangular)
+    # Hann
+
+    #  Compute # of bins
+    bDirichlet = DirichletApproxInv(np.asarray([W]))
+    bBartlett = BartlettApproxInv(np.asarray([W]))
+    bHann = HannApproxInv(np.asarray([W]))
+
+    if bDirichlet < bBartlett:
+        winType = 'Dirichlet'
+    elif bBartlett < bHann:
+        winType = 'Bartlett'
+    else:
+        winType = 'Hann'
+
+    return winType
+
+
+def LeakageGoal(W, winType = None):
+
+    if winType == None:
+        winType = LeakageBestWindow(W)
+
+    if winType.lower() in ['boxcar', 'rect', 'dirichlet']:
+        bSel = DirichletApproxInv(np.asarray([W]))
+    elif winType.lower() in ['triang', 'bartlett']:
+        bSel = BartlettApproxInv(np.asarray([W]))
+    else: # winType.lower() == 'Hann'
+        bSel = HannApproxInv(np.asarray([W]))
+
+    return bSel
+
+# Convert to/from non-dimensional bin width
+def Bin2FreqMin(delFreqBin, R):
+  freqMin_rps = R/(2*pi) * delFreqBin
+  return freqMin_rps
+
+def FreqMin2Bin(freqMin_rps, R):
+  delFreqBin = (2*pi/R) * freqMin_rps
+  return delFreqBin
+
+def FreqStep2TimeBin(freqStep_rps):
+  defTimeBin = (4*pi) / freqStep_rps
+  return defTimeBin
+
+def TimeBin2FreqStep(defTimeBin):
+  freqStep_rps = (4*pi) / defTimeBin
+  return freqStep_rps
 
 
 #%%
@@ -592,7 +767,8 @@ def Phase(T, phaseUnit = 'rad', unwrap = False):
     phase = np.angle(T)
 
     if unwrap:
-        phase = np.unwrap(phase, axis=-1)
+        iNan = ~np.isnan(phase)
+        phase[iNan] = np.unwrap(phase[iNan], axis=-1)
 
     if phaseUnit == 'deg':
         phase = phase * rad2deg
@@ -605,6 +781,22 @@ def GainPhase(T, magUnit = 'dB', phaseUnit = 'deg', unwrap = False):
     phase = Phase(T, phaseUnit, unwrap)
 
     return gain, phase
+
+def Coherence(Sxy, Sxx, Syy, cohType = 'MeanSquare', optSmooth = None):
+
+    if optSmooth != None:
+        Sxy = np.copy(Smooth(Sxy, optSmooth))
+        Sxx = np.copy(Smooth(Sxx, optSmooth))
+        Syy = np.copy(Smooth(Syy, optSmooth))
+
+    if cohType.lower() == 'meansquare':
+        Cxy = np.abs(Sxy)**2 / (Sxx * Syy)
+    else:
+        Cxy = Sxy / np.sqrt(Sxx * Syy)
+
+    Cxy[Cxy > 1.0] = 1.0 # Clip, Smoothing and Interpolation can create undesireable end effects
+
+    return Cxy
 
 # Transfer Complimentary Sensitivity to Sensitivity
 def TtoS(TNom, TUnc = None, TCoh = None):
@@ -644,36 +836,50 @@ def StoT(SNom, SUnc = None, SCoh = None):
 
     return TNom, TUnc, TCoh
 
+# Sherman-Morrison-Woodbury
+# (A+B)^−1 = A^−1 − (I + A^−1 @ B)^−1 @ A^−1 @ B @ A^−1
+def SWM(A, B):
+  inv = np.linalg.inv
+
+  I = np.eye(len(A))
+  Ainv = inv(A)
+  SumABinv = Ainv - inv(I + Ainv @ B) @ Ainv @ B @ Ainv
+
+  return SumABinv
+
+
 # Transfer Sensitivity to Loop Function
 def StoL(SNom, SUnc = None, SCoh = None):
     # Li = inv(TNom + TUnc) - I = LNom + LUnc
     # Sherman-Woodberry Identity, good for updating the A with B, or if B is singular
     # inv(A + B) = inv(A) - inv(I + inv(A) @ B) @ inv(A) @ B @ inv(A)
-    
+
     # Hua's Identity, good for the inverse IF B is invertable!!
     # inv(A + B) = inv(A) - inv(A + A @ inv(B) @ A)
-    
+
     # LNom = -I + TNom^-1
     # LUnc = -(I + TNom^-1 * TUnc)^-1 * TNom^-1 * TUnc * TNom^-1
     LNom = np.zeros_like(SNom, dtype = complex)
     LUnc = np.zeros_like(SUnc, dtype = complex)
     LCoh = np.zeros_like(SCoh)
 
+
     inv = np.linalg.inv
     I = np.eye(SNom.shape[0])
     for i in range(SNom.shape[-1]):
         SNomElem = SNom[...,i]
-        SUncElem = SUnc[...,i]
         SNomInvElem = inv(SNomElem)
 
         LNom[...,i] = -I + SNomInvElem
 
         if SUnc is not None:
+            SUncElem = SUnc[...,i]
+
             # Sherman-Morrison-Woodbury Identity
-            LUnc[...,i] = -inv(I + SNomInvElem @ SUncElem) @ SNomInvElem @ SUncElem @ SNomInvElem
+            LUnc[...,i] = SWM(SNomElem, SUncElem) - SNomInvElem
 
         if SCoh is not None:
-            LCoh[...,i] = SCoh[...,i] #XXX - This is not the proper transform
+            LCoh[...,i] = SCoh[...,i] #FIXIT - This is not the proper transform
 
     return LNom, LUnc, LCoh
 
@@ -862,28 +1068,176 @@ def DistEllipseRot(pEllipse, a, b, a_deg, pCrit):
     return vContact, vDist
 
 from scipy import optimize
-def Sigma_SSV(M):
-    # Use equation 8.87 and minimise directly
+def Sigma_DMD(M, D):
+    # DMD algorithm based on S&P Section 8.8.3
+    # Use Equation (8.87) and minimize directly
+    nOut, nIn, nFreq = M.shape
 
-    def objFunc(d, M):
-        scale = 1 / d[0] # scale d such that d1 == 1 as in SP note 10 of 8.8.3
+    def optCostFunc(d, M):
+        scale = 1 / d[0] # scale d such that d1 == 1 as in Note 10
         d_scaled = scale * d
         D = np.diag(d_scaled)
         Dinv = np.diag(1 / d_scaled)
         M_scaled = D @ M @ Dinv
 
-        s = np.linalg.svd(M_scaled, full_matrices = True, compute_uv = False)
-        sMax = np.max(s, axis = 0)
-        return sMax
+        sv = np.linalg.svd(M_scaled, full_matrices = True, compute_uv = False)
+        svMax = np.max(sv, axis = 0)
+        return svMax
 
-    d = np.ones_like(M[0,...], dtype = float)
-    sMax = np.zeros(M.shape[-1])
-    for i in range(M.shape[-1]):
-        res = optimize.minimize(objFunc, d[...,i], args = M[...,i])
-        d[...,i] = res.x
-        sMax[i] = res.fun
+    svMax = np.zeros(M.shape[-1])
+    for iFreq in range(nFreq):
+        # Setup Optimization
+        optInitX = np.diag(D[..., iFreq])
+        optArgs = M[..., iFreq]
+        optMethod = 'SLSQP'
+        # optMethod = 'L-BFGS-B'
+        optOptions = {}
+        # optOptions['disp'] = True
 
-    return sMax, d
+        # Solve
+        optRes = optimize.minimize(optCostFunc, optInitX, args = optArgs, method = optMethod, options = optOptions)
+
+        # Store solution
+        D[..., iFreq] = np.diag(optRes.x)
+        svMax[iFreq] = optRes.fun
+
+    return svMax, D
+
+def Sigma_MU(M, U):
+    # MU algorithm based on S&P Section 8.8.3
+    # Use Equation (8.86) and minimize directly
+    nOut, nIn, nFreq = M.shape
+
+    def optCostFunc(u, M):
+        nOut, nIn = M.shape
+        scale = 1 / u[0] # scale u such that u1 == 1 as in Note 10
+        u_scaled = scale * u
+
+        U = np.reshape(u_scaled, (nOut, nIn))
+        Q, R = np.linalg.qr(U) # Q is a unitary, orthonormal matrix
+        U = Q
+
+        MU = M @ U
+
+        rho = np.abs(np.linalg.eigvals(MU)) # Spectal radius
+        rhoMax = -np.max(rho, axis = 0)
+
+        return rhoMax
+
+    rhoMax = np.zeros(nFreq)
+    for iFreq in range(nFreq):
+        # Setup Optimization
+        optInitX = U[..., iFreq].flatten()
+        optArgs = M[..., iFreq]
+        optMethod = 'SLSQP'
+        # optMethod = 'L-BFGS-B'
+        optOptions = {}
+        # optOptions['disp'] = True
+
+        # Solve
+        optRes = optimize.minimize(optCostFunc, optInitX, args = optArgs, method = optMethod, options = optOptions)
+
+        # Store solution
+        U[..., iFreq] = np.reshape(optRes.x, (nOut, nIn))
+        rhoMax[iFreq] = -optRes.fun
+
+    return rhoMax, U
+
+# Find the smallest km such that det(I - km * M * Delta) = 0
+# det(I - km * Delta * M) = det(I - km * M * Delta)
+# km = 1 / mu(M)
+def SigmaStruct(M, Delta, bound = 'upper'):
+    nOut, nIn = Delta.shape
+    nFreq = M.shape[-1]
+
+    if bound in ['upper', 'both']:
+      # Upper Bound Estimate
+      if (Delta == 1).all(): # Delta is 'full', D = d * I
+        D = np.repeat([np.eye(nOut)], nFreq, axis=0).T
+      else: # (Delta == np.eye(nOut)).all(): # Delta = d * I, D is 'full
+        D = np.repeat([np.ones((nOut, nIn))], nFreq, axis=0).T
+
+      mu_ub, D = Sigma_DMD(M, D)
+
+    if bound in ['lower', 'both']:
+      # Lower Bound Estimate
+      U = np.repeat([np.ones((nOut, nIn))], nFreq, axis=0).T
+
+      mu_lb, U = Sigma_MU(M, U)
+
+
+    info = {}
+
+    if bound in 'both':
+      mu = np.array([mu_lb, mu_ub])
+      info['D'] = D
+      info['U'] = U
+    elif bound in 'upper':
+      mu = mu_ub
+      info['D'] = D
+    elif bound in 'lower':
+      mu = mu_lb
+      info['U'] = U
+
+    return mu, info
+
+def SigmaStruct_Add(nom, unc, minmax = 'min'):
+    nOut, nIn = nom.shape[:2]
+
+    def unpack(x):
+      c = x[0] * np.exp(-1j * x[1])
+
+      return c
+
+    def optCostFunc(x, nom, unc, minmax):
+      c = unpack(x)
+      p = nom + c * unc
+
+      svP = np.linalg.svd(p, full_matrices=True, compute_uv = False)
+
+      if minmax == 'min':
+        svP = np.min(svP, axis = 0)
+      elif minmax == 'max':
+        svP = 1/np.max(svP, axis = 0)
+
+      return svP
+
+    crit = np.zeros_like(nom, dtype = complex)
+    svMin = np.zeros(nom.shape[-1])
+    for iFreq in range(nom.shape[-1]):
+        # Initial Guess as nominal SVD transform
+        uNom, svNom, vhNom = np.linalg.svd(nom[..., iFreq], full_matrices=True, compute_uv = True)
+
+        c0 = uNom.conjugate().T @ np.eye(nOut) @ vhNom.conjugate().T
+
+        g = np.mean(np.abs(c0))
+        ph = -np.mean(np.abs(np.arctan2(c0.real, c0.imag)))
+
+        optInitX = [1, 0]
+
+        # Setup Optimization
+        optBnds = optimize.Bounds(lb =[-1, -np.inf] , ub = [1, np.inf]) # lb <= x <= ub
+        optArgs = (nom[..., iFreq], unc[..., iFreq], minmax)
+        optMethod = 'SLSQP'
+        # optMethod = 'L-BFGS-B'
+        optOptions = {}
+        # optOptions['disp'] = True
+
+        # Solve
+        optRes = optimize.minimize(optCostFunc, optInitX, args = optArgs, method = optMethod, bounds = optBnds, options = optOptions)
+
+        c = unpack(optRes.x)
+
+        # Store solution
+        if minmax == 'min':
+          svMin[iFreq] = optRes.fun
+          crit[..., iFreq] = nom[..., iFreq] + c * unc[..., iFreq]
+        elif minmax == 'max':
+          svMin[iFreq] = optRes.fun
+          crit[..., iFreq] = nom[..., iFreq] + c * unc[..., iFreq]
+
+
+    return svMin, crit
 
 
 #%% Compute the Fast Fourier Transform
@@ -1017,7 +1371,7 @@ def CZT(x, freq, fs, N = None):
 #%% Compute the DFT Transform recursively
 from collections import deque
 class DftSlide:
-    
+
     def __init__(self, freq_rps, freqRate_rps = 2*pi, N = 1):
         self.iDft = int(0)
         self.freqRate_rps = freqRate_rps
@@ -1028,38 +1382,38 @@ class DftSlide:
         self.freq_nd = self.freq_rps / freqRate_rps # frequencies non-dimensionalized
         self.Wk = np.exp(2j*pi * self.freq_nd )
         self.Wn = deque(np.array([]))
-        
+
         self.UpdateCoef()
-        
+
         self.x = deque([i for i in np.zeros(N, dtype=float)])
         self.xDft = np.zeros(self.M, dtype=complex)
-        
+
         self.xDftMean = 0.0
         self.xDftStd = 0.0
-        
+
     def UpdateCoef(self):
         # Update the Fourier Coefficients
     	self.Wn.append(pow(self.Wk, self.iDft));
-    
+
     def Append(self, x):
         self.iDft += 1
         self.x.append(x) # Append new x to que
         self.UpdateCoef() # Update the Coefs
-        
+
         self.xDft += self.x[-1] * self.Wn[-1] # Add to the end
-    
+
     def PopFront(self):
         self.xDft -= self.x[0] * self.Wn[0] # Remove from start
-        
+
         self.Wn.popleft()
         self.x.popleft()
-        
+
     def Slide(self, x):
         self.Append(x)
         self.PopFront()
-    
+
     def Update(self, x):
-        
+
         if len(self.x) < self.N: # Append to end until length N is reached
             self.Append(x)
         else: # Slide
@@ -1110,7 +1464,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 # For print pretty to latex
 mpl.rcParams.update({
-    "pgf.texsystem": "pdflatex",
+    # "pgf.texsystem": "pdflatex",
     'text.usetex': True,
     'pgf.rcfonts': False,
 })
@@ -1322,9 +1676,9 @@ def PlotNyquistUncPts(T, TUnc, ax = None, **pltArgs):
     for iNom, nom in enumerate(T):
         unc = TUnc[iNom]
         if unc.imag == 0:
-            uncPatch = patch.Ellipse((nom.real, nom.imag), unc, unc, alpha = 0.25, **pltArgs)
+            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc, 2*unc, alpha = 0.25, **pltArgs) # patch.Ellipse expects diameter, unc is a radius
         else:
-            uncPatch = patch.Ellipse((nom.real, nom.imag), unc.real, unc.imag, alpha = 0.25, **pltArgs)
+            uncPatch = patch.Ellipse((nom.real, nom.imag), 2*unc.real, 2*unc.imag, alpha = 0.25, **pltArgs)
 
         ax.add_artist(uncPatch)
 
@@ -1336,8 +1690,8 @@ def PlotNyquistUncFill(T, TUnc, ax = None, **pltArgs):
     diffT = np.diff(T, append=0)
     pathVec = diffT / np.abs(diffT)
     perpVec = pathVec.imag - 1j * pathVec.real
-    TMin = T - perpVec * 0.5 * np.abs(TUnc)
-    TMax = T + perpVec * 0.5 * np.abs(TUnc)
+    TMin = T - perpVec * np.abs(TUnc)
+    TMax = T + perpVec * np.abs(TUnc)
 
     re = np.hstack((TMin.real, np.flip(TMax.real)))
     im = np.hstack((TMin.imag, np.flip(TMax.imag)))

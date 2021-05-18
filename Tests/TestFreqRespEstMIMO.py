@@ -78,7 +78,7 @@ freqGap_rps = freqExc_rps[0:-1] + 0.5 * np.diff(freqExc_rps)
 
 # Generate Schroeder MultiSine Signal
 ampExcit_nd = np.linspace(ampInit, ampFinal, len(freqExc_rps)) / np.sqrt(len(freqExc_rps))
-uExc, phaseElem_rad, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'peak', costType = 'Schroeder')
+uExc, phaseElem_rad, sigExcit = GenExcite.MultiSine(freqExc_rps, ampExcit_nd, sigIndx, time_s, phaseInit_rad = 0, boundPhase = 1, initZero = 1, normalize = 'rms', costType = 'Schroeder')
 uExc = (uExc.T * (1 / np.std(uExc, axis = -1))).T
 uStd = np.std(uExc, axis = -1)
 uPeakFactor = GenExcite.PeakFactor(uExc)
@@ -155,7 +155,6 @@ TEstNom = Tuz
 TEstUnc = Tun
 TEstCoh = Cuz
 
-
 # Check
 N = len(time_s)
 #PexcSpec = 0.5 * (ampExcit_nd**2).sum()
@@ -186,9 +185,27 @@ SzzSum = SzzMag.sum(axis = -1)
 
 print(SzzSum / PzParsevalPsd)
 
+#%% Sampling
+numOut, numIn, nFreq = TEstNom.shape
+
+nSamp = 20
+shapeSamp = (numOut, numIn, nFreq, nSamp)
+
+rSamp = np.sqrt(np.random.uniform(0, 1, shapeSamp))
+phSamp = np.random.uniform(-np.pi, np.pi, shapeSamp)
+samp = rSamp * np.exp(1j * phSamp)
+
+TEstSamp = np.zeros(shapeSamp, dtype='complex')
+for iSamp in range(nSamp):
+  TEstSamp[..., iSamp] = TEstNom + TEstUnc * samp[..., iSamp]
+
 #%%
 if False:
 #%%
+    optTemp = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate = freqRate_rps, smooth = ('box', 3), winType = 'bartlett', detrendType = 'linear')
+    optTemp.freq = freqGap_rps
+
+    _, _, SnnN = FreqTrans.Spectrum(z, optTemp)
 
     [iOut, iIn] = [0,0]
     fig = plt.figure(); plt.grid(True)
@@ -201,14 +218,14 @@ if False:
 #    plt.ylim([0,20])
     fig.set_tight_layout(True)
     fig.set_size_inches([6.4,2.4])
-    
+
     if False:
         FreqTrans.PrintPrettyFig(fig, 'OpenMimoExcitationInterp.pgf')
-    
+
 #%%
     optSpecN = FreqTrans.OptSpect(dftType = 'czt', scaleType = 'density', freqRate_rps = freqRate_rps, smooth = ('box', 5), winType = 'bartlett', detrendType = 'linear')
     optSpecN.freq_rps = freqGap_rps
-    
+
     _, _, SnnN = FreqTrans.Spectrum(z, optSpecN)
 #    _, _, _, SuuN, SnnN, _ = FreqTrans.FreqRespFuncEst(uExc, z, optSpecN)
 
@@ -240,7 +257,7 @@ svTLinNomMin_mag = np.min(svTLinNom_mag, axis=0)
 svTLinUncMax_mag = np.max(svTLinUnc_mag, axis=0) # Overly Conservative
 
 cohTLin_mag = np.ones_like(TLinNom)
-cohTLinMin = np.min(cohTLin_mag, axis = (0, 1)) 
+cohTLinMin = np.min(cohTLin_mag, axis = (0, 1))
 
 # Estimate SVD magnitude
 svTEstNom_mag = FreqTrans.Sigma(TEstNom)
@@ -250,43 +267,62 @@ svTEstNomMin_mag = np.min(svTEstNom_mag, axis=0)
 svTEstUncMax_mag = np.max(svTEstUnc_mag, axis=0) # Overly Conservative
 
 cohTEst_mag = TEstCoh # Estimation Coherence
-cohTEstMin = np.min(cohTEst_mag, axis = (0, 1)) 
+cohTEstMin = np.min(cohTEst_mag, axis = (0, 1))
 
-if False:
+# Sampled Systems
+svTEstSamp_mag = np.zeros((numOut, nFreq, nSamp), dtype='float')
+for iSamp in range(nSamp):
+  svTEstSamp_mag[..., iSamp] = FreqTrans.Sigma(TEstSamp[..., iSamp])
+
+svTEstSampMin_mag = np.min(svTEstSamp_mag, axis = 0)
+
+
+if True:
     fig = 10
     fig = FreqTrans.PlotSigma(freqLin_hz, svTLinNomMin_mag, svUnc_mag = svTLinUncMax_mag, coher_nd = cohTLinMin, fig = fig, color = 'k', label = 'Linear')
     fig = FreqTrans.PlotSigma(freq_hz[0], svTEstNomMin_mag, svUnc_mag = svTEstUncMax_mag, coher_nd = cohTEstMin, marker='.', color = 'r', fig = fig, label = 'Estimate')
+
+    for iSamp in range(nSamp):
+      fig = FreqTrans.PlotSigma(freq_hz[0], svTEstSampMin_mag[..., iSamp], svUnc_mag = None, coher_nd = None, marker='.', color = 'gray', linestyle='None', fig = fig, label = 'Sampled (MIMO)')
 
     ax = fig.get_axes()
     handles, labels = ax[0].get_legend_handles_labels()
     handles = [handles[0], handles[2], handles[1], handles[3]]
     labels = [labels[0], labels[2], labels[1], labels[3]]
     ax[0].legend(handles, labels)
-    
+
     fig.suptitle('$T$ : ' + '$u_{ex}$' + ' to ' + '$z$')
-    
-    
+
 #%% Vector Margin Plots
 vmTLinNom_mag, vmTLinUnc_mag, vmTLinMin_mag = FreqTrans.VectorMargin(TLinNom, TLinUnc, typeUnc = 'circle')
 vmTEstNom_mag, vmTEstUnc_mag, vmTEstMin_mag = FreqTrans.VectorMargin(TEstNom, TEstUnc, typeUnc = 'circle')
 
+# Sampled Systems
+vmTEstSamp_mag = np.zeros((numOut, numIn, nFreq, nSamp), dtype='float')
+for iSamp in range(nSamp):
+  vmTEstSamp_mag[..., iSamp], _, _ = FreqTrans.VectorMargin(TEstSamp[..., iSamp], typeUnc = 'circle')
+
+
 numOut, numIn = TLinNom.shape[0:-1]
 ioArray = np.array(np.meshgrid(np.arange(numOut), np.arange(numIn))).T.reshape(-1, 2)
-    
-if False:
+
+if True:
     for iPlot, [iOut, iIn] in enumerate(ioArray):
         fig = None
         fig = FreqTrans.PlotVectorMargin(freqLin_hz, vmTLinNom_mag[iOut, iIn], cohTLin_mag[iOut, iIn], vmTLinUnc_mag[iOut, iIn], fig = fig, linestyle='-', color='k', label='Linear Model')
         fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], vmTEstNom_mag[iOut, iIn], cohTEst_mag[iOut, iIn], vmTEstUnc_mag[iOut, iIn], fig = fig, linestyle='-', marker='.', color='r', label='Estimate [MIMO]')
-#        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn, sigIndx[iIn]], vmTEstNom_mag[iOut, iIn, sigIndx[iIn]], cohTEst_mag[iOut, iIn, sigIndx[iIn]], vmTEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, linestyle='-', marker='.', color='b', label='Estimate [SIMO]')
-        
+        fig = FreqTrans.PlotVectorMargin(freq_hz[iIn, sigIndx[iIn]], vmTEstNom_mag[iOut, iIn, sigIndx[iIn]], cohTEst_mag[iOut, iIn, sigIndx[iIn]], vmTEstUnc_mag[iOut, iIn, sigIndx[iIn]], fig = fig, linestyle='-', marker='.', color='b', label='Estimate [SIMO]')
+
+        for iSamp in range(nSamp):
+          fig = FreqTrans.PlotVectorMargin(freq_hz[iIn], vmTEstSamp_mag[iOut, iIn, :, iSamp], marker='.', color = 'gray', linestyle='None', fig = fig, label = 'Sampled (MIMO)')
+
         ax = fig.get_axes()
         handles, labels = ax[0].get_legend_handles_labels()
         handles = [handles[0], handles[3], handles[1], handles[4], handles[2], handles[5]]
         labels = [labels[0], labels[3], labels[1], labels[4], labels[2], labels[5]]
         ax[0].legend(handles, labels)
-    
-        fig.suptitle('$T$')
+
+        fig.suptitle('$u_' + str(iIn) + '$ to ' + '$z_' + str(iOut) + '$')
         fig.set_tight_layout(True)
 
 
@@ -307,7 +343,7 @@ if True:
         ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
         fig = FreqTrans.PlotBode(freqLin_hz, gainTLinNom_mag[iOut, iIn], phaseTLinNom_deg[iOut, iIn], coher_nd = cohTLin_mag[iOut, iIn], gainUnc_mag = None, fig = fig, dB = True, color='k', label='Linear Nominal ' + ioName)
         fig = FreqTrans.PlotBode(freqLin_hz, gainTLinUnc_mag[iOut, iIn], None, coher_nd = None, gainUnc_mag = None, fig = fig, dB = True, color='k', linestyle='--', label='Linear Uncertainty ' + ioName)
-        
+
         fig = FreqTrans.PlotBode(freq_hz[iIn], gainTEstNom_mag[iOut, iIn], phaseTEstNom_deg[iOut, iIn], coher_nd = cohTEst_mag[iOut, iIn], gainUnc_mag = None, fig = fig, dB = True, color='r', linestyle='None', marker='.', label='Estimate Nominal ' + ioName)
         fig = FreqTrans.PlotBode(freq_hz[iIn], gainTEstUnc_mag[iOut, iIn], None, coher_nd = None, gainUnc_mag = None, fig = fig, dB = True, color='b', linestyle='None', marker='.', label='Estimate Uncertainty ' + ioName)
 
@@ -317,8 +353,8 @@ if True:
 #        labels = [labels[0], labels[1]]
 #        ax[0].legend(handles, labels)
 #        ax[0].set_xlim([1,10])
-        
-        fig.set_size_inches([6.4,4.8])
+
+#        fig.set_size_inches([6.4,4.8])
         if False:
             FreqTrans.PrintPrettyFig(fig, 'OpenMimoBode' + str(iOut+1) + str(iIn+1) + '.pgf')
 
@@ -332,7 +368,7 @@ if True:
 
     for io in ioArray:
         [iOut, iIn] = io
-        
+
         fig = None
         ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
         fig = FreqTrans.PlotNyquist(TLinNom[iOut, iIn], TLinUnc[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear ' + ioName)
@@ -341,12 +377,15 @@ if True:
         fig = FreqTrans.PlotNyquist(np.array([-1+0j]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None')
         # fig = FreqTrans.PlotNyquist(np.array([-1+0j]), np.array([0.4]), fig = fig, fillType = 'circle', marker='+', color = 'r', linestyle='None')
 
+        for iSamp in range(nSamp):
+          fig = FreqTrans.PlotNyquist(TEstSamp[iOut, iIn, :, iSamp], fig = fig, fillType = 'circle', marker='.', color = 'gray', linestyle='None')
+
         ax = fig.get_axes()
         handles, labels = ax[0].get_legend_handles_labels()
         handles = [(handles[0], handles[2]), handles[1]]
         labels = [labels[0], labels[1]]
         ax[0].legend(handles, labels)
-        
+
 #        fig.set_size_inches([6.4,4.8])
         if False:
             FreqTrans.PrintPrettyFig(fig, 'OpenMimoNyquist' + str(iOut+1) + str(iIn+1) + '.pgf')
@@ -386,15 +425,15 @@ lenCyc = int(len(time_s) / numCycles)
 for iSeg in range(0, numSeg):
     iEnd = iSeg * stride
     print ( 100 * iSeg / numSeg )
-    
+
     if iEnd > lenFreq-1:
-        
+
         # Move the Start index once the End index has reached 2* cycle
 #        if iEnd > (2 * lenCyc):
 #            iStart = iEnd - lenCyc
-        
+
         freq_rps, Tuz, Cuz, Suu, Szz, Suz, Tun, SuuNull, Snn = FreqTrans.FreqRespFuncEstNoise(uExc[:, iStart:iEnd+1], z[:, iStart:iEnd+1], optSpec)
-        
+
         t_s[iSeg] = time_s[iEnd+1]
         TuzList[iSeg, ] = Tuz
         CuzList[iSeg, ] = Cuz
@@ -404,14 +443,14 @@ for iSeg in range(0, numSeg):
         TunList[iSeg, ] = Tun
         SuuNullList[iSeg, ] = SuuNull
         SnnList[iSeg, ] = Snn
-    
+
     freq_hz = freq_rps * rps2hz
 
 
 #%%
 numFreqLin = len(freqLin_rps)
-TLinNomList = np.zeros((numSeg, numOut, numIn, numFreqLin))
-TLinUncList = np.zeros((numSeg, numOut, numIn, numFreqLin))
+TLinNomList = np.zeros((numSeg, numOut, numIn, numFreqLin), dtype='complex')
+TLinUncList = np.zeros((numSeg, numOut, numIn, numFreqLin), dtype='complex')
 for iSeg in range(0, numSeg):
     TLinNomList[iSeg, ] = TLinNom
     TLinUncList[iSeg, ] = np.sqrt(numFreq / (iSeg*stride+1)) * TLinUnc
@@ -429,67 +468,65 @@ vmThEstNom_mag, vmThEstUnc_mag, vmThEstMin_mag = FreqTrans.VectorMargin(TuzList,
 
 if False:
     for iPlot, [iOut, iIn] in enumerate(ioArray):
-        
+
         gainThLinNomMean = np.mean(np.abs(gainThLinNom_mag[:,iOut,iIn,:]), axis=-1)
         gainThLinUncMean = np.mean(np.abs(gainThLinUnc_mag[:,iOut,iIn,:]), axis=-1)
         gainThLinUncMin = np.mean(np.abs(gainThLinNom_mag[:,iOut,iIn,:]) - np.abs(gainThLinUnc_mag[:,iOut,iIn,:]), axis=-1) * ones
-        
+
         gainThEstNomMean = np.mean(np.abs(gainThEstNom_mag[:,iOut,iIn,:]), axis=-1)
         gainThEstUncMean = np.mean(np.abs(gainThEstUnc_mag[:,iOut,iIn,:]), axis=-1)
         gainThEstUncMin = np.mean(np.abs(gainThEstNom_mag[:,iOut,iIn,:]) - np.abs(gainThEstUnc_mag[:,iOut,iIn,:]), axis=-1)
-        
+
         cohEst = np.abs(CuzList[:,iOut,iIn,:])
-        cohEst[cohEst < 0] = 0
-        cohEst[cohEst > 1] = 1
         cohEstMean = np.mean(cohEst, axis=-1)
         cohEstStd = np.std(cohEst, axis=-1)
         cohEstMin = np.min(cohEst, axis=-1)
-        
-        
+
+
         fig = None
         ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
         fig = FreqTrans.PlotGainTemporal(t_s, gainThLinNomMean, None, coher_nd = ones, gainUnc_mag = gainThLinUncMean, fig = fig, dB = False, linestyle='-', color='k', label = 'Linear ' + ioName)
 #        fig = FreqTrans.PlotGainTemporal(t_s, gainThLinUncMin, None, fig = fig, dB = False, linestyle=':', color='k', label = 'Linear - Lower')
-     
+
         fig = FreqTrans.PlotGainTemporal(t_s, gainThEstNomMean, None, coher_nd = cohEstMean, gainUnc_mag = gainThEstUncMean, fig = fig, dB = False, linestyle='-', color='b', label = 'Estimate ' + ioName)
 #        fig = FreqTrans.PlotGainTemporal(t_s, gainThEstUncMin, None, coher_nd = cohEstMin, fig = fig, dB = False, linestyle=':', color='r', label = 'Estimate - Lower')
 
         ax = fig.get_axes()
         ax[0].set_ylabel("Gain [mag]")
-        
+
         handles, labels = ax[0].get_legend_handles_labels()
         handles = [(handles[0], handles[2]), (handles[1], handles[3])]
         labels = [labels[0], labels[1]]
         ax[0].legend(handles, labels)
-        
+
 #        fig.set_size_inches([6.4,4.8])
         if False:
             FreqTrans.PrintPrettyFig(fig, 'OpenMimoGainTemporal' + str(iOut+1) + str(iIn+1) + '.pgf')
-        
+
 #%%
-if True:
+if False:
     for iPlot, [iOut, iIn] in enumerate(ioArray):
         # Best Case E2N can be estimated as the Null input to Excited input
         uN2E = np.abs(SuuNullList[:,iIn,:]) / np.abs(SuuList[:,iIn,:])
         uN2EMean = np.mean(uN2E, axis=-1)
         uN2EMin = np.min(uN2E, axis=-1)
-        
+
         zN2S = np.abs(SnnList[:,iOut, iIn,:]) / np.abs(SzzList[:,iOut, iIn,:])
         zN2SMean = np.mean(zN2S, axis=-1)
         zN2SMin = np.min(zN2S, axis=-1)
         zN2SMin[zN2SMin < 0] = 0
-        
+
 #        zN2S2 = np.abs(TunList[:,iOut, iIn,:])
 #        zN2S2Mean = np.mean(zN2S2, axis=-1)
 #        zN2S2Min = np.min(zN2S2, axis=-1)
 #        zN2S2Min[zN2S2Min < 0] = 0
-        
+
         cohEst = np.abs(CuzList[:,iOut,iIn,:])
         cohEst[cohEst < 0] = 0
         cohEst[cohEst > 1] = 1
         cohEstMean = np.mean(cohEst, axis=-1)
         cohEstMin = np.min(cohEst, axis=-1)
-        
+
         fig = None
         ioName = '- $T$: ' + '$u[' + str(iIn+1) + ']$ to ' + '$z[' + str(iOut+1) + ']$'
         fig = FreqTrans.PlotGainTemporal(t_s, uN2EMean, None, None, uN2EMin, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='g', label = 'Estimate at Input: ' + '$u[' + str(iIn+1) + '$]')
@@ -500,8 +537,8 @@ if True:
 
         ax = fig.get_axes()
         ax[0].set_ylim([0, 2.0])
-        ax[0].set_ylabel("Null/Excitation Power [mag]")
-        
+        ax[0].set_ylabel("Noise/Signal [mag]")
+
         handles, labels = ax[0].get_legend_handles_labels()
         handles = [(handles[0], handles[2]), (handles[1], handles[3])]
         labels = [labels[0], labels[1]]
@@ -510,5 +547,3 @@ if True:
         fig.set_size_inches([6.4,3.0])
         if False:
             FreqTrans.PrintPrettyFig(fig, 'OpenMimoN2STemporal' + str(iOut+1) + str(iIn+1) + '.pgf')
-        
-

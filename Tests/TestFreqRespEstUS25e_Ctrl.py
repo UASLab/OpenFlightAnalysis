@@ -27,14 +27,6 @@ from Core import GenExcite
 from Core import FreqTrans
 from Core import Systems
 
-
-plt.rcParams.update({
-    "text.usetex": True,
-    "font.family": "serif",
-    "font.serif": ["Palatino"],
-    "font.size": 10
-})
-
 # Constants
 hz2rps = 2*np.pi
 rps2hz = 1/hz2rps
@@ -79,13 +71,13 @@ if False:
     plt.subplot(4,1,2); plt.plot(time_s, stepPhiOut[3])
     plt.subplot(4,1,3); plt.plot(time_s, stepPhiOut[5])
     plt.subplot(4,1,4); plt.plot(time_s, stepPhiOut[7])
-    
+
 if False:
     _ = control.bode_plot(sysCL[0,0], omega_limits = [0.01, 500], Hz = True, dB = True)
     _ = control.bode_plot(sysCL[1,1], omega_limits = [0.01, 500], Hz = True, dB = True)
     _ = control.bode_plot(sysCL[2,2], omega_limits = [0.01, 500], Hz = True, dB = True)
 
-    
+
 #%%
 #
 pSigma = np.array([0.0, 0.0, 0.0])
@@ -104,7 +96,7 @@ if False:
     _ = control.bode_plot(sysLaLinNom[0,0], omega_limits = [0.01, 500], Hz = True, dB = True)
     _ = control.bode_plot(sysLaLinNom[1,1], omega_limits = [0.01, 500], Hz = True, dB = True)
     _ = control.bode_plot(sysLaLinNom[2,2], omega_limits = [0.01, 500], Hz = True, dB = True)
-    
+
 sysLaLinUnc = sysOL[7:10, :][:, [3,4,7]] * mIn.D
 sysLaLinUnc.InputName = sysOL.InputName[3:5] + sysOL.InputName[7:8]
 sysLaLinUnc.OutputName = sysOL.OutputName[7:10]
@@ -142,6 +134,11 @@ TaLinNom = gainTaLinNom_mag * np.exp(1j * phaseTaLinNom_rad)
 
 gainTaLinUnc_mag, phaseTaLinUnc_rad, _ = control.freqresp(sysTaLinUnc, omega = freqLin_rps)
 TaLinUnc = gainTaLinUnc_mag * np.exp(1j * phaseTaLinUnc_rad)
+
+
+# Ta to Sa, Sa to La
+SaLinNom, SaLinUnc, _ = FreqTrans.TtoS(TaLinNom, TaLinUnc)
+# LaLinNom, LaLinUnc, _ = FreqTrans.StoL(SaLinNom, SaLinUnc) # FIXIT - Overwrites the OL function above
 
 
 #%% Excitation
@@ -193,12 +190,12 @@ vCmd = out[:3]
 zName = sysCL.OutputName[-7:]
 z = out[-7:]
 
-#v = -(vCmd - vExc)
-v = vCmd # FIXIT
+v = -(vCmd - vExc)
+# v = vCmd # FIXIT
 
 
 #%% Estimate the frequency response function
-optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'Linear', interpType = 'linear')
+optSpec = FreqTrans.OptSpect(dftType = 'czt', freqRate = freqRate_rps, smooth = ('box', 3), winType = ('tukey', 0.0), detrendType = 'linear', interpType = 'linear')
 
 # Excited Frequencies per input channel
 optSpec.freq = freqChan_rps
@@ -216,36 +213,19 @@ freq_hz = freq_rps * rps2hz
 
 print(np.sum(PxxNull, axis = -1) / np.sum(Pxx, axis = -1))
 
-I3 = np.repeat([np.eye(3)], Txy.shape[-1], axis=0).T
-TaEstNom = -Txy
+# I3 = np.repeat([np.eye(3)], Txy.shape[-1], axis=0).T
+TaEstNom = -Txy # FIXIT - negative sign?
 TaEstUnc = TxyUnc
 TaEstCoh = Cxy
 
-SaEstNom = I3 - TaEstNom # Sa = I - Ta
-SaEstUnc = -TaEstUnc
-SaEstCoh = TaEstCoh
+
+# Ta to Sa, Sa to La
+SaEstNom, SaEstUnc, SaEstCoh = FreqTrans.TtoS(TaEstNom, TaEstUnc, TaEstCoh)
+LaEstNom, LaEstUnc, LaEstCoh = FreqTrans.StoL(SaEstNom, SaEstUnc, SaEstCoh)
+
 
 SaEstSNR = np.abs(SaEstNom / SaEstUnc)**2
 SaEstMeanSNR = np.mean(SaEstSNR, axis = -1)
-
-# T = TNom + TUnc = vCtrl / vExc - vNull / vExc
-# La = inv(TNom + TUnc) - I = LaEstNom + LaEstUnc
-# LaEstNom = -I + SaEstNom^-1
-# LaEstUnc = -(I + SaEstNom^-1 * SaEstUnc)^-1 * SaEstNom^-1 * SaEstUnc * SaEstNom^-1
-LaEstNom = np.zeros_like(SaEstNom, dtype = complex)
-LaEstUnc = np.zeros_like(SaEstUnc, dtype = complex)
-LaEstCoh = np.zeros_like(SaEstCoh)
-
-inv = np.linalg.inv
-for i in range(SaEstNom.shape[-1]):
-    SaEstNomElem = SaEstNom[...,i]
-    SaEstUncElem = SaEstUnc[...,i]
-    SaEstNomInvElem = inv(SaEstNomElem)
-
-    LaEstNom[...,i] = -np.eye(3) + SaEstNomInvElem
-    LaEstUnc[...,i] = -inv(np.eye(3) + SaEstNomInvElem @ SaEstUncElem) @ (SaEstNomInvElem @ SaEstUncElem @ SaEstNomInvElem)
-    # LaEstCoh[...,i] = -np.eye(3) + inv(SaEstCoh[...,i])
-    LaEstCoh[...,i] = SaEstCoh[...,i]
 
 LaEstSNR = np.abs(LaEstNom / LaEstUnc)**2
 LaEstMeanSNR = np.mean(LaEstSNR, axis = -1)
@@ -260,7 +240,11 @@ svLaLinUnc_mag = FreqTrans.Sigma(LaLinUnc)
 svLaLinUncMax_mag = np.max(svLaLinUnc_mag, axis = 0)
 svLaLinLower_mag = svLaLinNomMin_mag - svLaLinUncMax_mag
 
-# I3 = np.repeat([np.eye(3)], SaEstNom.shape[-1], axis=0).T
+# Compute Structured Singular Values
+svLaLinSSV_mag, LaLinCrit = FreqTrans.SigmaStruct(I3 + LaLinNom, np.abs(LaLinUnc))
+LaLinCrit = LaLinCrit - I3
+
+I3 = np.repeat([np.eye(3)], SaEstNom.shape[-1], axis=0).T
 # svLaEstNom_mag = FreqTrans.Sigma(I3 + LaEstNom)
 svLaEstNom_mag = 1 / FreqTrans.Sigma(SaEstNom) # sv(I + La) = 1 / sv(Sa)
 svLaEstNomMin_mag = np.min(svLaEstNom_mag, axis = 0)
@@ -271,30 +255,36 @@ svLaEstLower_mag = svLaEstNomMin_mag - svLaEstUncMax_mag
 
 LaEstCohMin = np.min(np.min(SaEstCoh, axis = 0), axis = 0)
 
+# Compute Structured Singular Values
+svLaEstSSV_mag, LaEstCrit = FreqTrans.SigmaStruct(I3 + LaEstNom, np.abs(LaEstUnc))
+LaEstCrit = LaEstCrit - I3
+
 if False:
     fig = 20
-    # fig = FreqTrans.PlotSigma(freqLin_hz, svLaLinNom_mag, coher_nd = np.ones_like(freqLin_hz), fig = fig, color = 'k', label = 'Linear')
-    # fig = FreqTrans.PlotSigma(freqLin_hz, svLaLinNomMin_mag, svUnc_mag = svLaEstUncMax_mag, coher_nd = np.ones_like(freqLin_hz), fig = fig, color = 'k', label = 'Linear')
-    fig = FreqTrans.PlotSigma(freqLin_hz, svLaLinNomMin_mag, coher_nd = np.ones_like(freqLin_hz), fig = fig, color = 'k', label = 'Linear')
-    # fig = FreqTrans.PlotSigma(freq_hz, svLaEstNom_mag, coher_nd = LaEstCohMin, color = 'b', fig = fig, label = 'Estimation (MIMO)')
-    fig = FreqTrans.PlotSigma(freq_hz[0], svLaEstNomMin_mag, svUnc_mag = svLaEstLower_mag, coher_nd = LaEstCohMin, color = 'b', fig = fig, label = 'Estimation with Uncertainty')
-    # fig = FreqTrans.PlotSigma(freqLin_hz, 0.4 * np.ones_like(freqLin_hz), color = 'r', linestyle = '--', fig = fig, label = 'Critical Limit')
+    fig = FreqTrans.PlotSigma(freqLin_hz, svLaLinNomMin_mag, svUnc_mag = svLaLinUncMax_mag, coher_nd = np.ones_like(freqLin_hz), fig = fig, color = 'k', label = 'Linear with Unstructured SV')
+    fig = FreqTrans.PlotSigma(freqLin_hz, svLaLinSSV_mag, fig = fig, color = 'k', linestyle = '--', label = 'Linear with Structured SV')
+
+    fig = FreqTrans.PlotSigma(freq_hz[0], svLaEstNomMin_mag, svUnc_mag = svLaEstUncMax_mag, coher_nd = LaEstCohMin, color = 'b', fig = fig, label = 'Estimate with Unstructured SV')
+    fig = FreqTrans.PlotSigma(freq_hz[0], svLaEstSSV_mag, fig = fig, color = 'b', linestyle = '--', label = 'Estimate with Structured SV')
+
+    fig = FreqTrans.PlotSigma(freqLin_hz, 0.4 * np.ones_like(freqLin_hz), color = 'r', linestyle = '--', fig = fig, label = 'Critical Limit')
+
     ax = fig.get_axes()
     ax[0].set_xlim(0, 10)
     # ax[0].set_yscale('log')
-    ax[0].set_ylim(0, 2)
+    # ax[0].set_ylim(0, 2)
 
 
 #%% Vector Margin Plots
 inPlot = sysCL.InputName[:3]
-outPlot = [inName.replace('exc', 'fb') for inName in inPlot] 
+outPlot = [inName.replace('exc', 'fb') for inName in inPlot]
 
 numOut = len(outPlot); numIn = len(inPlot)
 ioArray = np.array(np.meshgrid(np.arange(numOut), np.arange(numIn))).T.reshape(-1, 2)
 
 #
-rCritLaLinNom_mag, rCritLaLinUnc_mag, rCritLaLinLower_mag = FreqTrans.DistCrit(LaLinNom, LaLinUnc, typeUnc = 'circle')
-rCritLaEstNom_mag, rCritLaEstUnc_mag, rCritLaEstLower_mag = FreqTrans.DistCrit(LaEstNom, LaEstUnc, typeUnc = 'circle')
+rCritLaLinNom_mag, rCritLaLinUnc_mag, rCritLaLinLower_mag = FreqTrans.VectorMargin(LaLinNom, LaLinUnc, typeUnc = 'circle')
+rCritLaEstNom_mag, rCritLaEstUnc_mag, rCritLaEstLower_mag = FreqTrans.VectorMargin(LaEstNom, LaEstUnc, typeUnc = 'circle')
 
 if False:
     for iPlot, io in enumerate(ioArray):
@@ -320,7 +310,7 @@ if False:
 TaLinUncMag = abs(TaLinUnc);
 TaEstUncMag = abs(TaEstUnc);
 
-if False:
+if True:
     for iPlot, io in enumerate(ioArray):
         iOut, iIn = io
 
@@ -330,6 +320,7 @@ if False:
         fig = 60 + iPlot
 
         fig = FreqTrans.PlotNyquist(TaLinNom[iOut, iIn], TaLinUncMag[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear')
+
         fig = FreqTrans.PlotNyquist(TaEstNom[iOut, iIn], TaEstUncMag[iOut, iIn], fig = fig, color = 'b', label = 'Estimate (MIMO)')
         fig = FreqTrans.PlotNyquist(TaEstNom[iOut, iIn, sigIndx[iIn]], TaEstUncMag[iOut, iIn, sigIndx[iIn]], fig = fig, color = 'g', label = 'Estimate (SIMO)')
 
@@ -337,8 +328,9 @@ if False:
 
         fig.suptitle(inName + ' to ' + outName, size = 20)
         ax = fig.get_axes()
-        ax[0].set_xlim(-3, 1)
-        ax[0].set_ylim(-2, 2)
+        # ax[0].set_xlim(-3, 1)
+        # ax[0].set_ylim(-2, 2)
+
 
 #%% Bode Plots - Ta
 gainTaLinNom_mag, phaseTaLinNom_deg = FreqTrans.GainPhase(TaLinNom, magUnit = 'mag', phaseUnit = 'deg', unwrap = True)
@@ -368,7 +360,7 @@ if False:
 LaLinUncMag = abs(LaLinUnc);
 LaEstUncMag = abs(LaEstUnc);
 
-if True:
+if False:
     for iPlot, io in enumerate(ioArray):
         iOut, iIn = io
 
@@ -379,14 +371,14 @@ if True:
 
         fig = FreqTrans.PlotNyquist(LaLinNom[iOut, iIn], LaLinUncMag[iOut, iIn], fig = fig, fillType = 'fill', color = 'k', label = 'Linear')
         fig = FreqTrans.PlotNyquist(LaEstNom[iOut, iIn], LaEstUncMag[iOut, iIn], fig = fig, color = 'b', label = 'Estimate (MIMO)')
-        fig = FreqTrans.PlotNyquist(LaEstNom[iOut, iIn, sigIndx[iIn]], LaEstUncMag[iOut, iIn, sigIndx[iIn]], fig = fig, color = 'g', label = 'Estimate (SIMO)')
+        # fig = FreqTrans.PlotNyquist(LaEstNom[iOut, iIn, sigIndx[iIn]], LaEstUncMag[iOut, iIn, sigIndx[iIn]], fig = fig, color = 'g', label = 'Estimate (SIMO)')
 
         fig = FreqTrans.PlotNyquist(np.asarray([-1 + 0j]), TUnc = np.asarray([0.4 + 0.4j]), fig = fig, color = 'r', linestyle = ':', label = 'Critical Region')
 
         fig.suptitle(inName + ' to ' + outName, size = 20)
         ax = fig.get_axes()
-        ax[0].set_xlim(-3, 1)
-        ax[0].set_ylim(-2, 2)
+        # ax[0].set_xlim(-3, 1)
+        # ax[0].set_ylim(-2, 2)
 
 
 #%% Bode Plots

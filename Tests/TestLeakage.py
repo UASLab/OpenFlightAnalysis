@@ -39,48 +39,10 @@ db2mag = control.db2mag
 
 
 #%%
-def Dirichlet(fBin, N):
-    theta = (2*pi) * fBin / N
-    W = np.exp(-1j * (N-1)/2 * theta) * np.sin(N*theta/2) / np.sin(theta/2)
-#    W = np.exp(-1j * (1-1/N) * pi * fBin) * np.sin(pi * fBin) / np.sin(pi * fBin / N)
-    W = np.atleast_1d(W)
-    return W
+W_dB = -20.0
+W = db2mag(W_dB)
 
-def DirichletApprox(fBin):
-    fBinMin = 0.5 # Approximately where the Approximation hits the main-lobe
-    #W_dB = -10 + mag2db(0.5) * np.log2(fBin)
-    W = 10**-(1/2) * fBin**-1
-    W = np.atleast_1d(W)
-    W[fBin<fBinMin] = np.nan
-    return W
-
-def DirichletApproxInv(W):
-    fBinMin = 0.5 # Approximately where the Approximation hits the main-lobe
-    fBin = 10**-(1/2) * W**-1
-    fBin = np.atleast_1d(fBin)
-    fBin[fBin<fBinMin] = fBinMin
-    return fBin
-
-def Bartlett(fBin, N):
-    theta = (2*pi) * fBin / N
-    W = (2/N) * np.exp(-1j * (N-1)/2 * theta) * (np.sin(N*theta/4) / np.sin(theta/2))**2
-#    W = (2/N) * np.exp(-1j * (1-1/N) * pi * fBin) * (np.sin(pi * fBin / 2) / np.sin(pi * fBin / N))**2
-    W = np.atleast_1d(W)
-    return W
-
-def BartlettApprox(fBin):
-    fBinMin = 1 # Approximately where the Approximation hits the main-lobe
-    W =  10**-(7/10) * fBin**-2
-    W = np.atleast_1d(W)
-    W[fBin<fBinMin] = np.nan
-    return W
-
-def BartlettApproxInv(W):
-    fBinMin = 1 # Approximately where the Approximation hits the main-lobe
-    fBin =  10**-(7/20)  * W**(-1/2)
-    fBin = np.atleast_1d(fBin)
-    fBin[fBin<fBinMin] = fBinMin
-    return fBin
+fBinSel = FreqTrans.LeakageGoal(W, winType = 'Dirichlet')[0]
 
 
 #%%
@@ -98,7 +60,7 @@ if binType == 'step':
 elif binType == 'length':
     # Specify step size, solve for (number of cycles and lowest frequency)
     freqStepDes_hz = 0.10
-    
+
 
 #mDesire_dB = -20
 #P_Desire_mag = db2mag(mDesire_dB)
@@ -121,26 +83,27 @@ if winName == 'Bartlett':
 if binType == 'step':
     # Specify Length (number of cycles and lowest frequency), solve for step size
     freqStepDes_hz = fbinSel * 2 * freqMinDes_hz / numCyclesDes
-    
+
 elif binType == 'length':
     # Specify step size, solve for (number of cycles and lowest frequency)
     freqMinDes_hz = numCyclesDes * freqStepDes_hz / (2 * fbinSel)
 
+freqStepDes_hz = 0.1
 
 freqRate_rps = freqRate_hz * hz2rps
 freqStepDes_rps = freqStepDes_hz * hz2rps
 freqMinDes_rps = freqMinDes_hz * hz2rps
-    
+
 dt = 1/freqRate_hz
 T = numCyclesDes / freqMinDes_hz
 
 #%% Excitation
-numCycles = numCyclesDes
-numExc = 3
+numCycles = 6 # Need 6!
+numChan = 2
 ampInit = 1
-ampFinal = ampInit
-freqMinDes_rps = freqMinDes_hz * hz2rps * np.ones(numExc)
-freqMaxDes_rps = freqMaxDes_hz * hz2rps *  np.ones(numExc)
+ampFinal = 1
+freqMinDes_rps = freqMinDes_hz * hz2rps * np.ones(numChan)
+freqMaxDes_rps = 10.3 * hz2rps *  np.ones(numChan)
 freqStepDes_rps = (freqStepDes_hz) * hz2rps
 methodSW = 'zip' # "zippered" component distribution
 
@@ -164,42 +127,52 @@ freqChan_hz = freqChan_rps * rps2hz
 
 
 #%%
-N = len(time_s)
+N = 2**8
 
 fBin = np.linspace(0, 10, num = N)
 
-D = Dirichlet(fBin, N)
+D = FreqTrans.Dirichlet(fBin, N)
 Dmag = np.abs(D)
 Dmax = np.nanmax(Dmag)
 
-Dapprox_mag = DirichletApprox(fBin) * N
+Dapprox_mag = FreqTrans.DirichletApprox(fBin)
+Dapprox_dB = mag2db( Dapprox_mag )
 
 
-B = Bartlett(fBin, N)
+B = FreqTrans.Bartlett(fBin, N)
 Bmag = np.abs(B)
 Bmax = np.nanmax(Bmag)
 
-Bapprox_mag = BartlettApprox(fBin) * N
+Bapprox_mag = FreqTrans.BartlettApprox(fBin)
+Bapprox_dB = mag2db( Bapprox_mag )
 
+
+H = FreqTrans.Hann(fBin, N)
+Hmag = np.abs(H)
+Hmax = np.nanmax(Hmag)
+Hnorm_mag = Hmag / Hmax
+Hnorm_dH = mag2db(Hnorm_mag)
+
+Happrox_mag = FreqTrans.HannApprox(fBin)
+Happrox_dH = mag2db( Happrox_mag )
 
 fig = 1
-fig = FreqTrans.PlotGainType(fBin, Dmag / Dmax, None, None, None, fig = fig, dB = True, linestyle='-', color='b', label = 'Dirichlet Function')
-fig = FreqTrans.PlotGainType(fBin, Dapprox_mag / Dmax, None, None, None, fig = fig, dB = True, linestyle='--', color='b', label = 'Dirichlet Approximation')
-fig = FreqTrans.PlotGainType(fBin, Bmag / Bmax, None, None, None, fig = fig, dB = True, linestyle='-', color='r', label = 'Bartlett Function')
-fig = FreqTrans.PlotGainType(fBin, Bapprox_mag / Bmax, None, None, None, fig = fig, dB = True, linestyle='--', color='r', label = 'Bartlett Approximation')
+fig = FreqTrans.PlotGainType(fBin, Dnorm_mag, None, None, None, fig = fig, dB = True, linestyle='-', color='b', label = 'Dirichlet Function')
+fig = FreqTrans.PlotGainType(fBin, Dapprox_mag, None, None, None, fig = fig, dB = True, linestyle=':', color='b', label = 'Dirichlet Approximation')
+fig = FreqTrans.PlotGainType(fBin, Bnorm_mag, None, None, None, fig = fig, dB = True, linestyle='-', color='g', label = 'Bartlett Function')
+fig = FreqTrans.PlotGainType(fBin, Bapprox_mag, None, None, None, fig = fig, dB = True, linestyle=':', color='g', label = 'Bartlett Approximation')
+fig = FreqTrans.PlotGainType(fBin, Hnorm_mag, None, None, None, fig = fig, dB = True, linestyle='-', color='r', label = 'Hann Function')
+fig = FreqTrans.PlotGainType(fBin, Happrox_mag, None, None, None, fig = fig, dB = True, linestyle=':', color='r', label = 'Hann Approximation')
 
 ax = fig.get_axes()
+
 ax[0].set_xscale('linear')
 ax[0].set_xlim(left = 0.0, right = 10)
-ax[0].set_xlabel('Frequency Bin')
-ax[0].set_ylim(bottom = -60, top = 10)
+ax[0].set_xlabel('Normalized Bin')
+ax[0].set_ylim(bottom = -70, top = 10)
 ax[0].set_ylabel('Normalized Power Magnitude [dB]')
 ax[0].grid(True)
 ax[0].legend()
-
-fig.set_size_inches([6.4,3.6])
-if False:
-    FreqTrans.PrintPrettyFig(fig, 'WindowFunc.pgf')
 
 
 #%% Validation with Spectrum
@@ -209,7 +182,7 @@ if winName == 'Dirichlet':
     optTemp.winType = ('tukey', 0.0)
 if winName == 'Bartlett':
     optTemp.winType = 'bartlett'
-    
+
 optTemp.freq_rps = freqChan_rps
 optTemp.freqInterp = freqExc_rps
 
@@ -220,7 +193,7 @@ if winName == 'Dirichlet':
     optTempN.winType = ('tukey', 0.0)
 if winName == 'Bartlett':
     optTempN.winType = 'bartlett'
-    
+
 optTempN.freq_rps = np.atleast_2d(freqGap_rps)
 
 # FRF Estimate
@@ -233,22 +206,27 @@ numSeg = int(lenX)
 
 
 t_s = np.zeros(numSeg)
-PwwList = np.zeros((numSeg, numExc, lenFreq))
-PwwNList = np.zeros((numSeg, lenFreqN))
+PwwList = np.zeros((numSeg, numChan, lenFreq))
+PwwNList = np.zeros((numSeg, numChan, lenFreqN))
 for iSeg in range(0, numSeg):
     iEnd = iSeg * stride
     print ( 100 * iSeg / numSeg )
     _, _, Pww = FreqTrans.Spectrum(exc[:, 0:iEnd+1], optTemp)
-    _, _, PwwN = FreqTrans.Spectrum(exc[0, 0:iEnd+1], optTempN)
-    
+    _, _, PwwN = FreqTrans.Spectrum(exc[:, 0:iEnd+1], optTempN)
+
     t_s[iSeg] = time_s[iEnd+1]
     PwwList[iSeg, ] = Pww
     PwwNList[iSeg, ] = PwwN
 
 
 #%% Plot
+N = len(time_s)
+
 #PwwList[:,] = np.nan
 #PwwNList[:,] = np.nan
+
+PwwListMag = np.abs(PwwList[:,0,:])
+PwwNListMag = np.abs(PwwNList[:,0,:])
 
 axisSel = -1
 PwwListMag = np.abs(PwwList)
@@ -265,13 +243,20 @@ N = T / dt
 
 freqStep_rps = freqExc_rps[1] - freqExc_rps[0]
 freqStep_hz = freqStep_rps * rps2hz
+freqMinDes_rps = freqMinDes_hz * hz2rps
+tBinWidth = FreqTrans.FreqStep2TimeBin(freqStepDes_rps)
 
-#tBinLen = 4 * pi / freqStep_rps
-tBinLen = 2 / freqStep_hz
+numCycles / freqMinDes_hz
+tBinD = np.linspace(0, time_s[-1] / tBinWidth, 80)
+timeD_s = tBinWidth * tBinD
 
 tBin = np.linspace(0, time_s[-1] / tBinLen, 80)
 timeBin_s = tBinLen * tBin
 
+D = FreqTrans.Dirichlet(tBinD, N+1)
+Dmag = np.abs(D)
+Dmax = np.nanmax(Dmag)
+Dnorm_mag = Dmag / Dmax
 
 #%% Excitation Power
 PexcSpec = 0.5 * (ampExcit_nd**2).sum()
@@ -279,7 +264,7 @@ PexcPsd = PexcSpec * N / freqRate_hz # Convert Total Spectrum Power to Density
 PparsevalSpec = (1/N) * ((np.abs(exc)**2).sum(axis = -1)).sum()
 PparsevalPsd = PparsevalSpec * N / freqRate_hz # Convert Total Spectrum Power to Density
 
-if winName == 'Dirichlet':   
+if winName == 'Dirichlet':
     Pexc = PexcPsd * (timeBin_s / timeBin_s[-1])
 #    Pexc = PparsevalPsd * (timeBin_s / timeBin_s[-1])
 if winName == 'Bartlett':
@@ -291,43 +276,44 @@ if True:
     fig = FreqTrans.PlotGainTemporal(t_s, PwwListSum, None, None, PwwListStd, fig = fig, dB = False, linestyle='-', color='k', label = 'Excitation Estimate at Input')
     fig = FreqTrans.PlotGainTemporal(timeBin_s, Pexc, None, None, None, fig = fig, dB = False, linestyle=':', color='r', marker = '', label = 'Excitation Estimate at Input')
 #    fig = FreqTrans.PlotGainTemporal(timeBin_s[-1], PparsevalPsd, None, None, None, fig = fig, dB = False, linestyle='-', color='b', marker = '*', label = 'Excitation Estimate at Input')
-    
+
     ax = fig.get_axes()
     ax[0].set_ylabel(str.replace(ax[0].get_ylabel(), 'Gain', 'Power Spectral Density'))
-    
 
-#%% Null Power (from Leakage)
-P2Leak = 2 * PexcSpec ## XXX Why 2??
+
+tBinDapprox = np.linspace(0.0, time_s[-1] / tBinWidth, 80)
+timeDapprox_s = tBinWidth * tBinDapprox
+Dapprox_mag = 10**-0.5 * 1/tBinDapprox
 
 # Dirichlet
 D = Dirichlet(tBin, N+1)
 Dmag = np.abs(D)
 Pnorm_Dirichlet_mag = 2**1 * Dmag / N * P2Leak # Normalized, 2**1 is correct, want 2x spacing
 
-Dapprox_mag = DirichletApprox(tBin)
-Pnorm_DirichletApprox_mag = 2**1 * Dapprox_mag * P2Leak # 2**1 is correct, want 2x spacing
+tBinB = np.linspace(0, numCycles, 80)
+timeB_s = tBinWidth * tBinB
 
-# Bartlett
-B = Bartlett(tBin, N+1)
+B = FreqTrans.Bartlett(tBinB, N+1)
 Bmag = np.abs(B)
 Pnorm_Bartlett_mag = 2**2 * Bmag / N * P2Leak # Normalized, 2**2 is correct, want 2x spacing
 
-Bapprox_mag = BartlettApprox(tBin)
-Pnorm_BartlettApprox_mag = Bapprox_mag * 2**2 * P2Leak # 2**2 is correct, want 2x spacing
+tBinBapprox = np.linspace(0.0, time_s[-1] / tBinWidth, 80)
+timeBapprox_s = tBinWidth * tBinBapprox
+Bapprox_mag = 10**-(2/5) * (1/tBinBapprox)**2
 
 
 if True:
     fig = 3
     fig = FreqTrans.PlotGainTemporal(t_s, PwwNListSum, None, None, None, fig = fig, dB = False, linestyle='-', color='b', label = 'Null Estimate at Input')
-    
+
     if winName == 'Dirichlet':
         fig = FreqTrans.PlotGainTemporal(timeBin_s, Pnorm_Dirichlet_mag, None, None, None, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='r', label = 'Dirichlet Function')
         fig = FreqTrans.PlotGainTemporal(timeBin_s, Pnorm_DirichletApprox_mag, None, None, None, fig = fig, dB = False, UncSide = 'Max', linestyle=':', color='r', label = 'Dirichlet Approximation')
-    
+
     if winName == 'Bartlett':
         fig = FreqTrans.PlotGainTemporal(timeBin_s, Pnorm_Bartlett_mag, None, None, None, fig = fig, dB = False, UncSide = 'Max', linestyle='-', color='r', label = 'Bartlett Function')
         fig = FreqTrans.PlotGainTemporal(timeBin_s, Pnorm_BartlettApprox_mag, None, None, None, fig = fig, dB = False, UncSide = 'Max', linestyle=':', color='r', label = 'Bartlett Approximation')
-    
+
     ax = fig.get_axes()
     #ax[0].set_xlim(0, time_s[-1])
     #ax[0].set_ylim(-40, 0)
@@ -365,17 +351,16 @@ t_nd = (timeBin_s / timeBin_s[-1])
 #PleakagePredict_mag = (peakFactor.mean() / pfGuess) * PleakageDesire_mag / t_nd**2 # Factor of 0.5 because null spacing is 1/2 that of excitation
 PleakagePredict_mag = PleakageDesire_mag * np.ones_like(timeBin_s)
 
-fig = FreqTrans.PlotGainTemporal(timeBin_s, PleakagePredict_mag, None, None, None, fig = fig, dB = True, UncSide = 'Max', linestyle=':', color='g', label = 'Target Theshold')
-#fig = FreqTrans.PlotGainTemporal(timeBin_s[-1], PleakageDesire_mag, None, None, None, fig = fig, dB = False, UncSide = 'Max', linestyle=':', color='g', marker = 'o', label = 'Target Theshold')
+fig = 4
+fig = FreqTrans.PlotGainTemporal(t_s, uENRMean, None, None, uENRMax, fig = fig, dB = True, UncSide = 'Max', linestyle='-', color='k', label = 'Leakage Estimate')
+fig = FreqTrans.PlotGainTemporal(timeD_s, dENR, None, None, None, fig = fig, dB = True, UncSide = 'Max', linestyle='-', color='r', label = 'Dirichlet Function')
+fig = FreqTrans.PlotGainTemporal(timeDapprox_s, dENRapprox, None, None, None, fig = fig, dB = True, UncSide = 'Max', linestyle=':', color='r', label = 'Dirichlet Approximation')
 
 ax = fig.get_axes()
-#ax[0].set_xscale('log')
-#ax[0].set_yscale('log')
-#ax[0].set_xlim(left = 1)
-#ax[0].set_xlim(left = 0)
+# ax[0].set_xlim(0, time_s[-1])
+ax[0].set_xlim(right = 3 * tBinWidth)
 ax[0].set_ylim(bottom = -60)
-#ax[0].set_ylim(0, 2)
-ax[0].set_ylabel(str.replace(ax[0].get_ylabel(), 'Gain', 'Null / Excitation [mag]'))
+ax[0].set_ylabel(str.replace(ax[0].get_ylabel(), 'Gain [dB]', 'Null / Excitation [mag]'))
 
 ax[0].legend()
 FreqTrans.FixLegend(ax[0])
@@ -385,25 +370,64 @@ if False:
 
 
 #%%
-if False:
-    #%%
-    bD = np.linspace(0, 5, num = 80)
-    Da_mag = DirichletApprox(bD)
-    Da_dB = mag2db( Da_mag )
-    
-    bB = np.linspace(0, 10, num = 80)
-    Ba_mag = BartlettApprox(bB)
-    Ba_dB = mag2db( Ba_mag )
-    
-    plt.figure()
-    plt.semilogx(bD, Da_dB, label = 'Dirichlet Approximation')
-    plt.semilogx(bB, Ba_dB, label = 'Bartlett Approximation')
-    plt.semilogx(bB, mag2db(PleakagePredict_mag), label = 'Target')
-    
-    
-    plt.semilogx(fbinSel, mag2db(PleakageDesire_mag), '*')
-    plt.grid(True)
-    plt.xlabel('Normalized Bin')
-    plt.ylabel('Null / Excitation [mag]')
-    plt.legend()
 
+fBin = np.linspace(0, 5, num = 300)
+
+freqExc_rps / freqExc_rps[0]
+freqExc_rps / freqRate_rps
+
+freqStep_rps / freqExc_rps[0]
+freqStep_rps / freqRate_rps
+
+Pww = PwwListMean.sum()
+
+# Pexc = Pww * t / T
+# Pexc = uPeak**2 *
+
+PwwListMag = np.abs(PwwList[:,0,:])
+PwwNListMag = np.abs(PwwNList[:,0,:])
+
+PwwListMean = np.sum(PwwListMag, axis=-1)
+
+
+Dapprox_mag = FreqTrans.DirichletApprox(fBin)
+Dapprox_dB = mag2db( Dapprox_mag )
+
+Bapprox_mag = FreqTrans.BartlettApprox(fBin)
+Bapprox_dB = mag2db( Bapprox_mag )
+
+Happrox_mag = FreqTrans.HannApprox(fBin)
+Happrox_dB = mag2db( Happrox_mag )
+
+
+DapproxBest_mag = FreqTrans.DirichletApprox(fBin)
+BapproxBest_mag = FreqTrans.BartlettApprox(fBin)
+HapproxBest_mag = FreqTrans.HannApprox(fBin)
+
+WapproxBest_mag = np.nanmin(np.array([DapproxBest_mag,BapproxBest_mag,HapproxBest_mag]), axis=0)
+WapproxBest_dB = mag2db( WapproxBest_mag )
+
+fBinInt = np.arange(1, 5)
+
+DBest_mag = np.abs(FreqTrans.Dirichlet(fBinInt, len(fBinInt)))
+BBest_mag = np.abs(FreqTrans.Bartlett(fBinInt, len(fBinInt)))
+HBest_mag = np.abs(FreqTrans.Hann(fBinInt, len(fBinInt)))
+
+WBest_mag = np.nanmin(np.array([DBest_mag,BBest_mag,HBest_mag]), axis=0)
+WBest_dB = mag2db( WBest_mag )
+
+
+fig = plt.figure()
+plt.semilogx(fBin, Dapprox_dB, color = 'b', label = 'Dirichlet Approximation')
+plt.semilogx(fBin, Bapprox_dB, color = 'g', label = 'Bartlett Approximation')
+plt.semilogx(fBin, Happrox_dB, color = 'r', label = 'Hann Approximation')
+plt.semilogx(fBin, WapproxBest_dB, ':k', label = 'Best Choice')
+# plt.semilogx(fBinInt, WBest_dB, '*k', label = 'Best Choice')
+plt.grid(True)
+plt.xlabel('Normalized Bin')
+plt.ylabel('Null / Excitation [dB]')
+plt.legend()
+
+fig.set_size_inches([6.4,3.6])
+if False:
+    FreqTrans.PrintPrettyFig(fig, 'WindFuncBest.pgf')
